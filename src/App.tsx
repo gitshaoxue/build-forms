@@ -36,7 +36,13 @@ import {
   Clock,
   CheckCircle2,
   RefreshCw,
-  FileDown
+  FileDown,
+  Search,
+  Filter,
+  ArrowUpDown,
+  FileSpreadsheet,
+  Download,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -97,6 +103,15 @@ interface SavedForm {
   designer: string;
 }
 
+interface Submission {
+  id: string;
+  submitter: string;
+  submitTime: string;
+  status: '处理中' | '已通过' | '已驳回' | '草稿';
+  data: Record<string, any>;
+  approvalHistory: { step: string, actor: string, action: string, time: string }[];
+}
+
 const mockProjects: Project[] = [
   { id: '1', name: 'Onboarding Schema', updatedAt: '2h ago', status: 'Draft', responses: 0 },
   { id: '2', name: 'Customer Feedback Q3', updatedAt: '1d ago', status: 'Published', responses: 1240 },
@@ -121,7 +136,7 @@ const ArchitectApp: React.FC = () => {
     { id: '2', type: 'date', label: 'Date of Birth', required: false },
   ]);
   const [selectedFieldId, setSelectedFieldId] = React.useState<string | null>(null);
-  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'permissions' | 'preview' | 'simulate'>('design');
+  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'permissions' | 'simulate' | 'data' | 'preview'>('design');
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([
     { id: 'node-1', type: 'start', label: 'Payment Initiation', description: 'Triggered upon form submission', targets: ['node-2'] },
     { 
@@ -158,6 +173,90 @@ const ArchitectApp: React.FC = () => {
   ]);
   const [simulationData, setSimulationData] = React.useState<Record<string, any>>({ amount: 6000 });
   const [isSchemaVisible, setIsSchemaVisible] = React.useState(false);
+
+  const [submissions, setSubmissions] = React.useState<Submission[]>([
+    {
+      id: 'SUB-20240320-01',
+      submitter: '张三',
+      submitTime: '2024-03-20 14:30:25',
+      status: '已通过',
+      data: {
+        fullname: '张三',
+        phone: '13812345678',
+        idcard: '110101199001011234',
+        amount: 8500,
+        dept: '研发部'
+      },
+      approvalHistory: [
+        { step: '部门经理审核', actor: '李四', action: '通过', time: '2024-03-20 15:00:00' },
+        { step: 'CFO终审', actor: '王五', action: '通过', time: '2024-03-20 16:30:00' }
+      ]
+    },
+    {
+      id: 'SUB-20240320-02',
+      submitter: '李小龙',
+      submitTime: '2024-03-20 11:15:10',
+      status: '处理中',
+      data: {
+        fullname: '李小龙',
+        phone: '13988889999',
+        idcard: '440106198808088888',
+        amount: 3200,
+        dept: '市场部'
+      },
+      approvalHistory: [
+        { step: '部门经理审核', actor: '赵六', action: '处理中', time: '2024-03-20 12:00:00' }
+      ]
+    },
+    {
+      id: 'SUB-20240319-03',
+      submitter: '王美丽',
+      submitTime: '2024-03-19 09:45:00',
+      status: '已驳回',
+      data: {
+        fullname: '王美丽',
+        phone: '13566667777',
+        idcard: '310115199512127777',
+        amount: 12000,
+        dept: '行政部'
+      },
+      approvalHistory: [
+        { step: '部门经理审核', actor: '孙二娘', action: '驳回', time: '2024-03-19 10:30:00' }
+      ]
+    },
+    {
+      id: 'SUB-20240318-04',
+      submitter: '陈二牛',
+      submitTime: '2024-03-18 16:20:00',
+      status: '已通过',
+      data: {
+        fullname: '陈二牛',
+        phone: '13122223333',
+        idcard: '220102198505053333',
+        amount: 450,
+        dept: '后勤部'
+      },
+      approvalHistory: [
+        { step: '部门经理审核', actor: '刘大头', action: '通过', time: '2024-03-18 17:00:00' }
+      ]
+    }
+  ]);
+
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [filterStatus, setFilterStatus] = React.useState<string>('All');
+  const [selectedSubmissions, setSelectedSubmissions] = React.useState<string[]>([]);
+  const [isDataMasked, setIsDataMasked] = React.useState(true);
+  const [viewingSubmission, setViewingSubmission] = React.useState<Submission | null>(null);
+
+  const maskData = (val: any, label: string) => {
+    if (!isDataMasked || !val) return val;
+    const str = String(val);
+    const l = label.toLowerCase();
+    if (l.includes('手机') || l.includes('phone')) return str.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
+    if (l.includes('身') || l.includes('idcard')) return str.replace(/^(.{6})(.*)(.{4})$/, (_, p1, p2, p3) => p1 + '*'.repeat(p2.length) + p3);
+    if (l.includes('名') || l.includes('name')) return str.length > 1 ? '*' + str.substring(1) : '*';
+    return str;
+  };
   const [notifications, setNotifications] = React.useState<{id: number, text: string}[]>([]);
   const [selectedProjectId, setSelectedProjectId] = React.useState<string>(mockProjects[1].id);
   const [projectDetailsId, setProjectDetailsId] = React.useState<string | null>(null);
@@ -807,6 +906,7 @@ const ArchitectApp: React.FC = () => {
                 { id: 'workflow', label: '流程', icon: Workflow },
                 { id: 'permissions', label: '权限', icon: ShieldCheck },
                 { id: 'simulate', label: '仿真', icon: Activity },
+                { id: 'data', label: '数据', icon: Database },
               ].map(tab => (
                 <button 
                   key={tab.id}
@@ -863,12 +963,59 @@ const ArchitectApp: React.FC = () => {
           <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center">
               <span className="font-bold tracking-tight text-sm">
-                {editorTab === 'workflow' ? '流程组件' : editorTab === 'permissions' ? '权限角色' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'preview' ? '预览模式' : '字段库'}
+                {editorTab === 'workflow' ? '流程组件' : editorTab === 'permissions' ? '权限角色' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '字段库'}
               </span>
             </div>
           
           <div className="p-6 flex-1 overflow-y-auto space-y-6">
-            {editorTab === 'workflow' ? (
+            {editorTab === 'data' ? (
+              <div className="space-y-6">
+                <div className="bg-primary/5 rounded-2xl p-6 border border-primary/10">
+                   <div className="flex items-center gap-2 mb-3">
+                     <FileSearch className="w-4 h-4 text-primary" />
+                     <span className="text-xs font-bold text-primary">数据摘要</span>
+                   </div>
+                   <div className="space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-outline uppercase">总数据量</span>
+                        <span className="text-on-surface">{submissions.length} 条</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-outline uppercase">今日新增</span>
+                        <span className="text-on-surface">2 条</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-outline uppercase">处理中</span>
+                        <span className="text-on-surface">{submissions.filter(s => s.status === '处理中').length} 条</span>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">视图配置</h3>
+                  <div className="space-y-2">
+                    <button className="w-full flex items-center justify-between p-3 rounded-xl border border-primary bg-primary/5 transition-all text-xs font-bold">
+                      <span>默认视图</span>
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                    </button>
+                    <button className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant hover:border-outline transition-all text-xs font-bold text-on-surface-variant">
+                      <span>待我审批</span>
+                      <span className="px-1.5 py-0.5 bg-error text-white text-[8px] rounded-full">12</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-outline-variant">
+                   <div className="flex items-center justify-between">
+                     <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">导出队列</h3>
+                     <RefreshCw className="w-3 h-3 text-outline cursor-pointer hover:rotate-180 transition-all duration-500" />
+                   </div>
+                   <div className="p-3 bg-surface rounded-xl border border-outline-variant border-dashed">
+                      <p className="text-[10px] text-outline font-medium text-center">暂无进行中的导出任务</p>
+                   </div>
+                </div>
+              </div>
+            ) : editorTab === 'workflow' ? (
               <div>
                 <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Workflow Steps</h3>
                 <div className="grid grid-cols-1 gap-2">
@@ -1438,6 +1585,215 @@ const ArchitectApp: React.FC = () => {
                 </div>
               )}
 
+              {editorTab === 'data' && (
+                <div className="max-w-7xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div>
+                        <h2 className="text-2xl font-extrabold tracking-tight">数据管理</h2>
+                        <p className="text-sm text-on-surface-variant font-medium">查看并管理表单提交的所有实例记录</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                         <div className="flex items-center gap-2 p-1 bg-surface-container rounded-xl border border-outline-variant">
+                             <button 
+                               onClick={() => setIsDataMasked(true)}
+                               className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${isDataMasked ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                             >
+                               <ShieldCheck className="w-3 h-3" /> 脱敏模式
+                             </button>
+                             <button 
+                               onClick={() => setIsDataMasked(false)}
+                               className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${!isDataMasked ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                             >
+                               <Eye className="w-3 h-3" /> 原始模式
+                             </button>
+                         </div>
+                         <button 
+                            onClick={() => showNotification('正在生成导出文件...')}
+                            className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-xl font-bold text-xs transition-all hover:shadow-lg shadow-primary/20"
+                         >
+                            <Download className="w-4 h-4" /> 导出数据
+                         </button>
+                      </div>
+                   </div>
+
+                   {/* Toolbar */}
+                   <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl border border-outline-variant shadow-sm">
+                      <div className="flex flex-1 items-center gap-4 w-full sm:w-auto">
+                         <div className="relative flex-1 max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+                            <input 
+                               type="text"
+                               placeholder="搜索提交人或关键词..."
+                               value={searchQuery}
+                               onChange={(e) => setSearchQuery(e.target.value)}
+                               className="w-full pl-10 pr-4 py-2 bg-surface border border-outline-variant rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                         </div>
+                         <div className="flex items-center gap-2">
+                             <Filter className="w-4 h-4 text-outline" />
+                             <select 
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                                className="bg-transparent text-xs font-bold focus:outline-none cursor-pointer border border-outline-variant px-3 py-2 rounded-xl"
+                             >
+                                <option value="All">所有状态</option>
+                                <option value="已通过">已通过</option>
+                                <option value="处理中">处理中</option>
+                                <option value="已驳回">已驳回</option>
+                                <option value="草稿">草稿</option>
+                             </select>
+                         </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                         {selectedSubmissions.length > 0 ? (
+                           <>
+                             <span className="text-xs font-bold text-primary">已选择 {selectedSubmissions.length} 项</span>
+                             <button 
+                                onClick={() => {
+                                  if (confirm('确认批量删除选中的记录吗？此操作不可逆。')) {
+                                    setSubmissions(prev => prev.filter(s => !selectedSubmissions.includes(s.id)));
+                                    setSelectedSubmissions([]);
+                                    showNotification('批量删除成功');
+                                  }
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 bg-error/10 text-error rounded-xl font-bold text-xs hover:bg-error/20 transition-all border border-error/20"
+                             >
+                                <Trash2 className="w-4 h-4" /> 批量删除
+                             </button>
+                           </>
+                         ) : (
+                           <div className="text-xs text-outline font-medium">选择多项可进行批量操作</div>
+                         )}
+                      </div>
+                   </div>
+
+                   {/* Table */}
+                   <div className="bg-white rounded-3xl border border-outline-variant shadow-sm overflow-hidden">
+                      <table className="w-full text-left border-collapse">
+                         <thead>
+                            <tr className="bg-surface border-b border-outline-variant">
+                               <th className="p-4 px-6 w-12">
+                                  <input 
+                                     type="checkbox" 
+                                     className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                     checked={selectedSubmissions.length === submissions.length && submissions.length > 0}
+                                     onChange={(e) => {
+                                        if (e.target.checked) setSelectedSubmissions(submissions.map(s => s.id));
+                                        else setSelectedSubmissions([]);
+                                     }}
+                                  />
+                               </th>
+                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">提交 ID</th>
+                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">提交人</th>
+                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">
+                                  <div className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors">
+                                    提交时间 <ArrowUpDown className="w-3 h-3" />
+                                  </div>
+                               </th>
+                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">关键详情</th>
+                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none text-center">状态</th>
+                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none text-right">操作</th>
+                            </tr>
+                         </thead>
+                         <tbody>
+                            {submissions
+                              .filter(s => 
+                                (filterStatus === 'All' || s.status === filterStatus) &&
+                                (s.submitter.includes(searchQuery) || s.id.includes(searchQuery))
+                              )
+                              .sort((a, b) => new Date(b.submitTime).getTime() - new Date(a.submitTime).getTime())
+                              .map((sub, idx) => (
+                               <tr key={sub.id} className="border-b border-outline-variant hover:bg-surface/50 transition-colors group">
+                                  <td className="p-4 px-6">
+                                     <input 
+                                        type="checkbox" 
+                                        className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                        checked={selectedSubmissions.includes(sub.id)}
+                                        onChange={(e) => {
+                                           if (e.target.checked) setSelectedSubmissions([...selectedSubmissions, sub.id]);
+                                           else setSelectedSubmissions(selectedSubmissions.filter(id => id !== sub.id));
+                                        }}
+                                     />
+                                  </td>
+                                  <td className="p-4">
+                                     <span className="text-xs font-mono font-bold text-on-surface">{sub.id}</span>
+                                  </td>
+                                  <td className="p-4">
+                                     <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                                          {sub.submitter.charAt(0)}
+                                        </div>
+                                        <span className="text-xs font-bold text-on-surface">{maskData(sub.submitter, 'name')}</span>
+                                     </div>
+                                  </td>
+                                  <td className="p-4">
+                                     <span className="text-xs font-medium text-on-surface-variant flex items-center gap-1.5">
+                                        <Clock className="w-3 h-3" /> {sub.submitTime}
+                                     </span>
+                                  </td>
+                                  <td className="p-4">
+                                     <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-bold">金额: ¥{sub.data.amount?.toLocaleString()}</span>
+                                        <span className="text-[10px] text-outline font-bold uppercase tracking-tighter">部门: {sub.data.dept}</span>
+                                     </div>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${
+                                        sub.status === '已通过' ? 'bg-green-100 text-green-700' :
+                                        sub.status === '已驳回' ? 'bg-red-100 text-red-700' :
+                                        sub.status === '处理中' ? 'bg-blue-100 text-blue-700' :
+                                        'bg-surface-container text-on-surface-variant'
+                                     }`}>
+                                        {sub.status}
+                                     </span>
+                                  </td>
+                                  <td className="p-4 text-right">
+                                     <div className="flex items-center justify-end gap-2">
+                                        <button 
+                                          onClick={() => setViewingSubmission(sub)}
+                                          className="p-2 hover:bg-primary/10 text-primary rounded-lg transition-all"
+                                          title="查看详情"
+                                        >
+                                           <Eye className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                          className="p-2 hover:bg-error/10 text-error rounded-lg transition-all"
+                                          title="删除"
+                                          onClick={() => {
+                                            if (confirm('确认删除此条记录吗？')) {
+                                              setSubmissions(prev => prev.filter(s => s.id !== sub.id));
+                                              showNotification('记录已删除');
+                                            }
+                                          }}
+                                        >
+                                           <Trash2 className="w-4 h-4" />
+                                        </button>
+                                     </div>
+                                  </td>
+                               </tr>
+                            ))}
+                         </tbody>
+                      </table>
+                      {submissions.length === 0 && (
+                         <div className="p-20 text-center">
+                            <Database className="w-12 h-12 text-outline-variant mx-auto mb-4" />
+                            <h4 className="text-lg font-bold text-outline">暂无提交数据</h4>
+                            <p className="text-sm text-outline-variant">当前表单尚未产生任何实例记录</p>
+                         </div>
+                      )}
+                      
+                      <div className="p-4 px-6 bg-surface border-t border-outline-variant flex items-center justify-between">
+                         <div className="text-[10px] font-bold text-outline uppercase">显示 1 到 {submissions.length} 条，共 {submissions.length} 条记录</div>
+                         <div className="flex gap-2">
+                            <button className="p-2 rounded-lg border border-outline-variant bg-white disabled:opacity-50"><ChevronLeft className="w-4 h-4" /></button>
+                            <button className="px-3 py-1 rounded-lg border border-primary bg-primary/5 text-xs font-bold text-primary">1</button>
+                            <button className="p-2 rounded-lg border border-outline-variant bg-white disabled:opacity-50"><ChevronRight className="w-4 h-4" /></button>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+              )}
+
               {editorTab === 'preview' && (
                 <div className="max-w-2xl mx-auto">
                   <motion.div 
@@ -1744,6 +2100,129 @@ const ArchitectApp: React.FC = () => {
       </div>
 
       <AnimatePresence>
+        {isSchemaVisible && <JsonSchemaModal />}
+        {viewingSubmission && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-end bg-on-surface/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col"
+            >
+              <header className="p-6 border-b border-outline-variant flex items-center justify-between bg-white">
+                 <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setViewingSubmission(null)}
+                      className="p-2 hover:bg-surface rounded-xl transition-all"
+                    >
+                      <X className="w-5 h-5 text-on-surface" />
+                    </button>
+                    <div>
+                       <h3 className="text-lg font-bold tracking-tight">实例详情</h3>
+                       <p className="text-[10px] font-mono font-bold text-outline uppercase">{viewingSubmission.id}</p>
+                    </div>
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <button className="px-4 py-2 bg-surface border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container transition-all">
+                      打印归档
+                    </button>
+                    <button className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all">
+                      修订记录
+                    </button>
+                 </div>
+              </header>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-10 scrollbar-hide">
+                 <section className="space-y-4">
+                    <div className="text-[10px] font-bold text-outline uppercase tracking-widest border-b border-outline-variant pb-2">基本资料</div>
+                    <div className="grid grid-cols-2 gap-8">
+                       <div className="space-y-1">
+                          <div className="text-[10px] font-bold text-on-surface-variant uppercase">提交人</div>
+                          <div className="text-sm font-bold">{maskData(viewingSubmission.submitter, 'name')}</div>
+                       </div>
+                       <div className="space-y-1">
+                          <div className="text-[10px] font-bold text-on-surface-variant uppercase">提交时间</div>
+                          <div className="text-sm font-bold">{viewingSubmission.submitTime}</div>
+                       </div>
+                       <div className="space-y-1">
+                          <div className="text-[10px] font-bold text-on-surface-variant uppercase">当前状态</div>
+                          <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
+                             viewingSubmission.status === '已通过' ? 'bg-green-100 text-green-700' :
+                             viewingSubmission.status === '已驳回' ? 'bg-red-100 text-red-700' :
+                             viewingSubmission.status === '处理中' ? 'bg-blue-100 text-blue-700' :
+                             'bg-surface-container text-on-surface-variant'
+                          }`}>
+                             {viewingSubmission.status}
+                          </span>
+                       </div>
+                    </div>
+                 </section>
+
+                 <section className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-outline-variant pb-2">
+                      <div className="text-[10px] font-bold text-outline uppercase tracking-widest">业务字段快照</div>
+                      <div className={`flex items-center gap-2 px-2 py-0.5 rounded ${isDataMasked ? 'bg-primary/10 text-primary' : 'bg-surface-container text-outline'}`}>
+                        {isDataMasked ? <ShieldCheck className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        <span className="text-[8px] font-extrabold uppercase">{isDataMasked ? '已脱敏' : '明文展示'}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12 bg-surface/30 p-8 rounded-3xl border border-outline-variant">
+                       {Object.entries(viewingSubmission.data).map(([key, val]) => (
+                         <div key={key} className="space-y-1.5 p-3 rounded-xl hover:bg-white transition-all">
+                            <div className="text-[10px] font-bold text-outline uppercase tracking-tighter">{key}</div>
+                            <div className="text-xs font-extrabold text-on-surface">{maskData(val, key)}</div>
+                         </div>
+                       ))}
+                    </div>
+                 </section>
+
+                 <section className="space-y-4">
+                    <div className="text-[10px] font-bold text-outline uppercase tracking-widest border-b border-outline-variant pb-2">流转日志</div>
+                    <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-0.5 before:bg-outline-variant">
+                       {viewingSubmission.approvalHistory.map((step, i) => (
+                         <div key={i} className="flex gap-6 relative">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white ${
+                              step.action === '通过' ? 'bg-green-500' : 
+                              step.action === '驳回' ? 'bg-error' : 
+                              'bg-primary ring-4 ring-primary/10'
+                            }`}>
+                               {step.action === '通过' ? <CheckCircle2 className="w-3.5 h-3.5 text-white" /> : 
+                                step.action === '驳回' ? <X className="w-3.5 h-3.5 text-white" /> : 
+                                <Clock className="w-3.5 h-3.5 text-white" />}
+                            </div>
+                            <div className="flex-1">
+                               <div className="flex justify-between items-start mb-1">
+                                  <h5 className="text-xs font-extrabold tracking-tight">{step.step}</h5>
+                                  <span className="text-[9px] font-bold text-outline tabular-nums">{step.time}</span>
+                               </div>
+                               <p className="text-[10px] font-medium text-on-surface-variant mb-3">
+                                 操作人: <span className="text-on-surface font-bold">{step.actor}</span> • 结论: 
+                                 <span className={`ml-1 font-extrabold ${step.action === '通过' ? 'text-green-600' : step.action === '驳回' ? 'text-error' : 'text-primary'}`}>
+                                   {step.action}
+                                 </span>
+                               </p>
+                               <div className="p-4 bg-surface rounded-2xl border border-outline-variant text-[10px] font-medium text-on-surface-variant italic leading-relaxed border-l-4 border-l-primary/20">
+                                 "{step.action === '通过' ? '经核实，各项业务指标均符合本阶段审批要求，予以流转至下一环节。' : step.action === '驳回' ? '提交的信息不符合规范，请核对后再试。' : '流程自动执行中，系统正在执行校验逻辑...'}"
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </section>
+              </div>
+              
+              <footer className="p-6 border-t border-outline-variant bg-surface flex justify-end gap-3">
+                 <button 
+                   onClick={() => setViewingSubmission(null)}
+                   className="px-8 py-3 bg-on-surface text-white rounded-xl text-xs font-bold hover:shadow-2xl transition-all active:scale-95"
+                 >
+                   完成关闭
+                 </button>
+              </footer>
+            </motion.div>
+          </div>
+        )}
         {isSchemaVisible && <JsonSchemaModal />}
       </AnimatePresence>
     </div>
