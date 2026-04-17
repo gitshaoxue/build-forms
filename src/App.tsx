@@ -32,7 +32,11 @@ import {
   MoreVertical,
   Briefcase,
   ChevronDown,
-  Mail
+  Mail,
+  Clock,
+  CheckCircle2,
+  RefreshCw,
+  FileDown
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -49,13 +53,31 @@ interface FormField {
 
 interface WorkflowNode {
   id: string;
-  type: 'start' | 'approval' | 'notification' | 'condition' | 'end';
+  type: 'start' | 'approval' | 'notification' | 'condition' | 'cc' | 'end';
   label: string;
   description?: string;
   config?: {
-    assignee?: string;
+    assigneeType?: 'user' | 'role' | 'dept' | 'initiator';
+    assigneeValue?: string;
+    approvalType?: 'OR' | 'AND'; // 或签 / 会签
+    timeout?: number; // hours
+    autoProcess?: 'approve' | 'transfer';
+    actions?: string[]; // ['approve', 'reject', 'transfer', 'add_signer']
+    expression?: string; // for condition
     template?: string;
+    defaultBranch?: string; // id of target node
   };
+  targets: string[]; // ids of next nodes
+}
+
+interface WorkflowInstance {
+  id: string;
+  projectId: string;
+  initiator: string;
+  startTime: string;
+  status: 'Pending' | 'Completed' | 'Rejected';
+  currentStep: string;
+  history: { step: string, actor: string, action: string, time: string }[];
 }
 
 interface Project {
@@ -81,16 +103,55 @@ const ArchitectApp: React.FC = () => {
     { id: '2', type: 'date', label: 'Date of Birth', required: false },
   ]);
   const [selectedFieldId, setSelectedFieldId] = React.useState<string | null>(null);
-  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'preview'>('design');
+  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'preview' | 'simulate'>('design');
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([
-    { id: 'node-1', type: 'start', label: 'Form Submitted', description: 'Triggered when a user completes the payment request' },
-    { id: 'node-2', type: 'approval', label: 'Manager Approval', description: 'Requires direct supervisor signature', config: { assignee: 'Manager' } },
-    { id: 'node-3', type: 'approval', label: 'Finance Review', description: 'Verification by accounting team', config: { assignee: 'Finance' } },
-    { id: 'node-4', type: 'end', label: 'Payment Released', description: 'Final process completion' },
+    { id: 'node-1', type: 'start', label: 'Payment Initiation', description: 'Triggered upon form submission', targets: ['node-2'] },
+    { 
+      id: 'node-2', 
+      type: 'approval', 
+      label: 'Manager Approval', 
+      description: 'Department head review', 
+      targets: ['node-5'],
+      config: { assigneeType: 'role', assigneeValue: 'Dept Manager', approvalType: 'OR', actions: ['approve', 'reject', 'transfer'] } 
+    },
+    { 
+      id: 'node-5', 
+      type: 'condition', 
+      label: 'Amount Threshold', 
+      description: 'Logic branch based on payment total', 
+      targets: ['node-3', 'node-4'],
+      config: { expression: 'amount > 5000', defaultBranch: 'node-4' }
+    },
+    { 
+      id: 'node-3', 
+      type: 'approval', 
+      label: 'CFO Final Sign-off', 
+      description: 'Required for high-value requests', 
+      targets: ['node-4'],
+      config: { assigneeType: 'role', assigneeValue: 'CFO', approvalType: 'AND' } 
+    },
+    { id: 'node-4', type: 'end', label: 'Processing Complete', description: 'Data synced to ERP', targets: [] },
   ]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+  const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
+  const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([
+    { id: 'wf-1', projectId: '1', initiator: 'Chen', startTime: '1h ago', status: 'Pending', currentStep: 'Manager Approval', history: [] },
+    { id: 'wf-2', projectId: '1', initiator: 'Sarah', startTime: '5h ago', status: 'Completed', currentStep: 'End', history: [{ step: 'Start', actor: 'Sarah', action: 'Submit', time: '5h ago' }] },
+  ]);
+  const [simulationData, setSimulationData] = React.useState<Record<string, any>>({ amount: 6000 });
   const [isSchemaVisible, setIsSchemaVisible] = React.useState(false);
   const [notifications, setNotifications] = React.useState<{id: number, text: string}[]>([]);
+
+  const teamMembers = [
+    { id: '1', name: 'You (Architect)', role: 'Admin', dept: 'Engineering' },
+    { id: '2', name: 'Sarah Chen', role: 'Editor', dept: 'Product' },
+    { id: '3', name: 'Michael Beck', role: 'Viewer', dept: 'Design' },
+    { id: '4', name: 'Finance Lead', role: 'Manager', dept: 'Finance' },
+    { id: '5', name: 'HR Admin', role: 'Admin', dept: 'HR' },
+  ];
+
+  const allRoles = Array.from(new Set(teamMembers.map(m => m.role)));
+  const allDepts = Array.from(new Set(teamMembers.map(m => m.dept)));
 
   const showNotification = (text: string) => {
     const id = Date.now();
@@ -211,9 +272,22 @@ const ArchitectApp: React.FC = () => {
       id: `node-${Math.random().toString(36).substr(2, 9)}`,
       type,
       label: `New ${type} step`,
-      description: 'Configure this step in the properties panel'
+      description: 'Configure this step in the properties panel',
+      targets: [],
+      config: type === 'approval' ? { 
+        assigneeType: 'initiator', 
+        approvalType: 'OR', 
+        timeout: 24,
+        actions: ['approve', 'reject', 'transfer'] 
+      } : (type === 'condition' ? { expression: 'true' } : {})
     };
-    setWorkflowNodes([...workflowNodes, newNode]);
+    
+    // Auto-connect if there's a selected node
+    if (selectedNodeId) {
+      setWorkflowNodes(nodes => nodes.map(n => n.id === selectedNodeId ? { ...n, targets: [...n.targets, newNode.id] } : n));
+    }
+
+    setWorkflowNodes(nodes => [...nodes, newNode]);
     setSelectedNodeId(newNode.id);
   };
 
@@ -342,40 +416,94 @@ const ArchitectApp: React.FC = () => {
   );
 
   const WorkflowView = () => (
-    <div className="p-8 space-y-8 max-w-7xl">
+    <div className="p-8 space-y-8 max-w-7xl pb-32">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">Automations</h2>
-          <p className="text-sm text-on-surface-variant font-medium">Define logic triggers and third-party webhooks</p>
+          <h2 className="text-3xl font-extrabold tracking-tighter">Published Pipelines</h2>
+          <p className="text-sm text-on-surface-variant font-medium">Monitor active process instances and operational telemetry</p>
         </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-secondary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
-          <Workflow className="w-4 h-4" /> Design Sequence
-        </button>
+        <div className="flex bg-surface-container rounded-xl p-1.5 border border-outline-variant shadow-sm text-on-surface">
+           <button 
+             onClick={() => setWorkflowStatus('active')}
+             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'active' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-outline hover:text-on-surface'}`}
+           >ACTIVE</button>
+           <button 
+             onClick={() => setWorkflowStatus('inactive')}
+             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'inactive' ? 'bg-on-surface text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
+           >PAUSED</button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {[
-          { title: 'Slack Notification', trigger: 'On form submission', status: 'Active', icon: Globe },
-          { title: 'Email Auto-responder', trigger: 'On user validation', status: 'Paused', icon: Mail }, // Note: Mail is not imported, let's use Database
-          { title: 'CRM Sync', trigger: 'On field change', status: 'Active', icon: Database },
-        ].map((flow, i) => (
-          <div key={i} className="sleek-card p-6 flex items-start gap-4">
-            <div className="w-12 h-12 bg-surface rounded-2xl flex items-center justify-center text-primary border border-outline-variant">
-              <flow.icon className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between">
-                <h4 className="font-bold">{flow.title}</h4>
-                <span className={`text-[10px] font-bold ${flow.status === 'Active' ? 'text-green-600' : 'text-outline'}`}>{flow.status}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+           <div className="sleek-card overflow-hidden border-2 border-outline-variant shadow-sm">
+              <div className="p-6 border-b border-outline-variant bg-surface-container-low/50 flex justify-between items-center text-on-surface">
+                 <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Active Instances</h3>
+                 <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded tracking-widest uppercase">Real-time</span>
               </div>
-              <p className="text-[10px] font-bold text-outline uppercase tracking-widest mt-1">Trigger: {flow.trigger}</p>
-              <div className="mt-4 flex gap-2">
-                <button className="px-4 py-2 bg-surface rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-surface-container-high transition-colors">Configure</button>
-                <button className="px-4 py-2 border border-outline-variant rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-surface transition-colors">Logs</button>
+              <div className="divide-y divide-outline-variant">
+                 {workflowInstances.map(inst => (
+                   <div key={inst.id} className="p-6 flex items-center gap-6 hover:bg-surface transition-colors group cursor-pointer text-on-surface">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${inst.status === 'Completed' ? 'bg-green-100 border-green-200 text-green-700' : 'bg-primary/10 border-primary/20 text-primary'}`}>
+                        {inst.status === 'Completed' ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1">
+                         <div className="flex items-center gap-2 mb-0.5">
+                            <span className="font-bold text-sm tracking-tight">Request #{inst.id}</span>
+                            <span className="text-[10px] font-bold text-outline">• {inst.initiator}</span>
+                         </div>
+                         <div className="text-[10px] font-medium text-on-surface-variant">Step: <span className="font-bold text-primary">{inst.currentStep}</span> • Started {inst.startTime}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                         <button className="px-3 py-1.5 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:secondary transition-all opacity-0 group-hover:opacity-100 font-bold uppercase tracking-widest">Urge</button>
+                         <ChevronRight className="w-4 h-4 text-outline" />
+                      </div>
+                   </div>
+                 ))}
               </div>
-            </div>
-          </div>
-        ))}
+           </div>
+        </div>
+
+        <div className="space-y-6 text-on-surface">
+           <div className="sleek-card p-6 bg-primary text-white space-y-4 shadow-2xl shadow-primary/30">
+              <div className="flex justify-between items-start">
+                 <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                    <Workflow className="w-6 h-6" />
+                 </div>
+                 <div className="text-right">
+                    <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Efficiency</div>
+                    <div className="text-2xl font-extrabold">94.2%</div>
+                 </div>
+              </div>
+              <div>
+                 <h4 className="font-extrabold tracking-tight text-white uppercase text-xs">Engine Operational</h4>
+                 <p className="text-[11px] opacity-80 mt-1 font-medium leading-relaxed">System is auto-scaling to handle payment volume. Average latency: 240ms</p>
+              </div>
+              <button 
+                 onClick={() => setView('editor')}
+                 className="w-full py-3 bg-white text-primary rounded-xl text-xs font-bold hover:bg-surface-container transition-all shadow-lg"
+              >Optimization Designer</button>
+           </div>
+
+           <div className="sleek-card p-6 space-y-4 shadow-sm border border-outline-variant">
+              <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">Quick Actions</h4>
+              <div className="space-y-2">
+                 {[
+                   { label: 'Export Audit Logs', icon: FileDown },
+                   { label: 'Flush Cache', icon: Trash2 },
+                   { label: 'Rebuild Index', icon: RefreshCw },
+                 ].map(action => (
+                   <button key={action.label} className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold text-xs text-on-surface">
+                      <div className="flex items-center gap-3">
+                         <action.icon className="w-4 h-4 text-outline group-hover:text-primary transition-colors" />
+                         <span>{action.label}</span>
+                      </div>
+                      <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all text-primary" />
+                   </button>
+                 ))}
+              </div>
+           </div>
+        </div>
       </div>
     </div>
   );
@@ -468,21 +596,19 @@ const ArchitectApp: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[
-          { name: 'You (Architect)', role: 'Admin', email: 'stack.zsx@gmail.com', img: 'profile' },
-          { name: 'Sarah Chen', role: 'Editor', email: 'sarah@architect.io', img: 'user1' },
-          { name: 'Michael Beck', role: 'Viewer', email: 'm.beck@architect.io', img: 'user2' },
-        ].map(user => (
-          <div key={user.email} className="sleek-card p-6 flex flex-col gap-4">
+        {teamMembers.map((user, idx) => (
+          <div key={user.id} className="sleek-card p-6 flex flex-col gap-4">
              <div className="flex items-center gap-4">
-               <img src={`https://picsum.photos/seed/${user.img}/100/100`} className="w-12 h-12 rounded-full border border-outline-variant" referrerPolicy="no-referrer" />
+               <img src={`https://picsum.photos/seed/user-${idx}/100/100`} className="w-12 h-12 rounded-full border border-outline-variant" referrerPolicy="no-referrer" />
                <div>
                   <h6 className="font-bold text-sm">{user.name}</h6>
-                  <p className="text-[10px] text-outline font-bold tracking-widest uppercase">{user.role}</p>
+                  <p className="text-[10px] text-outline font-bold tracking-widest uppercase">{user.role} • {user.dept}</p>
                </div>
              </div>
              <div className="p-3 bg-surface rounded-xl flex items-center justify-between">
-                <span className="text-xs font-medium text-on-surface-variant break-all">{user.email}</span>
+                <span className="text-xs font-medium text-on-surface-variant break-all">
+                  {user.name.toLowerCase().replace(/ /g, '.')}@architect.io
+                </span>
                 <Settings className="w-3 h-3 text-outline cursor-pointer hover:text-black transition-colors" />
              </div>
           </div>
@@ -518,6 +644,7 @@ const ArchitectApp: React.FC = () => {
                     { type: 'approval', icon: ShieldCheck, label: 'Approval Step', desc: 'Require human review' },
                     { type: 'notification', icon: Mail, label: 'Email Alert', desc: 'Send automated email' },
                     { type: 'condition', icon: Workflow, label: 'Conditional Logic', desc: 'Branch based on data' },
+                    { type: 'cc', icon: Share2, label: 'CC Step', desc: 'Send carbon copy to users' },
                   ].map((item) => (
                     <button
                       key={item.type}
@@ -578,14 +705,21 @@ const ArchitectApp: React.FC = () => {
             <div className="flex items-center gap-4">
               <h2 className="font-bold tracking-tight">Payment Request V2</h2>
               <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">Active</span>
+              <button 
+                onClick={() => showNotification('Draft saved to cloud')} 
+                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold hover:bg-primary/20 transition-all ml-4"
+              >
+                <Save className="w-3 h-3" /> Save Changes
+              </button>
             </div>
             
             <div className="flex items-center gap-3">
               <div className="flex bg-surface-container-high rounded-lg p-1 mr-4 border border-outline-variant">
                 {[
-                  { id: 'design', label: 'Designer', icon: Code },
-                  { id: 'workflow', label: 'Workflow', icon: Workflow },
+                  { id: 'design', label: 'Form', icon: Code },
+                  { id: 'workflow', label: 'Process', icon: Workflow },
                   { id: 'preview', label: 'Preview', icon: Eye },
+                  { id: 'simulate', label: 'Simulate', icon: Activity },
                 ].map(tab => (
                   <button 
                     key={tab.id}
@@ -596,9 +730,6 @@ const ArchitectApp: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <button onClick={() => showNotification('Draft saved to cloud')} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:shadow-lg hover:shadow-primary/20 transition-all">
-                <Save className="w-3 h-3" /> Save Changes
-              </button>
             </div>
           </header>
 
@@ -648,66 +779,170 @@ const ArchitectApp: React.FC = () => {
               {editorTab === 'workflow' && (
                 <div className="space-y-8 pb-32">
                   <div className="flex flex-col items-center">
-                    {workflowNodes.map((node, index) => (
-                      <React.Fragment key={node.id}>
-                        <motion.div 
-                          layoutId={node.id}
-                          onClick={() => setSelectedNodeId(node.id)}
-                          className={`w-full max-w-sm sleek-card p-6 border-2 transition-all cursor-pointer group relative ${selectedNodeId === node.id ? 'border-primary ring-4 ring-primary/5 shadow-xl' : 'border-outline-variant hover:border-outline'}`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`p-3 rounded-xl ${
-                              node.type === 'start' ? 'bg-green-100 text-green-700' :
-                              node.type === 'approval' ? 'bg-amber-100 text-amber-700' :
-                              node.type === 'notification' ? 'bg-blue-100 text-blue-700' :
-                              node.type === 'end' ? 'bg-on-surface text-white' : 'bg-surface text-on-surface'
-                            }`}>
-                              {node.type === 'start' && <CircleDot className="w-5 h-5" />}
-                              {node.type === 'approval' && <ShieldCheck className="w-5 h-5" />}
-                              {node.type === 'notification' && <Mail className="w-5 h-5" />}
-                              {node.type === 'condition' && <Workflow className="w-5 h-5" />}
-                              {node.type === 'end' && <Save className="w-5 h-5" />}
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-extrabold text-sm tracking-tight">{node.label}</h4>
-                              <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">{node.description}</p>
-                            </div>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); removeWorkflowNode(node.id); }}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-error/5 hover:text-error rounded transition-all"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                          
-                          {node.type === 'approval' && node.config?.assignee && (
-                            <div className="mt-4 pt-4 border-t border-dashed border-outline-variant flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-outline uppercase tracking-widest">Assignee</span>
-                              <div className="flex items-center gap-2">
-                                <Users className="w-3 h-3 text-primary" />
-                                <span className="text-[10px] font-extrabold text-primary">{node.config.assignee}</span>
+                    {workflowNodes.map((node, index) => {
+                      const isBranching = node.type === 'condition';
+                      return (
+                        <React.Fragment key={node.id}>
+                          <motion.div 
+                            layoutId={node.id}
+                            onClick={() => setSelectedNodeId(node.id)}
+                            className={`w-full max-w-sm sleek-card p-6 border-2 transition-all cursor-pointer group relative ${selectedNodeId === node.id ? 'border-primary ring-4 ring-primary/5 shadow-xl' : 'border-outline-variant hover:border-outline'}`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`p-3 rounded-xl ${
+                                node.type === 'start' ? 'bg-green-100 text-green-700' :
+                                node.type === 'approval' ? 'bg-amber-100 text-amber-700' :
+                                node.type === 'notification' ? 'bg-blue-100 text-blue-700' :
+                                node.type === 'condition' ? 'bg-indigo-100 text-indigo-700' :
+                                node.type === 'cc' ? 'bg-surface-container text-on-surface-variant' :
+                                node.type === 'end' ? 'bg-on-surface text-white' : 'bg-surface text-on-surface'
+                              }`}>
+                                {node.type === 'start' && <CircleDot className="w-5 h-5" />}
+                                {node.type === 'approval' && <ShieldCheck className="w-5 h-5" />}
+                                {node.type === 'notification' && <Mail className="w-5 h-5" />}
+                                {node.type === 'condition' && <Workflow className="w-5 h-5" />}
+                                {node.type === 'cc' && <Share2 className="w-5 h-5" />}
+                                {node.type === 'end' && <Save className="w-5 h-5" />}
                               </div>
+                              <div className="flex-1">
+                                <h4 className="font-extrabold text-sm tracking-tight">{node.label}</h4>
+                                <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">{node.description}</p>
+                              </div>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); removeWorkflowNode(node.id); }}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-error/5 hover:text-error rounded transition-all"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                            
+                            {node.type === 'approval' && (
+                              <div className="mt-4 pt-4 border-t border-dashed border-outline-variant flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Users className="w-3 h-3 text-primary" />
+                                  <span className="text-[10px] font-extrabold text-primary">{node.config?.assigneeValue || node.config?.assigneeType}</span>
+                                </div>
+                                <span className="text-[10px] font-bold bg-outline-variant/10 px-2 py-0.5 rounded uppercase tracking-widest">{node.config?.approvalType === 'AND' ? '会签' : '或签'}</span>
+                              </div>
+                            )}
+
+                            {isBranching && (
+                              <div className="mt-4 pt-4 border-t border-dashed border-outline-variant space-y-2">
+                                <div className="text-[10px] font-bold text-outline uppercase tracking-widest">Branch Logic</div>
+                                <div className="flex gap-2">
+                                  <span className="text-[10px] font-mono bg-on-surface text-white px-2 py-1 rounded">IF {node.config?.expression}</span>
+                                </div>
+                              </div>
+                            )}
+                          </motion.div>
+                          
+                          {index < workflowNodes.length - 1 && !isBranching && (
+                            <div className="h-12 w-0.5 bg-outline-variant relative my-2">
+                              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 border-r-2 border-b-2 border-outline-variant rotate-45"></div>
                             </div>
                           )}
-                        </motion.div>
-                        
-                        {index < workflowNodes.length - 1 && (
-                          <div className="h-12 w-0.5 bg-outline-variant relative my-2">
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 border-r-2 border-b-2 border-outline-variant rotate-45"></div>
-                          </div>
-                        )}
-                      </React.Fragment>
-                    ))}
+
+                          {isBranching && (
+                            <div className="h-16 w-full flex justify-center relative my-4">
+                               <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-px border-l-2 border-dashed border-outline-variant"></div>
+                               <div className="flex gap-40 relative z-10 pt-8">
+                                  <div className="flex flex-col items-center gap-2">
+                                     <div className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20">True path</div>
+                                  </div>
+                                  <div className="flex flex-col items-center gap-2">
+                                     <div className="text-[10px] font-bold text-outline bg-surface px-2 py-0.5 rounded border border-outline-variant">False path</div>
+                                  </div>
+                               </div>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </div>
 
                   <div className="flex justify-center pt-8">
                      <button 
                        onClick={() => addWorkflowNode('approval')}
-                       className="px-6 py-3 border-2 border-dashed border-outline-variant rounded-full text-[10px] font-bold uppercase tracking-widest text-outline hover:border-primary hover:text-primary transition-all flex items-center gap-2"
+                       className="px-6 py-4 bg-white border-2 border-dashed border-outline-variant rounded-2xl text-[10px] font-bold uppercase tracking-widest text-outline hover:border-primary hover:text-primary transition-all flex items-center gap-2 group shadow-sm hover:shadow-lg"
                      >
-                       <Plus className="w-4 h-4" /> Insert Approval Logic
+                       <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" /> 
+                       Orchestrate New Block
                      </button>
                   </div>
+                </div>
+              )}
+
+              {editorTab === 'simulate' && (
+                <div className="max-w-4xl mx-auto pb-32">
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* Left: Data Input */}
+                      <div className="sleek-card p-8 space-y-6">
+                         <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                            <h3 className="font-bold flex items-center gap-2"><Database className="w-4 h-4 text-primary" /> Test Data Payload</h3>
+                            <button 
+                              onClick={() => {
+                                showNotification('Simulation restarted');
+                                setSimulationData({ amount: 6000 });
+                              }}
+                              className="text-[10px] font-bold text-primary hover:underline"
+                            >RESET</button>
+                         </div>
+                         <div className="space-y-4">
+                            {formFields.filter(f => ['text', 'number', 'select'].includes(f.type)).map(field => (
+                              <div key={field.id} className="space-y-2">
+                                <label className="text-[10px] font-bold text-outline uppercase tracking-widest">{field.label}</label>
+                                <input 
+                                  type={field.type === 'number' ? 'number' : 'text'}
+                                  value={simulationData[field.label.toLowerCase()] ?? ''}
+                                  onChange={(e) => setSimulationData({...simulationData, [field.label.toLowerCase()]: e.target.value})}
+                                  className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                                />
+                              </div>
+                            ))}
+                         </div>
+                         <button 
+                           onClick={() => showNotification('Data payload verified')}
+                           className="w-full py-4 bg-on-surface text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all"
+                         >Validate Payload</button>
+                      </div>
+
+                      {/* Right: Flow Output */}
+                      <div className="sleek-card p-8 bg-surface-container-low/30 border-2 border-dashed border-outline-variant">
+                         <div className="flex items-center justify-between mb-8">
+                            <h3 className="font-bold bg-white px-3 py-1 rounded-full border border-outline-variant shadow-sm text-xs">Runtime Trace</h3>
+                            <div className="flex items-center gap-2">
+                               <div className="w-2 h-2 rounded-full bg-primary animate-ping"></div>
+                               <span className="text-[10px] font-bold text-primary uppercase">Simulating...</span>
+                            </div>
+                         </div>
+                         
+                         <div className="space-y-4">
+                            {[
+                               { time: 'T+0s', event: 'Initiator triggered "Payment Initiation"', ok: true },
+                               { time: 'T+1s', event: 'Manager Approval: Pending (Dept Manager)', ok: true },
+                               { time: 'T+2s', event: `Condition Threshold: ${Number(simulationData.amount || 0) > 5000 ? 'TRUE' : 'FALSE'} (Path: ${Number(simulationData.amount || 0) > 5000 ? 'A' : 'B'})`, ok: true },
+                               { time: 'T+3s', event: Number(simulationData.amount || 0) > 5000 ? 'CFO Final Sign-off: Required' : 'Processing Complete', ok: true },
+                            ].map((trace, i) => (
+                              <motion.div 
+                                key={i} 
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.2 }}
+                                className="flex gap-4 p-3 rounded-lg bg-white/50 border border-outline-variant"
+                              >
+                                 <span className="text-[10px] font-mono text-outline">{trace.time}</span>
+                                 <span className="text-xs font-bold text-on-surface truncate">{trace.event}</span>
+                                 <div className="ml-auto"><CheckSquare className="w-3 h-3 text-green-500" /></div>
+                              </motion.div>
+                            ))}
+                         </div>
+
+                         <div className="mt-8 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                            <div className="text-[10px] font-bold text-primary uppercase mb-1">Final Result</div>
+                            <div className="font-bold text-sm tracking-tight">Process would route to: {Number(simulationData.amount || 0) > 5000 ? 'Corporate Review' : 'Auto-Release'}</div>
+                         </div>
+                      </div>
+                   </div>
                 </div>
               )}
 
@@ -789,58 +1024,134 @@ const ArchitectApp: React.FC = () => {
           </div>
 
           <div className="p-6 space-y-6 overflow-y-auto flex-1">
-            {selectedNode ? (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
-                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Step Title</label>
-                  <input 
-                    type="text" 
-                    value={selectedNode.label}
-                    onChange={(e) => updateWorkflowNode(selectedNode.id, { label: e.target.value })}
-                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Description</label>
-                  <textarea 
-                    value={selectedNode.description}
-                    onChange={(e) => updateWorkflowNode(selectedNode.id, { description: e.target.value })}
-                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[80px]"
-                  />
+            {(editorTab === 'workflow' && selectedNode) ? (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200 pb-10">
+                 <div className="space-y-4">
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">Core Configuration</label>
+                    <input 
+                      type="text" 
+                      placeholder="Step Title"
+                      value={selectedNode.label}
+                      onChange={(e) => updateWorkflowNode(selectedNode.id, { label: e.target.value })}
+                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                    />
+                    <textarea 
+                      placeholder="Operational Description..."
+                      value={selectedNode.description}
+                      onChange={(e) => updateWorkflowNode(selectedNode.id, { description: e.target.value })}
+                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[100px]"
+                    />
                 </div>
 
                 {selectedNode.type === 'approval' && (
-                  <div className="space-y-4 pt-4 border-t border-outline-variant">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Assign Action To</label>
-                    <div className="relative">
-                      <select 
-                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none font-bold"
-                        value={selectedNode.config?.assignee || ''}
-                        onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assignee: e.target.value } })}
-                      >
-                        <option value="Manager">Direct Manager</option>
-                        <option value="Finance">Finance Team</option>
-                        <option value="HR">HR Department</option>
-                        <option value="Admin">System Admin</option>
-                      </select>
-                      <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-outline rotate-90 pointer-events-none" />
+                  <div className="space-y-6 pt-6 border-t border-outline-variant animate-in zoom-in-95 duration-200">
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Approver Targeting</label>
+                       <select 
+                         value={selectedNode.config?.assigneeType || 'user'}
+                         onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeType: e.target.value as any, assigneeValue: '' } })}
+                         className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                       >
+                         <option value="user">Specific User</option>
+                         <option value="role">Role Based</option>
+                         <option value="dept">Department Head</option>
+                         <option value="initiator">Self (Initiator)</option>
+                       </select>
+                    </div>
+
+                    {selectedNode.config?.assigneeType !== 'initiator' && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Assignee Selection</label>
+                        <select 
+                          value={selectedNode.config?.assigneeValue || ''}
+                          onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeValue: e.target.value } })}
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                        >
+                          <option value="">Select targeting...</option>
+                          {selectedNode.config?.assigneeType === 'user' && teamMembers.map(m => (
+                            <option key={m.id} value={m.name}>{m.name}</option>
+                          ))}
+                          {selectedNode.config?.assigneeType === 'role' && allRoles.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                          {selectedNode.config?.assigneeType === 'dept' && allDepts.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Concurrence Logic</label>
+                       <div className="flex bg-surface-container rounded-2xl p-1.5 border border-outline-variant">
+                          <button 
+                             onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'OR' } })}
+                             className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'OR' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
+                          >或签 (OR)</button>
+                          <button 
+                             onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'AND' } })}
+                             className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'AND' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
+                          >会签 (AND)</button>
+                       </div>
+                    </div>
+
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Sign-off Timeout</label>
+                          <span className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">{selectedNode.config?.timeout || 24} Hours</span>
+                       </div>
+                       <input 
+                          type="range" min="1" max="168"
+                          value={selectedNode.config?.timeout || 24}
+                          onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, timeout: parseInt(e.target.value) } })}
+                          className="w-full accent-primary h-1.5 bg-outline-variant rounded-lg appearance-none cursor-pointer"
+                       />
+                       <div className="flex justify-between text-[8px] font-bold text-outline uppercase px-1">
+                          <span>1h</span>
+                          <span>7 Days</span>
+                       </div>
+                    </div>
+
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Authorized Actions</label>
+                       <div className="flex flex-wrap gap-2 text-on-surface">
+                          {['approve', 'reject', 'transfer', 'add_signer'].map(action => (
+                            <button
+                               key={action}
+                               onClick={() => {
+                                  const current = selectedNode.config?.actions || [];
+                                  const next = current.includes(action) ? current.filter(a => a !== action) : [...current, action];
+                                  updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, actions: next } });
+                               }}
+                               className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase transition-all ${selectedNode.config?.actions?.includes(action) ? 'bg-on-surface text-white border-on-surface' : 'bg-surface border-outline-variant text-outline'}`}
+                            >
+                               {action.replace('_', ' ')}
+                            </button>
+                          ))}
+                       </div>
                     </div>
                   </div>
                 )}
 
-                {selectedNode.type === 'notification' && (
-                  <div className="space-y-4 pt-4 border-t border-outline-variant">
-                     <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Email Template</label>
-                     <div className="p-4 bg-surface rounded-xl border border-outline-variant hover:border-primary transition-colors cursor-pointer group">
-                        <div className="flex items-center gap-3">
-                           <Mail className="w-5 h-5 text-primary" />
-                           <span className="text-[11px] font-bold">Standard Confirmation</span>
+                {selectedNode.type === 'condition' && (
+                  <div className="space-y-6 pt-6 border-t border-outline-variant animate-in slide-in-from-bottom-2">
+                     <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Evaluation Expression</label>
+                        <div className="relative group">
+                           <div className="absolute top-3 left-3 w-4 h-4 text-primary opacity-20"><Activity className="w-full h-full" /></div>
+                           <textarea 
+                              placeholder="e.g. amount > 5000"
+                              value={selectedNode.config?.expression || ''}
+                              onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, expression: e.target.value } })}
+                              className="w-full bg-on-surface text-green-400 font-mono text-[11px] p-4 pl-10 rounded-2xl min-h-[120px] focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all border border-outline-variant shadow-inner leading-relaxed"
+                           />
                         </div>
+                        <p className="text-[10px] text-outline font-medium">Use JavaScript syntax for data comparison.</p>
                      </div>
                   </div>
                 )}
               </div>
-            ) : selectedField ? (
+            ) : (editorTab === 'design' && selectedField) ? (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Field Label</label>
