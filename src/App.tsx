@@ -47,6 +47,17 @@ interface FormField {
   options?: string[]; // for select
 }
 
+interface WorkflowNode {
+  id: string;
+  type: 'start' | 'approval' | 'notification' | 'condition' | 'end';
+  label: string;
+  description?: string;
+  config?: {
+    assignee?: string;
+    template?: string;
+  };
+}
+
 interface Project {
   id: string;
   name: string;
@@ -70,7 +81,14 @@ const ArchitectApp: React.FC = () => {
     { id: '2', type: 'date', label: 'Date of Birth', required: false },
   ]);
   const [selectedFieldId, setSelectedFieldId] = React.useState<string | null>(null);
-  const [isPreview, setIsPreview] = React.useState(false);
+  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'preview'>('design');
+  const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([
+    { id: 'node-1', type: 'start', label: 'Form Submitted', description: 'Triggered when a user completes the payment request' },
+    { id: 'node-2', type: 'approval', label: 'Manager Approval', description: 'Requires direct supervisor signature', config: { assignee: 'Manager' } },
+    { id: 'node-3', type: 'approval', label: 'Finance Review', description: 'Verification by accounting team', config: { assignee: 'Finance' } },
+    { id: 'node-4', type: 'end', label: 'Payment Released', description: 'Final process completion' },
+  ]);
+  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [isSchemaVisible, setIsSchemaVisible] = React.useState(false);
   const [notifications, setNotifications] = React.useState<{id: number, text: string}[]>([]);
 
@@ -188,7 +206,28 @@ const ArchitectApp: React.FC = () => {
     setFormFields(formFields.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
+  const addWorkflowNode = (type: WorkflowNode['type']) => {
+    const newNode: WorkflowNode = {
+      id: `node-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      label: `New ${type} step`,
+      description: 'Configure this step in the properties panel'
+    };
+    setWorkflowNodes([...workflowNodes, newNode]);
+    setSelectedNodeId(newNode.id);
+  };
+
+  const updateWorkflowNode = (id: string, updates: Partial<WorkflowNode>) => {
+    setWorkflowNodes(workflowNodes.map(n => n.id === id ? { ...n, ...updates } : n));
+  };
+
+  const removeWorkflowNode = (id: string) => {
+    setWorkflowNodes(workflowNodes.filter(n => n.id !== id));
+    if (selectedNodeId === id) setSelectedNodeId(null);
+  };
+
   const selectedField = formFields.find(f => f.id === selectedFieldId);
+  const selectedNode = workflowNodes.find(n => n.id === selectedNodeId);
 
   const JsonSchemaModal = () => (
     <motion.div 
@@ -455,7 +494,7 @@ const ArchitectApp: React.FC = () => {
   if (view === 'editor') {
     return (
       <div className="flex h-screen bg-surface overflow-hidden text-on-surface">
-        {/* Editor Sidebar - Components */}
+        {/* Editor Sidebar - Components / Nodes */}
         <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
           <div className="p-6 border-b border-outline-variant flex items-center justify-between">
             <button 
@@ -464,41 +503,70 @@ const ArchitectApp: React.FC = () => {
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <span className="font-bold tracking-tight">Form Designer</span>
+            <span className="font-bold tracking-tight">
+              {editorTab === 'workflow' ? 'Process Designer' : 'Form Designer'}
+            </span>
             <div className="w-9"></div>
           </div>
           
           <div className="p-6 flex-1 overflow-y-auto space-y-6">
-            <div>
-              <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Basic Fields</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { type: 'text', icon: Type, label: 'Text' },
-                  { type: 'textarea', icon: LayoutGrid, label: 'Area' },
-                  { type: 'number', icon: Activity, label: 'Number' },
-                  { type: 'date', icon: Calendar, label: 'Date' },
-                  { type: 'select', icon: Menu, label: 'Select' },
-                  { type: 'checkbox', icon: CheckSquare, label: 'Check' },
-                ].map((item) => (
-                  <button
-                    key={item.type}
-                    onClick={() => addField(item.type as FormField['type'])}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
-                  >
-                    <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary transition-colors" />
-                    <span className="text-[10px] font-bold">{item.label}</span>
-                  </button>
-                ))}
+            {editorTab === 'workflow' ? (
+              <div>
+                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Workflow Steps</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { type: 'approval', icon: ShieldCheck, label: 'Approval Step', desc: 'Require human review' },
+                    { type: 'notification', icon: Mail, label: 'Email Alert', desc: 'Send automated email' },
+                    { type: 'condition', icon: Workflow, label: 'Conditional Logic', desc: 'Branch based on data' },
+                  ].map((item) => (
+                    <button
+                      key={item.type}
+                      onClick={() => addWorkflowNode(item.type as WorkflowNode['type'])}
+                      className="flex items-center gap-4 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group text-left"
+                    >
+                      <div className="p-3 bg-surface rounded-lg group-hover:bg-primary/10">
+                        <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary transition-colors" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-tight">{item.label}</div>
+                        <div className="text-[10px] text-on-surface-variant font-medium">{item.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Basic Fields</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { type: 'text', icon: Type, label: 'Text' },
+                    { type: 'textarea', icon: LayoutGrid, label: 'Area' },
+                    { type: 'number', icon: Activity, label: 'Number' },
+                    { type: 'date', icon: Calendar, label: 'Date' },
+                    { type: 'select', icon: Menu, label: 'Select' },
+                    { type: 'checkbox', icon: CheckSquare, label: 'Check' },
+                  ].map((item) => (
+                    <button
+                      key={item.type}
+                      onClick={() => addField(item.type as FormField['type'])}
+                      className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
+                    >
+                      <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary transition-colors" />
+                      <span className="text-[10px] font-bold">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="bg-surface-container-low rounded-2xl p-4 border border-outline-variant">
               <div className="flex items-center gap-2 mb-2">
                 <ShieldCheck className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-bold tracking-tight">AI Assist Available</span>
+                <span className="text-[10px] font-bold tracking-tight">AI Optimizations</span>
               </div>
               <p className="text-[10px] text-on-surface-variant leading-relaxed font-medium">
-                Describe your form goals to generate fields instantly with Gemini integration.
+                Our AI can automatically suggest validation rules and optimal sequence paths.
               </p>
             </div>
           </div>
@@ -506,37 +574,38 @@ const ArchitectApp: React.FC = () => {
 
         {/* Main Canvas */}
         <main className="flex-1 flex flex-col min-w-0 bg-surface">
-          <header className="h-16 sleek-glass px-8 flex items-center justify-between border-b border-outline-variant">
+          <header className="h-16 sleek-glass px-8 flex items-center justify-between border-b border-outline-variant shrink-0">
             <div className="flex items-center gap-4">
-              <h2 className="font-bold tracking-tight">Onboarding Schema</h2>
-              <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">Draft</span>
+              <h2 className="font-bold tracking-tight">Payment Request V2</h2>
+              <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">Active</span>
             </div>
             
             <div className="flex items-center gap-3">
               <div className="flex bg-surface-container-high rounded-lg p-1 mr-4 border border-outline-variant">
-                <button 
-                  onClick={() => setIsPreview(false)}
-                  className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${!isPreview ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
-                >
-                  <Code className="w-3 h-3" /> Designer
-                </button>
-                <button 
-                  onClick={() => setIsPreview(true)}
-                  className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${isPreview ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
-                >
-                  <Eye className="w-3 h-3" /> Preview
-                </button>
+                {[
+                  { id: 'design', label: 'Designer', icon: Code },
+                  { id: 'workflow', label: 'Workflow', icon: Workflow },
+                  { id: 'preview', label: 'Preview', icon: Eye },
+                ].map(tab => (
+                  <button 
+                    key={tab.id}
+                    onClick={() => setEditorTab(tab.id as any)}
+                    className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${editorTab === tab.id ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                  >
+                    <tab.icon className="w-3 h-3" /> {tab.label}
+                  </button>
+                ))}
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:shadow-lg hover:shadow-primary/20 transition-all">
-                <Save className="w-3 h-3" /> Publish
+              <button onClick={() => showNotification('Draft saved to cloud')} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:shadow-lg hover:shadow-primary/20 transition-all">
+                <Save className="w-3 h-3" /> Save Changes
               </button>
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto p-12 canvas-grid">
-            <div className="max-w-2xl mx-auto">
-              {!isPreview ? (
-                <div className="space-y-4 pb-20">
+          <div className="flex-1 overflow-y-auto p-12 canvas-grid relative">
+            <div className="max-w-4xl mx-auto">
+              {editorTab === 'design' && (
+                <div className="max-w-2xl mx-auto space-y-4 pb-20">
                   <Reorder.Group axis="y" values={formFields} onReorder={setFormFields} className="space-y-4">
                     {formFields.map((field) => (
                       <Reorder.Item 
@@ -568,51 +637,143 @@ const ArchitectApp: React.FC = () => {
                   </Reorder.Group>
                   <button 
                     onClick={() => addField('text')}
-                    className="w-full border-2 border-dashed border-outline-variant rounded-2xl py-12 flex flex-col items-center gap-2 text-outline hover:text-primary hover:border-primary hover:bg-primary/5 transition-all group lg:scale-100 active:scale-95"
+                    className="w-full border-2 border-dashed border-outline-variant rounded-2xl py-12 flex flex-col items-center gap-2 text-outline hover:text-primary hover:border-primary hover:bg-primary/5 transition-all group active:scale-95"
                   >
                     <Plus className="w-6 h-6 group-hover:scale-125 transition-transform" />
                     <span className="text-xs font-bold">Append New Field</span>
                   </button>
                 </div>
-              ) : (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="sleek-card p-12 shadow-2xl bg-white border-2 border-outline-variant"
-                >
-                  <h2 className="text-3xl font-extrabold tracking-tighter mb-8">Onboarding Schema</h2>
-                  <div className="space-y-8">
-                    {formFields.map((field) => (
-                      <div key={field.id} className="space-y-2">
-                        <label className="text-sm font-bold block select-none">
-                          {field.label} {field.required && <span className="text-error">*</span>}
-                        </label>
-                        {field.type === 'textarea' ? (
-                          <textarea 
-                            placeholder={field.placeholder} 
-                            className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-h-[120px]"
-                          />
-                        ) : field.type === 'select' ? (
-                          <div className="relative">
-                            <select className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none">
-                              {field.options?.map(opt => <option key={opt}>{opt}</option>)}
-                            </select>
-                            <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-outline rotate-90 pointer-events-none" />
+              )}
+
+              {editorTab === 'workflow' && (
+                <div className="space-y-8 pb-32">
+                  <div className="flex flex-col items-center">
+                    {workflowNodes.map((node, index) => (
+                      <React.Fragment key={node.id}>
+                        <motion.div 
+                          layoutId={node.id}
+                          onClick={() => setSelectedNodeId(node.id)}
+                          className={`w-full max-w-sm sleek-card p-6 border-2 transition-all cursor-pointer group relative ${selectedNodeId === node.id ? 'border-primary ring-4 ring-primary/5 shadow-xl' : 'border-outline-variant hover:border-outline'}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`p-3 rounded-xl ${
+                              node.type === 'start' ? 'bg-green-100 text-green-700' :
+                              node.type === 'approval' ? 'bg-amber-100 text-amber-700' :
+                              node.type === 'notification' ? 'bg-blue-100 text-blue-700' :
+                              node.type === 'end' ? 'bg-on-surface text-white' : 'bg-surface text-on-surface'
+                            }`}>
+                              {node.type === 'start' && <CircleDot className="w-5 h-5" />}
+                              {node.type === 'approval' && <ShieldCheck className="w-5 h-5" />}
+                              {node.type === 'notification' && <Mail className="w-5 h-5" />}
+                              {node.type === 'condition' && <Workflow className="w-5 h-5" />}
+                              {node.type === 'end' && <Save className="w-5 h-5" />}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-extrabold text-sm tracking-tight">{node.label}</h4>
+                              <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">{node.description}</p>
+                            </div>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); removeWorkflowNode(node.id); }}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-error/5 hover:text-error rounded transition-all"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
-                        ) : (
-                          <input 
-                            type={field.type} 
-                            placeholder={field.placeholder} 
-                            className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                          />
+                          
+                          {node.type === 'approval' && node.config?.assignee && (
+                            <div className="mt-4 pt-4 border-t border-dashed border-outline-variant flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-outline uppercase tracking-widest">Assignee</span>
+                              <div className="flex items-center gap-2">
+                                <Users className="w-3 h-3 text-primary" />
+                                <span className="text-[10px] font-extrabold text-primary">{node.config.assignee}</span>
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                        
+                        {index < workflowNodes.length - 1 && (
+                          <div className="h-12 w-0.5 bg-outline-variant relative my-2">
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 border-r-2 border-b-2 border-outline-variant rotate-45"></div>
+                          </div>
                         )}
-                      </div>
+                      </React.Fragment>
                     ))}
-                    <button className="w-full bg-primary text-white py-4 rounded-xl text-sm font-bold shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all">
-                      Submit Response
-                    </button>
                   </div>
-                </motion.div>
+
+                  <div className="flex justify-center pt-8">
+                     <button 
+                       onClick={() => addWorkflowNode('approval')}
+                       className="px-6 py-3 border-2 border-dashed border-outline-variant rounded-full text-[10px] font-bold uppercase tracking-widest text-outline hover:border-primary hover:text-primary transition-all flex items-center gap-2"
+                     >
+                       <Plus className="w-4 h-4" /> Insert Approval Logic
+                     </button>
+                  </div>
+                </div>
+              )}
+
+              {editorTab === 'preview' && (
+                <div className="max-w-2xl mx-auto">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="sleek-card p-12 shadow-2xl bg-white border-2 border-outline-variant"
+                  >
+                    <div className="flex justify-between items-start mb-8">
+                      <div>
+                        <h2 className="text-3xl font-extrabold tracking-tighter">Payment Request</h2>
+                        <p className="text-sm text-on-surface-variant font-medium">Drafting v2 for Q4 Finance Review</p>
+                      </div>
+                      <div className="p-3 bg-surface rounded-2xl flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-green-500" />
+                        <span className="text-[10px] font-bold tracking-widest uppercase">Live System</span>
+                      </div>
+                    </div>
+                    <div className="space-y-8">
+                      {formFields.map((field) => (
+                        <div key={field.id} className="space-y-2">
+                          <label className="text-sm font-bold block select-none">
+                            {field.label} {field.required && <span className="text-error">*</span>}
+                          </label>
+                          {field.type === 'textarea' ? (
+                            <textarea 
+                              placeholder={field.placeholder} 
+                              className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-h-[120px]"
+                            />
+                          ) : field.type === 'select' ? (
+                            <div className="relative">
+                              <select className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none">
+                                {field.options?.map(opt => <option key={opt}>{opt}</option>)}
+                              </select>
+                              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-outline rotate-90 pointer-events-none" />
+                            </div>
+                          ) : (
+                            <input 
+                              type={field.type} 
+                              placeholder={field.placeholder} 
+                              className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            />
+                          )}
+                        </div>
+                      ))}
+                      <div className="p-6 bg-surface-container-high rounded-2xl border border-outline-variant">
+                         <div className="flex items-center gap-2 mb-3">
+                           <Workflow className="w-4 h-4 text-primary" />
+                           <span className="text-xs font-bold">Process Logic Applied</span>
+                         </div>
+                         <div className="text-[10px] font-medium text-on-surface-variant flex gap-2">
+                            {workflowNodes.map((n, i) => (
+                              <span key={n.id} className="flex items-center gap-1">
+                                {n.label} {i < workflowNodes.length - 1 && <ChevronRight className="w-3 h-3 opacity-30" />}
+                              </span>
+                            ))}
+                         </div>
+                      </div>
+                      <button className="w-full bg-primary text-white py-4 rounded-xl text-sm font-bold shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all">
+                        Initiate Workflow Request
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
               )}
             </div>
           </div>
@@ -622,104 +783,159 @@ const ArchitectApp: React.FC = () => {
         <aside className="w-80 bg-white border-l border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
           <div className="p-6 border-b border-outline-variant flex items-center gap-2">
             <Settings className="w-4 h-4 text-outline" />
-            <span className="font-bold tracking-tight">Properties</span>
+            <span className="font-bold tracking-tight text-sm">
+              {selectedNode ? 'Step Configuration' : 'Field Properties'}
+            </span>
           </div>
 
-          {selectedField ? (
-            <div className="p-6 space-y-6 overflow-y-auto flex-1">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Field Label</label>
-                <input 
-                  type="text" 
-                  value={selectedField.label}
-                  onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
-                  className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                />
-              </div>
-
-              {selectedField.placeholder !== undefined && (
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Placeholder</label>
+          <div className="p-6 space-y-6 overflow-y-auto flex-1">
+            {selectedNode ? (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                 <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Step Title</label>
                   <input 
                     type="text" 
-                    value={selectedField.placeholder}
-                    onChange={(e) => updateField(selectedField.id, { placeholder: e.target.value })}
+                    value={selectedNode.label}
+                    onChange={(e) => updateWorkflowNode(selectedNode.id, { label: e.target.value })}
                     className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
                   />
                 </div>
-              )}
-
-              <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
-                <span className="text-xs font-bold transition-all">Required Field</span>
-                <button 
-                  onClick={() => updateField(selectedField.id, { required: !selectedField.required })}
-                  className={`w-10 h-6 rounded-full relative transition-all ${selectedField.required ? 'bg-primary' : 'bg-outline-variant'}`}
-                >
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${selectedField.required ? 'left-5' : 'left-1'}`}></div>
-                </button>
-              </div>
-
-              {selectedField.type === 'select' && (
-                <div className="space-y-4 pt-4 border-t border-outline-variant">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Options</label>
-                    <button 
-                      onClick={() => {
-                        const newOpts = [...(selectedField.options || []), `Option ${(selectedField.options?.length || 0) + 1}`];
-                        updateField(selectedField.id, { options: newOpts });
-                      }}
-                      className="p-1 hover:bg-surface rounded-md"
-                    >
-                      <Plus className="w-3 h-3 text-primary" />
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {selectedField.options?.map((opt, idx) => (
-                      <div key={idx} className="flex gap-2">
-                        <input 
-                          value={opt}
-                          onChange={(e) => {
-                            const newOpts = [...(selectedField.options || [])];
-                            newOpts[idx] = e.target.value;
-                            updateField(selectedField.id, { options: newOpts });
-                          }}
-                          className="flex-1 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-medium"
-                        />
-                        <button 
-                          onClick={() => {
-                            const newOpts = (selectedField.options || []).filter((_, i) => i !== idx);
-                            updateField(selectedField.id, { options: newOpts });
-                          }}
-                          className="p-2 text-outline hover:text-error transition-colors"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Description</label>
+                  <textarea 
+                    value={selectedNode.description}
+                    onChange={(e) => updateWorkflowNode(selectedNode.id, { description: e.target.value })}
+                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[80px]"
+                  />
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-surface-container-low/30">
-              <div className="w-16 h-16 bg-white border border-outline-variant rounded-full flex items-center justify-center mb-4 shadow-sm">
-                <MousePointer2 className="w-6 h-6 text-outline" />
-              </div>
-              <p className="text-sm text-on-surface-variant font-bold tracking-tight">
-                Select a component to configure properties
-              </p>
-              <p className="text-[10px] text-outline font-medium mt-1">
-                Click any field on the central canvas
-              </p>
-            </div>
-          )}
 
-          <div className="p-6 border-t border-outline-variant bg-surface-container-low/50">
+                {selectedNode.type === 'approval' && (
+                  <div className="space-y-4 pt-4 border-t border-outline-variant">
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Assign Action To</label>
+                    <div className="relative">
+                      <select 
+                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none font-bold"
+                        value={selectedNode.config?.assignee || ''}
+                        onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assignee: e.target.value } })}
+                      >
+                        <option value="Manager">Direct Manager</option>
+                        <option value="Finance">Finance Team</option>
+                        <option value="HR">HR Department</option>
+                        <option value="Admin">System Admin</option>
+                      </select>
+                      <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-outline rotate-90 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+
+                {selectedNode.type === 'notification' && (
+                  <div className="space-y-4 pt-4 border-t border-outline-variant">
+                     <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Email Template</label>
+                     <div className="p-4 bg-surface rounded-xl border border-outline-variant hover:border-primary transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-3">
+                           <Mail className="w-5 h-5 text-primary" />
+                           <span className="text-[11px] font-bold">Standard Confirmation</span>
+                        </div>
+                     </div>
+                  </div>
+                )}
+              </div>
+            ) : selectedField ? (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Field Label</label>
+                  <input 
+                    type="text" 
+                    value={selectedField.label}
+                    onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
+                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                  />
+                </div>
+
+                {selectedField.placeholder !== undefined && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Placeholder</label>
+                    <input 
+                      type="text" 
+                      value={selectedField.placeholder}
+                      onChange={(e) => updateField(selectedField.id, { placeholder: e.target.value })}
+                      className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
+                  <span className="text-xs font-bold transition-all">Required Field</span>
+                  <button 
+                    onClick={() => updateField(selectedField.id, { required: !selectedField.required })}
+                    className={`w-10 h-6 rounded-full relative transition-all ${selectedField.required ? 'bg-primary' : 'bg-outline-variant'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${selectedField.required ? 'left-5' : 'left-1'}`}></div>
+                  </button>
+                </div>
+
+                {selectedField.type === 'select' && (
+                  <div className="space-y-4 pt-4 border-t border-outline-variant">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Options</label>
+                      <button 
+                        onClick={() => {
+                          const newOpts = [...(selectedField.options || []), `Option ${(selectedField.options?.length || 0) + 1}`];
+                          updateField(selectedField.id, { options: newOpts });
+                        }}
+                        className="p-1 hover:bg-surface rounded-md"
+                      >
+                        <Plus className="w-3 h-3 text-primary" />
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedField.options?.map((opt, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input 
+                            value={opt}
+                            onChange={(e) => {
+                              const newOpts = [...(selectedField.options || [])];
+                              newOpts[idx] = e.target.value;
+                              updateField(selectedField.id, { options: newOpts });
+                            }}
+                            className="flex-1 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-medium"
+                          />
+                          <button 
+                            onClick={() => {
+                              const newOpts = (selectedField.options || []).filter((_, i) => i !== idx);
+                              updateField(selectedField.id, { options: newOpts });
+                            }}
+                            className="p-2 text-outline hover:text-error transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-surface-container-low/30 h-full">
+                <div className="w-16 h-16 bg-white border border-outline-variant rounded-full flex items-center justify-center mb-4 shadow-sm">
+                  <MousePointer2 className="w-6 h-6 text-outline" />
+                </div>
+                <p className="text-sm text-on-surface-variant font-bold tracking-tight">
+                  Selection tool active
+                </p>
+                <p className="text-[10px] text-outline font-medium mt-1">
+                  Select a field or workflow step to configure.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="p-6 border-t border-outline-variant bg-surface-container-low/50 shrink-0">
              <button 
                onClick={() => setIsSchemaVisible(true)}
                className="w-full bg-on-surface text-white py-3 rounded-xl text-xs font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
              >
-               <Code className="w-3 h-3" /> View JSON Schema
+               <Code className="w-3 h-3" /> Export Pipeline Logic
              </button>
           </div>
         </aside>
