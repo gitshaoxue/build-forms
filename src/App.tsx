@@ -88,11 +88,29 @@ interface Project {
   responses: number;
 }
 
+interface SavedForm {
+  id: string;
+  projectId: string;
+  name: string;
+  status: 'Published' | 'Draft' | 'Archived';
+  createdAt: string;
+  designer: string;
+}
+
 const mockProjects: Project[] = [
   { id: '1', name: 'Onboarding Schema', updatedAt: '2h ago', status: 'Draft', responses: 0 },
   { id: '2', name: 'Customer Feedback Q3', updatedAt: '1d ago', status: 'Published', responses: 1240 },
   { id: '3', name: 'Enterprise Lead Gen', updatedAt: '3d ago', status: 'Published', responses: 852 },
   { id: '4', name: 'Waitlist Alpha', updatedAt: '5d ago', status: 'Archived', responses: 3200 },
+];
+
+const mockSavedForms: SavedForm[] = [
+  { id: 'f1', projectId: '1', name: 'Employee Basic Info', status: 'Draft', createdAt: '2026-04-10', designer: 'Chen' },
+  { id: 'f2', projectId: '1', name: 'Technical Assessment', status: 'Draft', createdAt: '2026-04-12', designer: 'Chen' },
+  { id: 'f3', projectId: '2', name: 'Product Satisfaction', status: 'Published', createdAt: '2026-03-20', designer: 'Sarah' },
+  { id: 'f4', projectId: '2', name: 'UI Feedback Survey', status: 'Published', createdAt: '2026-03-25', designer: 'Admin' },
+  { id: 'f5', projectId: '3', name: 'Lead Contact Form', status: 'Published', createdAt: '2026-04-01', designer: 'Li' },
+  { id: 'f6', projectId: '4', name: 'Waitlist Form v1', status: 'Archived', createdAt: '2025-12-15', designer: 'Chen' },
 ];
 
 const ArchitectApp: React.FC = () => {
@@ -103,7 +121,7 @@ const ArchitectApp: React.FC = () => {
     { id: '2', type: 'date', label: 'Date of Birth', required: false },
   ]);
   const [selectedFieldId, setSelectedFieldId] = React.useState<string | null>(null);
-  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'preview' | 'simulate'>('design');
+  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'permissions' | 'preview' | 'simulate'>('design');
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([
     { id: 'node-1', type: 'start', label: 'Payment Initiation', description: 'Triggered upon form submission', targets: ['node-2'] },
     { 
@@ -141,6 +159,43 @@ const ArchitectApp: React.FC = () => {
   const [simulationData, setSimulationData] = React.useState<Record<string, any>>({ amount: 6000 });
   const [isSchemaVisible, setIsSchemaVisible] = React.useState(false);
   const [notifications, setNotifications] = React.useState<{id: number, text: string}[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = React.useState<string>(mockProjects[1].id);
+  const [projectDetailsId, setProjectDetailsId] = React.useState<string | null>(null);
+
+  // Permissions State
+  const [selectedRole, setSelectedRole] = React.useState<string>('Editor');
+  const roles = ['Admin', 'Editor', 'Viewer', 'Manager', 'Dept Member'];
+  
+  const [funcPerms, setFuncPerms] = React.useState<Record<string, string[]>>({
+    'Admin': ['manage', 'design', 'fill', 'view', 'export', 'delete', 'config'],
+    'Editor': ['design', 'fill', 'view', 'export'],
+    'Viewer': ['view'],
+    'Manager': ['view', 'export'],
+  });
+
+  const [dataPerms, setDataPerms] = React.useState<Record<string, { type: 'all' | 'dept' | 'self' | 'custom', customRule?: string }>>({
+    'Admin': { type: 'all' },
+    'Editor': { type: 'dept' },
+    'Viewer': { type: 'self' },
+    'Manager': { type: 'dept' },
+  });
+
+  const functionalOptions = [
+    { id: 'manage', label: '表单管理', desc: '创建、编辑、删除表单' },
+    { id: 'design', label: '表单设计', desc: '设计表单结构' },
+    { id: 'fill', label: '表单填写', desc: '填写表单' },
+    { id: 'view', label: '数据查看', desc: '查看表单数据' },
+    { id: 'export', label: '数据导出', desc: '导出表单数据' },
+    { id: 'delete', label: '数据删除', desc: '删除表单数据' },
+    { id: 'config', label: '权限配置', desc: '配置表单权限' },
+  ];
+
+  const dataScopeOptions = [
+    { id: 'all', label: '全部数据', desc: '可查看所有数据' },
+    { id: 'dept', label: '本部门数据', desc: '仅可查看本部门及下级部门数据' },
+    { id: 'self', label: '本人数据', desc: '仅可查看自己提交的数据' },
+    { id: 'custom', label: '自定义', desc: '按自定义规则配置' },
+  ];
 
   const teamMembers = [
     { id: '1', name: 'You (Architect)', role: 'Admin', dept: 'Engineering' },
@@ -355,65 +410,175 @@ const ArchitectApp: React.FC = () => {
   );
 
   // Sub-Views Components
-  const ProjectsView = () => (
-    <div className="p-8 space-y-8 max-w-7xl">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">Form Projects</h2>
-          <p className="text-sm text-on-surface-variant font-medium">Manage your active schemas and deployment pipelines</p>
-        </div>
-        <button 
-          onClick={() => setView('editor')}
-          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
-        >
-          <Plus className="w-4 h-4" /> Create New Project
-        </button>
-      </div>
+  const ProjectsView = () => {
+    const selectedProject = mockProjects.find(p => p.id === projectDetailsId);
+    const relatedForms = mockSavedForms.filter(f => f.projectId === projectDetailsId);
 
-      <div className="sleek-card overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-surface-container-low border-b border-outline-variant">
-              <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Project Name</th>
-              <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Status</th>
-              <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Responses</th>
-              <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Last Updated</th>
-              <th className="px-6 py-4 text-right"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-outline-variant">
-            {mockProjects.map((project) => (
-              <tr key={project.id} className="hover:bg-surface/50 transition-colors group">
-                <td className="px-6 py-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
-                      <FormInput className="w-5 h-5" />
-                    </div>
-                    <span className="font-bold text-sm tracking-tight">{project.name}</span>
+    return (
+      <div className="p-8 space-y-8 max-w-7xl animate-in fade-in duration-500">
+        {!projectDetailsId ? (
+          <>
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-3xl font-extrabold tracking-tighter">Form Projects</h2>
+                <p className="text-sm text-on-surface-variant font-medium">Manage your active schemas and deployment pipelines</p>
+              </div>
+              <button 
+                onClick={() => setView('editor')}
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
+              >
+                <Plus className="w-4 h-4" /> Create New Project
+              </button>
+            </div>
+
+            <div className="sleek-card overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-outline-variant">
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Project Name</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Responses</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Last Updated</th>
+                    <th className="px-6 py-4 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant">
+                  {mockProjects.map((project) => (
+                    <tr 
+                      key={project.id} 
+                      className="hover:bg-surface/50 transition-colors group cursor-pointer"
+                      onClick={() => setProjectDetailsId(project.id)}
+                    >
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                            <FormInput className="w-5 h-5" />
+                          </div>
+                          <span className="font-bold text-sm tracking-tight">{project.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${
+                          project.status === 'Published' ? 'bg-green-100 text-green-700' : 
+                          project.status === 'Draft' ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-outline'
+                        }`}>
+                          {project.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 font-mono text-xs font-bold">{project.responses.toLocaleString()}</td>
+                      <td className="px-6 py-5 text-xs text-on-surface-variant font-medium">{project.updatedAt}</td>
+                      <td className="px-6 py-5 text-right">
+                        <button className="p-2 hover:bg-surface rounded-lg transition-colors text-outline hover:text-on-surface">
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between items-end">
+              <div>
+                <button 
+                  onClick={() => setProjectDetailsId(null)}
+                  className="flex items-center gap-2 text-outline hover:text-primary transition-colors mb-4 group"
+                >
+                  <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Back to Projects</span>
+                </button>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
+                     <FormInput className="w-6 h-6" />
                   </div>
-                </td>
-                <td className="px-6 py-5">
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${
-                    project.status === 'Published' ? 'bg-green-100 text-green-700' : 
-                    project.status === 'Draft' ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-outline'
-                  }`}>
-                    {project.status}
-                  </span>
-                </td>
-                <td className="px-6 py-5 font-mono text-xs font-bold">{project.responses.toLocaleString()}</td>
-                <td className="px-6 py-5 text-xs text-on-surface-variant font-medium">{project.updatedAt}</td>
-                <td className="px-6 py-5 text-right">
-                  <button className="p-2 hover:bg-surface rounded-lg transition-colors text-outline hover:text-on-surface">
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <div>
+                    <h2 className="text-3xl font-extrabold tracking-tighter">{selectedProject?.name}</h2>
+                    <p className="text-sm text-on-surface-variant font-medium">Forms associated with this project</p>
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setView('editor')}
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
+              >
+                <Plus className="w-4 h-4" /> Add Form to Project
+              </button>
+            </div>
+
+            <div className="sleek-card overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-outline-variant">
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Form Name</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Created AT</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">DESIGNER</th>
+                    <th className="px-6 py-4 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant">
+                  {relatedForms.map((form) => (
+                    <tr key={form.id} className="hover:bg-surface/50 transition-colors group">
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center border border-outline-variant group-hover:border-primary transition-colors">
+                            <Code className="w-4 h-4 text-outline group-hover:text-primary" />
+                          </div>
+                          <span className="font-bold text-sm tracking-tight">{form.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${
+                          form.status === 'Published' ? 'bg-green-100 text-green-700' : 
+                          form.status === 'Draft' ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-outline'
+                        }`}>
+                          {form.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 text-xs text-on-surface-variant font-medium font-mono">{form.createdAt}</td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                           <div className="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center text-[10px] font-bold text-outline border border-outline-variant">
+                              {form.designer.charAt(0)}
+                           </div>
+                           <span className="text-xs font-bold">{form.designer}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                           <button 
+                             onClick={() => setView('editor')}
+                             className="px-3 py-1.5 bg-surface border border-outline-variant rounded-lg text-[10px] font-bold hover:border-primary hover:text-primary transition-all uppercase tracking-widest"
+                           >Edit</button>
+                           <button className="p-1.5 hover:bg-surface rounded-lg transition-colors text-outline">
+                             <MoreVertical className="w-4 h-4" />
+                           </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {relatedForms.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                           <div className="p-4 bg-surface rounded-full text-outline/30">
+                              <FileSearch className="w-8 h-8" />
+                           </div>
+                           <p className="text-sm font-bold text-outline">No forms found for this project</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const WorkflowView = () => (
     <div className="p-8 space-y-8 max-w-7xl pb-32">
@@ -619,21 +784,88 @@ const ArchitectApp: React.FC = () => {
 
   if (view === 'editor') {
     return (
-      <div className="flex h-screen bg-surface overflow-hidden text-on-surface">
-        {/* Editor Sidebar - Components / Nodes */}
-        <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
-          <div className="p-6 border-b border-outline-variant flex items-center justify-between">
+      <div className="flex flex-col h-screen bg-surface overflow-hidden text-on-surface">
+        {/* Top Toolbar */}
+        <header className="h-16 sleek-glass px-8 grid grid-cols-3 items-center border-b border-outline-variant shrink-0 z-20">
+          <div className="flex items-center gap-4">
             <button 
               onClick={() => setView('dashboard')}
-              className="p-2 hover:bg-surface rounded-lg transition-colors"
+              className="p-2 hover:bg-surface rounded-lg transition-colors mr-2 border border-outline-variant"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <span className="font-bold tracking-tight">
-              {editorTab === 'workflow' ? 'Process Designer' : 'Form Designer'}
-            </span>
-            <div className="w-9"></div>
+            <div className="flex items-center gap-4">
+              <h2 className="font-bold tracking-tight">Payment Request V2</h2>
+              <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">Active</span>
+            </div>
           </div>
+          
+          <div className="flex justify-center">
+            <div className="flex bg-surface-container-high rounded-lg p-1 border border-outline-variant">
+              {[
+                { id: 'design', label: '设计', icon: Code },
+                { id: 'workflow', label: '流程', icon: Workflow },
+                { id: 'permissions', label: '权限', icon: ShieldCheck },
+                { id: 'simulate', label: '仿真', icon: Activity },
+              ].map(tab => (
+                <button 
+                  key={tab.id}
+                  onClick={() => setEditorTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${editorTab === tab.id ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >
+                  <tab.icon className="w-3 h-3" /> {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+            <div className="flex justify-end items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-surface rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary group mr-3">
+               <Briefcase className="w-3.5 h-3.5 text-outline group-hover:text-primary transition-colors" />
+               <div className="flex flex-col">
+                  <span className="text-[8px] font-bold text-outline uppercase tracking-tighter leading-none">Form Context</span>
+                  <select 
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="bg-transparent text-xs font-extrabold focus:outline-none cursor-pointer pr-4 appearance-none hover:text-primary transition-colors h-4 leading-none"
+                  >
+                    {mockProjects.map(p => (
+                      <option key={p.id} value={p.id} className="text-on-surface">{p.name}</option>
+                    ))}
+                  </select>
+               </div>
+               <ChevronDown className="w-3 h-3 text-outline group-hover:text-primary transition-colors ml-[-4px]" />
+            </div>
+
+            <button 
+              onClick={() => setEditorTab('preview')}
+              className={`flex items-center justify-center w-10 h-10 rounded-xl font-extrabold transition-all active:scale-95 group border ${editorTab === 'preview' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary'}`}
+              title="预览表单"
+            >
+              <Eye className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            </button>
+
+            <button 
+              onClick={() => {
+                const project = mockProjects.find(p => p.id === selectedProjectId);
+                showNotification(`表单已成功保存到项目：${project?.name}`);
+              }} 
+              className="flex items-center justify-center w-10 h-10 bg-primary text-white rounded-xl font-extrabold hover:shadow-xl hover:shadow-primary/30 transition-all active:scale-95 group"
+              title="保存更改"
+            >
+              <Save className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            </button>
+          </div>
+        </header>
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* Editor Sidebar - Components / Nodes */}
+          <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
+            <div className="p-6 border-b border-outline-variant flex items-center">
+              <span className="font-bold tracking-tight text-sm">
+                {editorTab === 'workflow' ? '流程组件' : editorTab === 'permissions' ? '权限角色' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'preview' ? '预览模式' : '字段库'}
+              </span>
+            </div>
           
           <div className="p-6 flex-1 overflow-y-auto space-y-6">
             {editorTab === 'workflow' ? (
@@ -660,6 +892,115 @@ const ArchitectApp: React.FC = () => {
                       </div>
                     </button>
                   ))}
+                </div>
+              </div>
+            ) : editorTab === 'permissions' ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">Select Role</h3>
+                  <button className="p-1 hover:bg-surface rounded-md">
+                    <Plus className="w-3 h-3 text-primary" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {roles.map((role) => (
+                    <button
+                      key={role}
+                      onClick={() => setSelectedRole(role)}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${selectedRole === role ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${selectedRole === role ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant'}`}>
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <span className={`text-xs font-bold ${selectedRole === role ? 'text-primary' : ''}`}>{role}</span>
+                      </div>
+                      {selectedRole === role && <ChevronRight className="w-4 h-4 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant mt-6">
+                   <div className="flex items-center gap-2 mb-2">
+                     <ShieldCheck className="w-4 h-4 text-primary" />
+                     <span className="text-[10px] font-bold">RBAC Concept</span>
+                   </div>
+                   <p className="text-[10px] text-on-surface-variant font-medium leading-relaxed">
+                     Changes to role permissions will immediately affect all users assigned to this role across current pipelines.
+                   </p>
+                </div>
+              </div>
+            ) : editorTab === 'simulate' ? (
+              <div className="space-y-6">
+                <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant">
+                   <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">
+                         <Activity className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold font-mono">Simulation Environment</span>
+                   </div>
+                   <div className="space-y-4">
+                      <div className="p-3 bg-white rounded-lg border border-outline-variant">
+                         <div className="text-[10px] font-bold text-outline uppercase mb-1">Active Scenario</div>
+                         <div className="text-xs font-bold">Standard Payment Flow</div>
+                      </div>
+                      <div className="flex gap-2">
+                         <div className="flex-1 p-3 bg-green-50 rounded-lg border border-green-100">
+                            <div className="text-[10px] font-bold text-green-700 uppercase mb-1">Pass Rate</div>
+                            <div className="text-sm font-bold text-green-700">94.2%</div>
+                         </div>
+                         <div className="flex-1 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                            <div className="text-[10px] font-bold text-amber-700 uppercase mb-1">Bottleneck</div>
+                            <div className="text-sm font-bold text-amber-700">CFO sign</div>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="space-y-4">
+                   <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">Simulator Settings</h3>
+                   <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface">
+                         <span className="text-[10px] font-bold uppercase">Real-time trace</span>
+                         <div className="w-8 h-4 bg-primary rounded-full relative">
+                            <div className="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full"></div>
+                         </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface opacity-50">
+                         <span className="text-[10px] font-bold uppercase">Parallel instances</span>
+                         <div className="w-8 h-4 bg-outline-variant rounded-full relative">
+                            <div className="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full"></div>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+              </div>
+            ) : editorTab === 'preview' ? (
+              <div className="space-y-6">
+                <div className="bg-primary/5 rounded-2xl p-6 border border-primary/10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Eye className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-bold text-primary">预览模式</span>
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant font-medium leading-relaxed">
+                    当前正在查看表单的实际运行效果。你可以填写表单并点击提交，验证业务流程。
+                  </p>
+                </div>
+                
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">测试检查库</h3>
+                  <div className="space-y-2">
+                    {[
+                      '验证字段必填属性是否生效',
+                      '检查下拉列表数据是否正确',
+                      '确保流程节点跳转符合逻辑',
+                      '确认表单样式在各种屏幕下的表现'
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-surface rounded-xl border border-outline-variant">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <span className="text-[10px] font-bold">{item}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -700,41 +1041,8 @@ const ArchitectApp: React.FC = () => {
         </aside>
 
         {/* Main Canvas */}
-        <main className="flex-1 flex flex-col min-w-0 bg-surface">
-          <header className="h-16 sleek-glass px-8 flex items-center justify-between border-b border-outline-variant shrink-0">
-            <div className="flex items-center gap-4">
-              <h2 className="font-bold tracking-tight">Payment Request V2</h2>
-              <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">Active</span>
-              <button 
-                onClick={() => showNotification('Draft saved to cloud')} 
-                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold hover:bg-primary/20 transition-all ml-4"
-              >
-                <Save className="w-3 h-3" /> Save Changes
-              </button>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="flex bg-surface-container-high rounded-lg p-1 mr-4 border border-outline-variant">
-                {[
-                  { id: 'design', label: 'Form', icon: Code },
-                  { id: 'workflow', label: 'Process', icon: Workflow },
-                  { id: 'preview', label: 'Preview', icon: Eye },
-                  { id: 'simulate', label: 'Simulate', icon: Activity },
-                ].map(tab => (
-                  <button 
-                    key={tab.id}
-                    onClick={() => setEditorTab(tab.id as any)}
-                    className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${editorTab === tab.id ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
-                  >
-                    <tab.icon className="w-3 h-3" /> {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </header>
-
-          <div className="flex-1 overflow-y-auto p-12 canvas-grid relative">
-            <div className="max-w-4xl mx-auto">
+        <main className="flex-1 overflow-y-auto p-12 canvas-grid relative bg-surface">
+          <div className="max-w-4xl mx-auto">
               {editorTab === 'design' && (
                 <div className="max-w-2xl mx-auto space-y-4 pb-20">
                   <Reorder.Group axis="y" values={formFields} onReorder={setFormFields} className="space-y-4">
@@ -873,76 +1181,260 @@ const ArchitectApp: React.FC = () => {
               )}
 
               {editorTab === 'simulate' && (
-                <div className="max-w-4xl mx-auto pb-32">
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <motion.div 
+                  key="simulate-tab"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="max-w-5xl mx-auto pb-32 space-y-8"
+                >
+                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                       {/* Left: Data Input */}
-                      <div className="sleek-card p-8 space-y-6">
+                      <div className="lg:col-span-1 border border-outline-variant bg-white rounded-3xl p-8 shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
-                            <h3 className="font-bold flex items-center gap-2"><Database className="w-4 h-4 text-primary" /> Test Data Payload</h3>
+                            <h3 className="font-bold flex items-center gap-2"><Database className="w-4 h-4 text-primary" /> 表单模拟数据</h3>
                             <button 
                               onClick={() => {
-                                showNotification('Simulation restarted');
+                                showNotification('模拟数据已重置');
                                 setSimulationData({ amount: 6000 });
                               }}
-                              className="text-[10px] font-bold text-primary hover:underline"
-                            >RESET</button>
+                              className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter"
+                            >Reset</button>
                          </div>
                          <div className="space-y-4">
-                            {formFields.filter(f => ['text', 'number', 'select'].includes(f.type)).map(field => (
-                              <div key={field.id} className="space-y-2">
-                                <label className="text-[10px] font-bold text-outline uppercase tracking-widest">{field.label}</label>
-                                <input 
-                                  type={field.type === 'number' ? 'number' : 'text'}
-                                  value={simulationData[field.label.toLowerCase()] ?? ''}
-                                  onChange={(e) => setSimulationData({...simulationData, [field.label.toLowerCase()]: e.target.value})}
-                                  className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
-                                />
+                            {formFields && formFields.filter(f => ['text', 'number', 'select'].includes(f.type)).length > 0 ? (
+                              formFields.filter(f => ['text', 'number', 'select'].includes(f.type)).map(field => (
+                                <div key={field.id} className="space-y-2">
+                                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest leading-none mb-1 block">{field.label}</label>
+                                  <input 
+                                    type={field.type === 'number' ? 'number' : 'text'}
+                                    value={simulationData[field.label?.toLowerCase()] ?? ''}
+                                    onChange={(e) => setSimulationData({...simulationData, [field.label?.toLowerCase()]: e.target.value})}
+                                    className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                                    placeholder={`输入 ${field.label}...`}
+                                  />
+                                </div>
+                              ))
+                            ) : (
+                              <div className="p-4 bg-surface text-center rounded-xl border border-dashed border-outline-variant">
+                                <p className="text-[10px] font-bold text-outline">无可用模拟字段</p>
                               </div>
-                            ))}
+                            )}
                          </div>
                          <button 
-                           onClick={() => showNotification('Data payload verified')}
-                           className="w-full py-4 bg-on-surface text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all"
-                         >Validate Payload</button>
+                           onClick={() => showNotification('仿真负载已校验')}
+                           className="w-full py-4 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl hover:shadow-primary/20 transition-all"
+                         >校验载荷</button>
                       </div>
 
                       {/* Right: Flow Output */}
-                      <div className="sleek-card p-8 bg-surface-container-low/30 border-2 border-dashed border-outline-variant">
-                         <div className="flex items-center justify-between mb-8">
-                            <h3 className="font-bold bg-white px-3 py-1 rounded-full border border-outline-variant shadow-sm text-xs">Runtime Trace</h3>
-                            <div className="flex items-center gap-2">
-                               <div className="w-2 h-2 rounded-full bg-primary animate-ping"></div>
-                               <span className="text-[10px] font-bold text-primary uppercase">Simulating...</span>
-                            </div>
-                         </div>
-                         
-                         <div className="space-y-4">
-                            {[
-                               { time: 'T+0s', event: 'Initiator triggered "Payment Initiation"', ok: true },
-                               { time: 'T+1s', event: 'Manager Approval: Pending (Dept Manager)', ok: true },
-                               { time: 'T+2s', event: `Condition Threshold: ${Number(simulationData.amount || 0) > 5000 ? 'TRUE' : 'FALSE'} (Path: ${Number(simulationData.amount || 0) > 5000 ? 'A' : 'B'})`, ok: true },
-                               { time: 'T+3s', event: Number(simulationData.amount || 0) > 5000 ? 'CFO Final Sign-off: Required' : 'Processing Complete', ok: true },
-                            ].map((trace, i) => (
-                              <motion.div 
-                                key={i} 
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.2 }}
-                                className="flex gap-4 p-3 rounded-lg bg-white/50 border border-outline-variant"
-                              >
-                                 <span className="text-[10px] font-mono text-outline">{trace.time}</span>
-                                 <span className="text-xs font-bold text-on-surface truncate">{trace.event}</span>
-                                 <div className="ml-auto"><CheckSquare className="w-3 h-3 text-green-500" /></div>
-                              </motion.div>
-                            ))}
-                         </div>
+                      <div className="lg:col-span-2 space-y-6">
+                        <div className="border border-outline-variant bg-surface-container-low/30 rounded-3xl p-8 border-2 border-dashed relative overflow-hidden min-h-[500px]">
+                           <div className="flex items-center justify-between mb-8 relative z-10">
+                              <h3 className="font-bold bg-white px-4 py-1.5 rounded-full border border-outline-variant shadow-sm text-xs">Runtime Trace (实时追踪)</h3>
+                              <div className="flex items-center gap-2">
+                                 <div className="w-2.5 h-2.5 rounded-full bg-primary animate-ping"></div>
+                                 <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Simulating...</span>
+                              </div>
+                           </div>
+                           
+                           <div className="space-y-4 relative z-10">
+                              {[
+                                 { time: 'T+0s', event: 'Initiator triggered "Payment Initiation"', ok: true },
+                                 { time: 'T+1s', event: 'Manager Approval: Pending (Dept Manager)', ok: true },
+                                 { time: 'T+2s', event: `Condition Threshold: ${Number(simulationData.amount || 0) > 5000 ? 'TRUE' : 'FALSE'} (Path: ${Number(simulationData.amount || 0) > 5000 ? 'Corporate' : 'Auto'})`, ok: true },
+                                 { time: 'T+3s', event: Number(simulationData.amount || 0) > 5000 ? 'CFO Final Sign-off: Required' : 'Processing Complete', ok: true },
+                                 { time: 'T+4s', event: 'Audit Logging: Success', ok: true },
+                              ].map((trace, i) => (
+                                <motion.div 
+                                  key={i} 
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: i * 0.15 + 0.3 }}
+                                  className="flex gap-4 p-4 rounded-2xl bg-white border border-outline-variant shadow-sm group hover:border-primary transition-all"
+                                >
+                                   <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center font-mono text-[10px] font-bold text-outline shrink-0">{trace.time}</div>
+                                   <div className="flex flex-col justify-center min-w-0">
+                                      <span className="text-xs font-extrabold text-on-surface truncate">{trace.event}</span>
+                                      <span className="text-[10px] text-outline font-medium tracking-tight">Operation successful</span>
+                                   </div>
+                                   <div className="ml-auto flex items-center"><CheckCircle2 className="w-4 h-4 text-green-500" /></div>
+                                </motion.div>
+                              ))}
+                           </div>
 
-                         <div className="mt-8 p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                            <div className="text-[10px] font-bold text-primary uppercase mb-1">Final Result</div>
-                            <div className="font-bold text-sm tracking-tight">Process would route to: {Number(simulationData.amount || 0) > 5000 ? 'Corporate Review' : 'Auto-Release'}</div>
-                         </div>
+                           <motion.div 
+                             initial={{ opacity: 0, y: 20 }}
+                             animate={{ opacity: 1, y: 0 }}
+                             transition={{ delay: 1.2 }}
+                             className="mt-8 p-6 bg-primary text-white rounded-3xl shadow-2xl shadow-primary/30 relative z-10"
+                           >
+                              <div className="text-[10px] font-bold opacity-80 uppercase mb-1 tracking-widest">Final Simulation Result</div>
+                              <div className="font-extrabold text-xl tracking-tight">
+                                Process would route to: {Number(simulationData.amount || 0) > 5000 ? 'Corporate Review Strategy' : 'Auto-Release Flow'}
+                              </div>
+                              <div className="mt-4 flex gap-4 text-[10px] font-bold opacity-70">
+                                <span>Latency: 4.2ms</span>
+                                <span>Memory: 12.4MB</span>
+                                <span>Status: Verified</span>
+                              </div>
+                           </motion.div>
+
+                           {/* Blueprint subtle background */}
+                           <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
+                              <LayoutGrid className="w-full h-full" />
+                           </div>
+                        </div>
                       </div>
                    </div>
+                </motion.div>
+              )}
+
+              {editorTab === 'permissions' && (
+                <div className="max-w-4xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <header className="mb-8">
+                    <h2 className="text-2xl font-extrabold tracking-tight">权限配置：{selectedRole}</h2>
+                    <p className="text-sm text-on-surface-variant font-medium">配置该角色对表单的操作权限及数据访问范围</p>
+                  </header>
+
+                  <section className="space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                        <Settings className="w-5 h-5" />
+                      </div>
+                      <h3 className="font-bold tracking-tight">一、角色权限配置</h3>
+                    </div>
+                    
+                    <div className="bg-white p-8 rounded-2xl border border-outline-variant shadow-sm space-y-6">
+                      <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                        <div>
+                          <h4 className="font-bold text-sm">功能权限项</h4>
+                          <p className="text-[10px] text-on-surface-variant font-medium">最小权限原则：默认无权限，需显式授权</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const allIds = functionalOptions.map(o => o.id);
+                            setFuncPerms(prev => ({ ...prev, [selectedRole]: allIds }));
+                          }}
+                          className="text-[10px] font-bold text-primary hover:underline transition-all"
+                        >
+                          全部授权
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {functionalOptions.map((opt) => {
+                          const isChecked = funcPerms[selectedRole]?.includes(opt.id);
+                          return (
+                            <div 
+                              key={opt.id}
+                              onClick={() => {
+                                const current = funcPerms[selectedRole] || [];
+                                const next = current.includes(opt.id) 
+                                  ? current.filter(id => id !== opt.id)
+                                  : [...current, opt.id];
+                                setFuncPerms(prev => ({ ...prev, [selectedRole]: next }));
+                              }}
+                              className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${isChecked ? 'border-primary bg-primary/5' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
+                            >
+                              <div className="flex gap-4">
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isChecked ? 'bg-primary border-primary' : 'border-outline-variant bg-white'}`}>
+                                  {isChecked && <Plus className="w-3 h-3 text-white rotate-45" style={{ transform: 'rotate(0deg)' }} />}
+                                </div>
+                                <div>
+                                  <div className={`text-xs font-bold ${isChecked ? 'text-primary' : 'text-on-surface'}`}>{opt.label}</div>
+                                  <div className="text-[10px] text-on-surface-variant font-medium">{opt.desc}</div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <h3 className="font-bold tracking-tight">二、数据权限配置</h3>
+                    </div>
+
+                    <div className="bg-white p-8 rounded-2xl border border-outline-variant shadow-sm space-y-8">
+                       <div className="space-y-4">
+                         <div className="text-[10px] font-bold text-outline uppercase tracking-widest border-b border-outline-variant pb-2">数据权限类型</div>
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {dataScopeOptions.map(opt => (
+                              <div 
+                                key={opt.id}
+                                onClick={() => setDataPerms(prev => ({ ...prev, [selectedRole]: { ...prev[selectedRole], type: opt.id as any } }))}
+                                className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${dataPerms[selectedRole]?.type === opt.id ? 'border-primary bg-primary/5' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
+                              >
+                                <div>
+                                  <div className={`text-xs font-bold ${dataPerms[selectedRole]?.type === opt.id ? 'text-primary' : 'text-on-surface'}`}>{opt.label}</div>
+                                  <div className="text-[10px] text-on-surface-variant font-medium">{opt.desc}</div>
+                                </div>
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${dataPerms[selectedRole]?.type === opt.id ? 'border-primary' : 'border-outline-variant'}`}>
+                                  {dataPerms[selectedRole]?.type === opt.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                </div>
+                              </div>
+                            ))}
+                         </div>
+                       </div>
+
+                       {dataPerms[selectedRole]?.type === 'custom' && (
+                         <div className="space-y-4 pt-6 border-t border-outline-variant animate-in fade-in slide-in-from-top-4 duration-300">
+                           <div className="text-[10px] font-bold text-outline uppercase tracking-widest">自定义权限规则</div>
+                           <div className="p-4 bg-surface rounded-xl border border-outline-variant space-y-4">
+                              <div className="flex gap-4">
+                                 <div className="flex-1 space-y-2">
+                                    <label className="text-[10px] font-bold text-on-surface-variant uppercase">组织架构</label>
+                                    <select className="w-full bg-white border border-outline-variant rounded-lg p-3 text-xs font-medium">
+                                       <option>选择部门 / 分支</option>
+                                       <option>HR Department</option>
+                                       <option>Finance Center</option>
+                                       <option>Engineering Team</option>
+                                    </select>
+                                 </div>
+                                 <div className="flex-1 space-y-2">
+                                    <label className="text-[10px] font-bold text-on-surface-variant uppercase">数据字段</label>
+                                    <select className="w-full bg-white border border-outline-variant rounded-lg p-3 text-xs font-medium">
+                                       <option>选择过滤字段</option>
+                                       {formFields.map(f => <option key={f.id}>{f.label}</option>)}
+                                    </select>
+                                 </div>
+                              </div>
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase">逻辑表达式 (JS Syntax)</label>
+                                 <input 
+                                   type="text" 
+                                   placeholder="e.g. data.amount > 1000 && data.deptId == user.deptId"
+                                   value={dataPerms[selectedRole]?.customRule || ''}
+                                   onChange={(e) => setDataPerms(prev => ({ ...prev, [selectedRole]: { ...prev[selectedRole], customRule: e.target.value } }))}
+                                   className="w-full bg-white border border-outline-variant rounded-lg p-3 text-xs font-mono"
+                                 />
+                                 <p className="text-[10px] text-outline font-medium">使用 JavaScript 表达式定义更复杂的行级数据权限过滤逻辑。</p>
+                              </div>
+                           </div>
+                         </div>
+                       )}
+
+                       <div className="flex justify-end gap-3 pt-6 border-t border-outline-variant">
+                          <button 
+                            onClick={() => showNotification('配置已重置')}
+                            className="px-6 py-2.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface transition-all border border-outline-variant"
+                          >
+                            重置
+                          </button>
+                          <button 
+                            onClick={() => showNotification(`“${selectedRole}”的权限已保存成功`)}
+                            className="px-8 py-2.5 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2"
+                          >
+                            <Save className="w-4 h-4" /> 保存当前角色配置
+                          </button>
+                       </div>
+                    </div>
+                  </section>
                 </div>
               )}
 
@@ -1011,7 +1503,6 @@ const ArchitectApp: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
         </main>
 
         {/* Right Sidebar - Properties */}
@@ -1250,11 +1741,12 @@ const ArchitectApp: React.FC = () => {
              </button>
           </div>
         </aside>
-
-        <AnimatePresence>
-          {isSchemaVisible && <JsonSchemaModal />}
-        </AnimatePresence>
       </div>
+
+      <AnimatePresence>
+        {isSchemaVisible && <JsonSchemaModal />}
+      </AnimatePresence>
+    </div>
     );
   }
 
