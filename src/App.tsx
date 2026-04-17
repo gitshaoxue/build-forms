@@ -113,63 +113,63 @@ interface Submission {
 }
 
 const mockProjects: Project[] = [
-  { id: '1', name: 'Onboarding Schema', updatedAt: '2h ago', status: 'Draft', responses: 0 },
-  { id: '2', name: 'Customer Feedback Q3', updatedAt: '1d ago', status: 'Published', responses: 1240 },
-  { id: '3', name: 'Enterprise Lead Gen', updatedAt: '3d ago', status: 'Published', responses: 852 },
-  { id: '4', name: 'Waitlist Alpha', updatedAt: '5d ago', status: 'Archived', responses: 3200 },
+  { id: '1', name: '入职架构', updatedAt: '2小时前', status: 'Draft', responses: 0 },
+  { id: '2', name: 'Q3 客户反馈', updatedAt: '1天前', status: 'Published', responses: 1240 },
+  { id: '3', name: '企业潜在客户', updatedAt: '3天前', status: 'Published', responses: 852 },
+  { id: '4', name: 'Alpha 候选名单', updatedAt: '5天前', status: 'Archived', responses: 3200 },
 ];
 
 const mockSavedForms: SavedForm[] = [
-  { id: 'f1', projectId: '1', name: 'Employee Basic Info', status: 'Draft', createdAt: '2026-04-10', designer: 'Chen' },
-  { id: 'f2', projectId: '1', name: 'Technical Assessment', status: 'Draft', createdAt: '2026-04-12', designer: 'Chen' },
-  { id: 'f3', projectId: '2', name: 'Product Satisfaction', status: 'Published', createdAt: '2026-03-20', designer: 'Sarah' },
-  { id: 'f4', projectId: '2', name: 'UI Feedback Survey', status: 'Published', createdAt: '2026-03-25', designer: 'Admin' },
-  { id: 'f5', projectId: '3', name: 'Lead Contact Form', status: 'Published', createdAt: '2026-04-01', designer: 'Li' },
-  { id: 'f6', projectId: '4', name: 'Waitlist Form v1', status: 'Archived', createdAt: '2025-12-15', designer: 'Chen' },
+  { id: 'f1', projectId: '1', name: '员工基本信息', status: 'Draft', createdAt: '2026-04-10', designer: '陈' },
+  { id: 'f2', projectId: '1', name: '技术评估', status: 'Draft', createdAt: '2026-04-12', designer: '陈' },
+  { id: 'f3', projectId: '2', name: '产品满意度', status: 'Published', createdAt: '2026-03-20', designer: '莎拉' },
+  { id: 'f4', projectId: '2', name: 'UI 反馈调查', status: 'Published', createdAt: '2026-03-25', designer: '管理员' },
+  { id: 'f5', projectId: '3', name: '客户联系表单', status: 'Published', createdAt: '2026-04-01', designer: '李' },
+  { id: 'f6', projectId: '4', name: '候选名单 v1', status: 'Archived', createdAt: '2025-12-15', designer: '陈' },
 ];
 
 const ArchitectApp: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [view, setView] = React.useState<ViewType>('landing');
   const [formFields, setFormFields] = React.useState<FormField[]>([
-    { id: '1', type: 'text', label: 'Full Name', placeholder: 'Enter your name', required: true },
-    { id: '2', type: 'date', label: 'Date of Birth', required: false },
+    { id: '1', type: 'text', label: '全名', placeholder: '请输入您的姓名', required: true },
+    { id: '2', type: 'date', label: '出生日期', required: false },
   ]);
   const [selectedFieldId, setSelectedFieldId] = React.useState<string | null>(null);
   const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'permissions' | 'simulate' | 'data' | 'preview'>('design');
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([
-    { id: 'node-1', type: 'start', label: 'Payment Initiation', description: 'Triggered upon form submission', targets: ['node-2'] },
+    { id: 'node-1', type: 'start', label: '支付发起', description: '表单提交时触发', targets: ['node-2'] },
     { 
       id: 'node-2', 
       type: 'approval', 
-      label: 'Manager Approval', 
-      description: 'Department head review', 
+      label: '经理审批', 
+      description: '部门主管审核', 
       targets: ['node-5'],
-      config: { assigneeType: 'role', assigneeValue: 'Dept Manager', approvalType: 'OR', actions: ['approve', 'reject', 'transfer'] } 
+      config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR', actions: ['approve', 'reject', 'transfer'] } 
     },
     { 
       id: 'node-5', 
       type: 'condition', 
-      label: 'Amount Threshold', 
-      description: 'Logic branch based on payment total', 
+      label: '金额阈值', 
+      description: '基于支付总额的逻辑分支', 
       targets: ['node-3', 'node-4'],
       config: { expression: 'amount > 5000', defaultBranch: 'node-4' }
     },
     { 
       id: 'node-3', 
       type: 'approval', 
-      label: 'CFO Final Sign-off', 
-      description: 'Required for high-value requests', 
+      label: 'CFO 最终签核', 
+      description: '高频值请求所需', 
       targets: ['node-4'],
       config: { assigneeType: 'role', assigneeValue: 'CFO', approvalType: 'AND' } 
     },
-    { id: 'node-4', type: 'end', label: 'Processing Complete', description: 'Data synced to ERP', targets: [] },
+    { id: 'node-4', type: 'end', label: '处理完成', description: '数据同步至 ERP', targets: [] },
   ]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
   const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([
-    { id: 'wf-1', projectId: '1', initiator: 'Chen', startTime: '1h ago', status: 'Pending', currentStep: 'Manager Approval', history: [] },
-    { id: 'wf-2', projectId: '1', initiator: 'Sarah', startTime: '5h ago', status: 'Completed', currentStep: 'End', history: [{ step: 'Start', actor: 'Sarah', action: 'Submit', time: '5h ago' }] },
+    { id: 'wf-1', projectId: '1', initiator: '陈', startTime: '1小时前', status: 'Pending', currentStep: '经理审批', history: [] },
+    { id: 'wf-2', projectId: '1', initiator: '莎拉', startTime: '5小时前', status: 'Completed', currentStep: '结束', history: [{ step: '开始', actor: '莎拉', action: '提交', time: '5小时前' }] },
   ]);
   const [simulationData, setSimulationData] = React.useState<Record<string, any>>({ amount: 6000 });
   const [isSchemaVisible, setIsSchemaVisible] = React.useState(false);
@@ -248,6 +248,34 @@ const ArchitectApp: React.FC = () => {
   const [isDataMasked, setIsDataMasked] = React.useState(true);
   const [viewingSubmission, setViewingSubmission] = React.useState<Submission | null>(null);
 
+  const handleExport = () => {
+    // Collect all unique keys from data objects for dynamic columns
+    const dynamicKeys = Array.from(new Set(submissions.flatMap(s => Object.keys(s.data))));
+    const headers = ['提交 ID', '提交人', '提交时间', '状态', ...dynamicKeys];
+    
+    const csvRows = submissions.map(s => {
+      const row = [
+        s.id,
+        s.submitter,
+        s.submitTime,
+        s.status,
+        ...dynamicKeys.map((key: string) => s.data[key] || '')
+      ];
+      return row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `表单数据导出_${new Date().toLocaleDateString()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showNotification('数据导出成功');
+  };
+
   const maskData = (val: any, label: string) => {
     if (!isDataMasked || !val) return val;
     const str = String(val);
@@ -324,12 +352,12 @@ const ArchitectApp: React.FC = () => {
       
       <nav className="flex-1 space-y-1 px-4">
         {[
-          { label: 'Overview', icon: LayoutGrid, view: 'dashboard' },
-          { label: 'Form Projects', icon: FormInput, view: 'projects' },
-          { label: 'Team Workflow', icon: Workflow, view: 'workflow' },
-          { label: 'Data Insights', icon: Activity, view: 'insights' },
-          { label: 'Integrations', icon: Database, view: 'integrations' },
-          { label: 'Team Members', icon: Users, view: 'team' },
+          { label: '控制台概览', icon: LayoutGrid, view: 'dashboard' },
+          { label: '表单项目', icon: FormInput, view: 'projects' },
+          { label: '团队流转', icon: Workflow, view: 'workflow' },
+          { label: '数据洞察', icon: Activity, view: 'insights' },
+          { label: '集成中心', icon: Database, view: 'integrations' },
+          { label: '团队成员', icon: Users, view: 'team' },
         ].map((item) => (
           <div 
             key={item.label}
@@ -348,13 +376,13 @@ const ArchitectApp: React.FC = () => {
 
       <div className="p-4 border-t border-outline-variant">
         <div className="bg-surface-container-low rounded-2xl p-4">
-          <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Usage Credits</div>
+          <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">额度消耗</div>
           <div className="h-1.5 w-full bg-outline-variant rounded-full overflow-hidden mb-2">
             <div className="h-full bg-primary w-3/4"></div>
           </div>
           <div className="flex justify-between text-[10px] font-bold">
             <span>1.2k / 1.5k</span>
-            <span className="text-primary cursor-pointer hover:underline">UPGRADE</span>
+            <span className="text-primary cursor-pointer hover:underline">去升级</span>
           </div>
         </div>
         <button 
@@ -362,7 +390,7 @@ const ArchitectApp: React.FC = () => {
           className="w-full mt-4 flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all font-medium text-sm"
         >
           <ChevronRight className="w-4 h-4 rotate-180" />
-          Back to Site
+          返回主页
         </button>
       </div>
     </aside>
@@ -375,7 +403,7 @@ const ArchitectApp: React.FC = () => {
         {subtitle && <p className="text-xs text-on-surface-variant font-medium">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-4">
-        <button onClick={() => showNotification('No new notifications')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
+        <button onClick={() => showNotification('没有新通知')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
           <Bell className="w-5 h-5" />
           <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
         </button>
@@ -383,7 +411,7 @@ const ArchitectApp: React.FC = () => {
           <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
           <input 
             type="text" 
-            placeholder="Search console..."
+            placeholder="搜索控制台..."
             className="bg-surface pl-10 pr-4 py-2 rounded-full text-sm border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary/20 w-64 transition-all"
           />
         </div>
@@ -391,7 +419,7 @@ const ArchitectApp: React.FC = () => {
         <img 
           src="https://picsum.photos/seed/profile/100/100" 
           className="w-8 h-8 rounded-full ring-2 ring-primary/10 cursor-pointer hover:ring-primary/30 transition-all border border-outline-variant" 
-          alt="Profile"
+          alt="头像"
           referrerPolicy="no-referrer"
         />
       </div>
@@ -403,10 +431,10 @@ const ArchitectApp: React.FC = () => {
     const newField: FormField = {
       id: Math.random().toString(36).substr(2, 9),
       type,
-      label: `New ${type} field`,
+      label: `新建 ${type} 字段`,
       required: false,
-      placeholder: type === 'text' ? 'Enter text...' : undefined,
-      options: type === 'select' ? ['Option 1', 'Option 2'] : undefined,
+      placeholder: type === 'text' ? '请输入内容...' : undefined,
+      options: type === 'select' ? ['选项 1', '选项 2'] : undefined,
     };
     setFormFields([...formFields, newField]);
     setSelectedFieldId(newField.id);
@@ -425,8 +453,8 @@ const ArchitectApp: React.FC = () => {
     const newNode: WorkflowNode = {
       id: `node-${Math.random().toString(36).substr(2, 9)}`,
       type,
-      label: `New ${type} step`,
-      description: 'Configure this step in the properties panel',
+      label: `新建 ${type} 环节`,
+      description: '在属性面板中配置此环节',
       targets: [],
       config: type === 'approval' ? { 
         assigneeType: 'initiator', 
@@ -474,7 +502,7 @@ const ArchitectApp: React.FC = () => {
         <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface">
           <div className="flex items-center gap-2">
             <Code className="w-5 h-5 text-primary" />
-            <span className="font-bold text-lg tracking-tight">JSON Definition</span>
+            <span className="font-bold text-lg tracking-tight">JSON 定义</span>
           </div>
           <button onClick={() => setIsSchemaVisible(false)} className="p-2 hover:bg-surface-container-low rounded-full transition-colors">
             <X className="w-5 h-5" />
@@ -482,8 +510,8 @@ const ArchitectApp: React.FC = () => {
         </div>
         <div className="p-8 overflow-y-auto flex-1 bg-on-surface text-surface-container-low font-mono text-xs leading-relaxed">
           <pre>{JSON.stringify({
-            formTitle: "Onboarding Schema",
-            version: "2.0.4-draft",
+            formTitle: "入职架构",
+            version: "2.0.4-草稿",
             fields: formFields
           }, null, 2)}</pre>
         </div>
@@ -491,17 +519,17 @@ const ArchitectApp: React.FC = () => {
           <button 
             onClick={() => {
               navigator.clipboard.writeText(JSON.stringify(formFields));
-              showNotification('Schema copied to clipboard');
+              showNotification('架构已复制到剪贴板');
             }}
             className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-white transition-all"
           >
-            Copy JSON
+            复制 JSON
           </button>
           <button 
             onClick={() => setIsSchemaVisible(false)}
             className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold transition-all"
           >
-            Close
+            关闭
           </button>
         </div>
       </motion.div>
@@ -519,14 +547,14 @@ const ArchitectApp: React.FC = () => {
           <>
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="text-3xl font-extrabold tracking-tighter">Form Projects</h2>
-                <p className="text-sm text-on-surface-variant font-medium">Manage your active schemas and deployment pipelines</p>
+                <h2 className="text-3xl font-extrabold tracking-tighter">表单项目</h2>
+                <p className="text-sm text-on-surface-variant font-medium">管理您的活跃架构和部署流水线</p>
               </div>
               <button 
                 onClick={() => setView('editor')}
                 className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
               >
-                <Plus className="w-4 h-4" /> Create New Project
+                <Plus className="w-4 h-4" /> 创建新项目
               </button>
             </div>
 
@@ -534,10 +562,10 @@ const ArchitectApp: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-surface-container-low border-b border-outline-variant">
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Project Name</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Responses</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Last Updated</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">项目名称</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">状态</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">回复数</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">最后更新</th>
                     <th className="px-6 py-4 text-right"></th>
                   </tr>
                 </thead>
@@ -561,7 +589,7 @@ const ArchitectApp: React.FC = () => {
                           project.status === 'Published' ? 'bg-green-100 text-green-700' : 
                           project.status === 'Draft' ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-outline'
                         }`}>
-                          {project.status}
+                          {project.status === 'Published' ? '已发布' : project.status === 'Draft' ? '草稿' : '已归档'}
                         </span>
                       </td>
                       <td className="px-6 py-5 font-mono text-xs font-bold">{project.responses.toLocaleString()}</td>
@@ -586,7 +614,7 @@ const ArchitectApp: React.FC = () => {
                   className="flex items-center gap-2 text-outline hover:text-primary transition-colors mb-4 group"
                 >
                   <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Back to Projects</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">返回项目列表</span>
                 </button>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
@@ -594,7 +622,7 @@ const ArchitectApp: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-3xl font-extrabold tracking-tighter">{selectedProject?.name}</h2>
-                    <p className="text-sm text-on-surface-variant font-medium">Forms associated with this project</p>
+                    <p className="text-sm text-on-surface-variant font-medium">与此项目关联的表单列表</p>
                   </div>
                 </div>
               </div>
@@ -602,7 +630,7 @@ const ArchitectApp: React.FC = () => {
                 onClick={() => setView('editor')}
                 className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
               >
-                <Plus className="w-4 h-4" /> Add Form to Project
+                <Plus className="w-4 h-4" /> 向项目添加表单
               </button>
             </div>
 
@@ -610,10 +638,10 @@ const ArchitectApp: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-surface-container-low border-b border-outline-variant">
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Form Name</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">Created AT</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">DESIGNER</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">表单名称</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">状态</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">创建时间</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">设计者</th>
                     <th className="px-6 py-4 text-right"></th>
                   </tr>
                 </thead>
@@ -633,7 +661,7 @@ const ArchitectApp: React.FC = () => {
                           form.status === 'Published' ? 'bg-green-100 text-green-700' : 
                           form.status === 'Draft' ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-outline'
                         }`}>
-                          {form.status}
+                          {form.status === 'Published' ? '已发布' : form.status === 'Draft' ? '草稿' : '已归档'}
                         </span>
                       </td>
                       <td className="px-6 py-5 text-xs text-on-surface-variant font-medium font-mono">{form.createdAt}</td>
@@ -683,18 +711,18 @@ const ArchitectApp: React.FC = () => {
     <div className="p-8 space-y-8 max-w-7xl pb-32">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">Published Pipelines</h2>
-          <p className="text-sm text-on-surface-variant font-medium">Monitor active process instances and operational telemetry</p>
+          <h2 className="text-3xl font-extrabold tracking-tighter">已发布的流程</h2>
+          <p className="text-sm text-on-surface-variant font-medium">监控活跃的流程实例和运行遥测数据</p>
         </div>
         <div className="flex bg-surface-container rounded-xl p-1.5 border border-outline-variant shadow-sm text-on-surface">
            <button 
              onClick={() => setWorkflowStatus('active')}
              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'active' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-outline hover:text-on-surface'}`}
-           >ACTIVE</button>
+           >活跃中</button>
            <button 
              onClick={() => setWorkflowStatus('inactive')}
              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'inactive' ? 'bg-on-surface text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
-           >PAUSED</button>
+           >已暂停</button>
         </div>
       </div>
 
@@ -702,8 +730,8 @@ const ArchitectApp: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
            <div className="sleek-card overflow-hidden border-2 border-outline-variant shadow-sm">
               <div className="p-6 border-b border-outline-variant bg-surface-container-low/50 flex justify-between items-center text-on-surface">
-                 <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Active Instances</h3>
-                 <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded tracking-widest uppercase">Real-time</span>
+                 <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> 活跃实例</h3>
+                 <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded tracking-widest uppercase">实时</span>
               </div>
               <div className="divide-y divide-outline-variant">
                  {workflowInstances.map(inst => (
@@ -713,13 +741,13 @@ const ArchitectApp: React.FC = () => {
                       </div>
                       <div className="flex-1">
                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="font-bold text-sm tracking-tight">Request #{inst.id}</span>
+                            <span className="font-bold text-sm tracking-tight">请求 #{inst.id}</span>
                             <span className="text-[10px] font-bold text-outline">• {inst.initiator}</span>
                          </div>
-                         <div className="text-[10px] font-medium text-on-surface-variant">Step: <span className="font-bold text-primary">{inst.currentStep}</span> • Started {inst.startTime}</div>
+                         <div className="text-[10px] font-medium text-on-surface-variant">步骤: <span className="font-bold text-primary">{inst.currentStep}</span> • 发起于 {inst.startTime}</div>
                       </div>
                       <div className="flex items-center gap-2">
-                         <button className="px-3 py-1.5 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:secondary transition-all opacity-0 group-hover:opacity-100 font-bold uppercase tracking-widest">Urge</button>
+                         <button className="px-3 py-1.5 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:secondary transition-all opacity-0 group-hover:opacity-100 font-bold uppercase tracking-widest">催办</button>
                          <ChevronRight className="w-4 h-4 text-outline" />
                       </div>
                    </div>
@@ -735,27 +763,27 @@ const ArchitectApp: React.FC = () => {
                     <Workflow className="w-6 h-6" />
                  </div>
                  <div className="text-right">
-                    <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Efficiency</div>
+                    <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">流程效率</div>
                     <div className="text-2xl font-extrabold">94.2%</div>
                  </div>
               </div>
               <div>
-                 <h4 className="font-extrabold tracking-tight text-white uppercase text-xs">Engine Operational</h4>
-                 <p className="text-[11px] opacity-80 mt-1 font-medium leading-relaxed">System is auto-scaling to handle payment volume. Average latency: 240ms</p>
+                 <h4 className="font-extrabold tracking-tight text-white uppercase text-xs">引擎运行正常</h4>
+                 <p className="text-[11px] opacity-80 mt-1 font-medium leading-relaxed">系统正在自动扩缩以处理支付峰值。平均延迟：240ms</p>
               </div>
               <button 
                  onClick={() => setView('editor')}
                  className="w-full py-3 bg-white text-primary rounded-xl text-xs font-bold hover:bg-surface-container transition-all shadow-lg"
-              >Optimization Designer</button>
+              >优化设计器</button>
            </div>
 
            <div className="sleek-card p-6 space-y-4 shadow-sm border border-outline-variant">
-              <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">Quick Actions</h4>
+              <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">快捷操作</h4>
               <div className="space-y-2">
                  {[
-                   { label: 'Export Audit Logs', icon: FileDown },
-                   { label: 'Flush Cache', icon: Trash2 },
-                   { label: 'Rebuild Index', icon: RefreshCw },
+                   { label: '导出审计日志', icon: FileDown },
+                   { label: '刷新缓存', icon: Trash2 },
+                   { label: '重建索引', icon: RefreshCw },
                  ].map(action => (
                    <button key={action.label} className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold text-xs text-on-surface">
                       <div className="flex items-center gap-3">
@@ -776,20 +804,20 @@ const ArchitectApp: React.FC = () => {
     <div className="p-8 space-y-8 max-w-7xl">
        <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">Data Engine</h2>
-          <p className="text-sm text-on-surface-variant font-medium">Real-time telemetrics and submission analytics</p>
+          <h2 className="text-3xl font-extrabold tracking-tighter">数据引擎</h2>
+          <p className="text-sm text-on-surface-variant font-medium">实时遥测和提交分析数据</p>
         </div>
         <button className="flex items-center gap-2 px-6 py-3 bg-on-surface text-white rounded-xl font-bold text-sm transition-all hover:opacity-90">
-          <Share2 className="w-4 h-4" /> Export Report
+          <Share2 className="w-4 h-4" /> 导出报告
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { l: 'Mean Completion Time', v: '2.4m', t: '-12%' },
-          { l: 'Drop-off Rate', v: '18.4%', t: '+2.1%' },
-          { l: 'Peak Load Time', v: '44ms', t: '-4ms' },
-          { l: 'Unique Handshakes', v: '4.2k', t: '+800' },
+          { l: '平均完成时间', v: '2.4m', t: '-12%' },
+          { l: '流失率', v: '18.4%', t: '+2.1%' },
+          { l: '峰值加载时间', v: '44ms', t: '-4ms' },
+          { l: '唯一握手次数', v: '4.2k', t: '+800' },
         ].map(item => (
           <div key={item.l} className="sleek-card p-6">
             <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">{item.l}</div>
@@ -803,9 +831,9 @@ const ArchitectApp: React.FC = () => {
          <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center">
             <Activity className="w-8 h-8 text-primary opacity-20" />
          </div>
-         <h4 className="font-bold text-xl">Advanced Visualization Engine</h4>
-         <p className="text-sm text-on-surface-variant max-w-md">Customize your reporting dashboard with heatmaps, funnel charts, and geo-location metrics in our Pro plan.</p>
-         <button className="bg-primary text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xl shadow-primary/20">Expand Insights</button>
+         <h4 className="font-bold text-xl">高级可视化引擎</h4>
+         <p className="text-sm text-on-surface-variant max-w-md">在专业版计划中，通过热力图、漏斗图和地理位置指标自定义您的报告仪表板。</p>
+         <button className="bg-primary text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xl shadow-primary/20">查看更多洞察</button>
       </div>
     </div>
   );
@@ -813,33 +841,33 @@ const ArchitectApp: React.FC = () => {
   const IntegrationsView = () => (
     <div className="p-8 space-y-8 max-w-7xl">
       <div className="mb-8">
-        <h2 className="text-3xl font-extrabold tracking-tighter">Integrations</h2>
-        <p className="text-sm text-on-surface-variant font-medium">Connect Architect to your existing tech stack</p>
+        <h2 className="text-3xl font-extrabold tracking-tighter">集成中心</h2>
+        <p className="text-sm text-on-surface-variant font-medium">将 Architect 连接到您现有的技术栈</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { name: 'Slack', desc: 'Instant alerts in your channels', connected: true },
-          { name: 'Zapier', desc: 'Connect to 5,000+ other apps', connected: false },
-          { name: 'Google Sheets', desc: 'Export responses automatically', connected: true },
-          { name: 'Salesforce', desc: 'Sync leads to your CRM', connected: false },
-          { name: 'Segment', desc: 'Stream events to your data platform', connected: false },
-          { name: 'Webhooks', desc: 'Custom HTTP event triggers', connected: true },
+          { name: 'Slack', desc: '在您的频道中接收即时提醒', connected: true },
+          { name: 'Zapier', desc: '连接 5,000+ 其它应用程序', connected: false },
+          { name: 'Google Sheets', desc: '自动导出回复数据', connected: true },
+          { name: 'Salesforce', desc: '将潜在客户同步至您的 CRM', connected: false },
+          { name: 'Segment', desc: '将事件流式传输到您的数据平台', connected: false },
+          { name: 'Webhooks', desc: '自定义 HTTP 事件触发器', connected: true },
         ].map((app) => (
-          <div key={app.name} className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all">
+          <div key={app.name} className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all text-on-surface">
             <div className="flex justify-between items-start">
               <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center text-on-surface-variant border border-outline-variant font-bold text-lg">
                 {app.name[0]}
               </div>
               {app.connected ? (
-                <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase">Connected</span>
+                <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase">已连接</span>
               ) : (
-                <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">Connect</button>
+                <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">连接</button>
               )}
             </div>
             <div>
               <h5 className="font-bold tracking-tight">{app.name}</h5>
-              <p className="text-xs text-on-surface-variant mt-1">{app.desc}</p>
+              <p className="text-xs text-on-surface-variant mt-1 font-medium">{app.desc}</p>
             </div>
           </div>
         ))}
@@ -848,25 +876,25 @@ const ArchitectApp: React.FC = () => {
   );
 
   const TeamView = () => (
-    <div className="p-8 space-y-8 max-w-7xl">
+    <div className="p-8 space-y-8 max-w-7xl pb-32">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">Team Members</h2>
-          <p className="text-sm text-on-surface-variant font-medium">Manage access controls and collaborative permissions</p>
+          <h2 className="text-3xl font-extrabold tracking-tighter">团队成员</h2>
+          <p className="text-sm text-on-surface-variant font-medium">管理访问控制、协作权限和部门架构</p>
         </div>
         <button className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm transition-all hover:shadow-lg">
-          <Users className="w-4 h-4" /> Invite Member
+          <Users className="w-4 h-4" /> 邀请成员
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {teamMembers.map((user, idx) => (
-          <div key={user.id} className="sleek-card p-6 flex flex-col gap-4">
+          <div key={user.id} className="sleek-card p-6 flex flex-col gap-4 border-2 border-outline-variant hover:border-primary transition-all group">
              <div className="flex items-center gap-4">
-               <img src={`https://picsum.photos/seed/user-${idx}/100/100`} className="w-12 h-12 rounded-full border border-outline-variant" referrerPolicy="no-referrer" />
+               <img src={`https://picsum.photos/seed/user-${idx}/100/100`} className="w-12 h-12 rounded-2xl border border-outline-variant" referrerPolicy="no-referrer" alt="头像" />
                <div>
                   <h6 className="font-bold text-sm">{user.name}</h6>
-                  <p className="text-[10px] text-outline font-bold tracking-widest uppercase">{user.role} • {user.dept}</p>
+                  <p className="text-[10px] text-outline font-bold tracking-widest uppercase">{user.role === 'Admin' ? '管理员' : user.role === 'Editor' ? '编辑' : user.role === 'Viewer' ? '查看者' : '经理'} • {user.dept}</p>
                </div>
              </div>
              <div className="p-3 bg-surface rounded-xl flex items-center justify-between">
@@ -894,8 +922,8 @@ const ArchitectApp: React.FC = () => {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-4">
-              <h2 className="font-bold tracking-tight">Payment Request V2</h2>
-              <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">Active</span>
+              <h2 className="font-bold tracking-tight">支付申请 V2</h2>
+              <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">活跃中</span>
             </div>
           </div>
           
@@ -1017,13 +1045,13 @@ const ArchitectApp: React.FC = () => {
               </div>
             ) : editorTab === 'workflow' ? (
               <div>
-                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Workflow Steps</h3>
+                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">流程组件</h3>
                 <div className="grid grid-cols-1 gap-2">
                   {[
-                    { type: 'approval', icon: ShieldCheck, label: 'Approval Step', desc: 'Require human review' },
-                    { type: 'notification', icon: Mail, label: 'Email Alert', desc: 'Send automated email' },
-                    { type: 'condition', icon: Workflow, label: 'Conditional Logic', desc: 'Branch based on data' },
-                    { type: 'cc', icon: Share2, label: 'CC Step', desc: 'Send carbon copy to users' },
+                    { type: 'approval', icon: ShieldCheck, label: '审批环节', desc: '需要人工进行审批' },
+                    { type: 'notification', icon: Mail, label: '邮件提醒', desc: '发送系统自动邮件' },
+                    { type: 'condition', icon: Workflow, label: '条件分支', desc: '基于数据逻辑分流' },
+                    { type: 'cc', icon: Share2, label: '抄送环节', desc: '将副本发送给特定人员' },
                   ].map((item) => (
                     <button
                       key={item.type}
@@ -1044,7 +1072,7 @@ const ArchitectApp: React.FC = () => {
             ) : editorTab === 'permissions' ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">Select Role</h3>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">选择角色</h3>
                   <button className="p-1 hover:bg-surface rounded-md">
                     <Plus className="w-3 h-3 text-primary" />
                   </button>
@@ -1069,10 +1097,10 @@ const ArchitectApp: React.FC = () => {
                 <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant mt-6">
                    <div className="flex items-center gap-2 mb-2">
                      <ShieldCheck className="w-4 h-4 text-primary" />
-                     <span className="text-[10px] font-bold">RBAC Concept</span>
+                     <span className="text-[10px] font-bold">权限概念</span>
                    </div>
                    <p className="text-[10px] text-on-surface-variant font-medium leading-relaxed">
-                     Changes to role permissions will immediately affect all users assigned to this role across current pipelines.
+                     角色权限的更改将立即影响当前所有流程中分配到该角色的用户。
                    </p>
                 </div>
               </div>
@@ -1083,37 +1111,37 @@ const ArchitectApp: React.FC = () => {
                       <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">
                          <Activity className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-bold font-mono">Simulation Environment</span>
+                      <span className="text-xs font-bold font-mono">仿真测试环境</span>
                    </div>
                    <div className="space-y-4">
                       <div className="p-3 bg-white rounded-lg border border-outline-variant">
-                         <div className="text-[10px] font-bold text-outline uppercase mb-1">Active Scenario</div>
-                         <div className="text-xs font-bold">Standard Payment Flow</div>
+                         <div className="text-[10px] font-bold text-outline uppercase mb-1">当前场景</div>
+                         <div className="text-xs font-bold">标准支付流程</div>
                       </div>
                       <div className="flex gap-2">
                          <div className="flex-1 p-3 bg-green-50 rounded-lg border border-green-100">
-                            <div className="text-[10px] font-bold text-green-700 uppercase mb-1">Pass Rate</div>
+                            <div className="text-[10px] font-bold text-green-700 uppercase mb-1">通过率</div>
                             <div className="text-sm font-bold text-green-700">94.2%</div>
                          </div>
                          <div className="flex-1 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                            <div className="text-[10px] font-bold text-amber-700 uppercase mb-1">Bottleneck</div>
-                            <div className="text-sm font-bold text-amber-700">CFO sign</div>
+                            <div className="text-[10px] font-bold text-amber-700 uppercase mb-1">执行瓶颈</div>
+                            <div className="text-sm font-bold text-amber-700">CFO 审签</div>
                          </div>
                       </div>
                    </div>
                 </div>
 
                 <div className="space-y-4">
-                   <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">Simulator Settings</h3>
+                   <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">模拟器设置</h3>
                    <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface">
-                         <span className="text-[10px] font-bold uppercase">Real-time trace</span>
+                         <span className="text-[10px] font-bold uppercase">实时追踪</span>
                          <div className="w-8 h-4 bg-primary rounded-full relative">
                             <div className="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full"></div>
                          </div>
                       </div>
                       <div className="flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface opacity-50">
-                         <span className="text-[10px] font-bold uppercase">Parallel instances</span>
+                         <span className="text-[10px] font-bold uppercase">并行实例</span>
                          <div className="w-8 h-4 bg-outline-variant rounded-full relative">
                             <div className="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full"></div>
                          </div>
@@ -1216,7 +1244,7 @@ const ArchitectApp: React.FC = () => {
                         </div>
                         <div className="font-bold mb-1">{field.label}</div>
                         <div className="text-xs text-on-surface-variant font-medium">
-                          {field.placeholder || "No placeholder"} • {field.required ? "Required" : "Optional"}
+                          {field.placeholder || "无占位符"} • {field.required ? "必填" : "非必填"}
                         </div>
                       </Reorder.Item>
                     ))}
@@ -1226,7 +1254,7 @@ const ArchitectApp: React.FC = () => {
                     className="w-full border-2 border-dashed border-outline-variant rounded-2xl py-12 flex flex-col items-center gap-2 text-outline hover:text-primary hover:border-primary hover:bg-primary/5 transition-all group active:scale-95"
                   >
                     <Plus className="w-6 h-6 group-hover:scale-125 transition-transform" />
-                    <span className="text-xs font-bold">Append New Field</span>
+                    <span className="text-xs font-bold">添加新项</span>
                   </button>
                 </div>
               )}
@@ -1302,10 +1330,10 @@ const ArchitectApp: React.FC = () => {
                                <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-px border-l-2 border-dashed border-outline-variant"></div>
                                <div className="flex gap-40 relative z-10 pt-8">
                                   <div className="flex flex-col items-center gap-2">
-                                     <div className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20">True path</div>
+                                     <div className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20">正确路径</div>
                                   </div>
                                   <div className="flex flex-col items-center gap-2">
-                                     <div className="text-[10px] font-bold text-outline bg-surface px-2 py-0.5 rounded border border-outline-variant">False path</div>
+                                     <div className="text-[10px] font-bold text-outline bg-surface px-2 py-0.5 rounded border border-outline-variant">错误路径</div>
                                   </div>
                                </div>
                             </div>
@@ -1321,7 +1349,7 @@ const ArchitectApp: React.FC = () => {
                        className="px-6 py-4 bg-white border-2 border-dashed border-outline-variant rounded-2xl text-[10px] font-bold uppercase tracking-widest text-outline hover:border-primary hover:text-primary transition-all flex items-center gap-2 group shadow-sm hover:shadow-lg"
                      >
                        <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" /> 
-                       Orchestrate New Block
+                       编排新区块
                      </button>
                   </div>
                 </div>
@@ -1345,7 +1373,7 @@ const ArchitectApp: React.FC = () => {
                                 setSimulationData({ amount: 6000 });
                               }}
                               className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter"
-                            >Reset</button>
+                            >重置</button>
                          </div>
                          <div className="space-y-4">
                             {formFields && formFields.filter(f => ['text', 'number', 'select'].includes(f.type)).length > 0 ? (
@@ -1380,7 +1408,7 @@ const ArchitectApp: React.FC = () => {
                               <h3 className="font-bold bg-white px-4 py-1.5 rounded-full border border-outline-variant shadow-sm text-xs">Runtime Trace (实时追踪)</h3>
                               <div className="flex items-center gap-2">
                                  <div className="w-2.5 h-2.5 rounded-full bg-primary animate-ping"></div>
-                                 <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Simulating...</span>
+                                 <span className="text-[10px] font-bold text-primary uppercase tracking-widest">正在模拟...</span>
                               </div>
                            </div>
                            
@@ -1402,7 +1430,7 @@ const ArchitectApp: React.FC = () => {
                                    <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center font-mono text-[10px] font-bold text-outline shrink-0">{trace.time}</div>
                                    <div className="flex flex-col justify-center min-w-0">
                                       <span className="text-xs font-extrabold text-on-surface truncate">{trace.event}</span>
-                                      <span className="text-[10px] text-outline font-medium tracking-tight">Operation successful</span>
+                                      <span className="text-[10px] text-outline font-medium tracking-tight">操作成功</span>
                                    </div>
                                    <div className="ml-auto flex items-center"><CheckCircle2 className="w-4 h-4 text-green-500" /></div>
                                 </motion.div>
@@ -1415,14 +1443,14 @@ const ArchitectApp: React.FC = () => {
                              transition={{ delay: 1.2 }}
                              className="mt-8 p-6 bg-primary text-white rounded-3xl shadow-2xl shadow-primary/30 relative z-10"
                            >
-                              <div className="text-[10px] font-bold opacity-80 uppercase mb-1 tracking-widest">Final Simulation Result</div>
+                              <div className="text-[10px] font-bold opacity-80 uppercase mb-1 tracking-widest">最终模拟结果</div>
                               <div className="font-extrabold text-xl tracking-tight">
-                                Process would route to: {Number(simulationData.amount || 0) > 5000 ? 'Corporate Review Strategy' : 'Auto-Release Flow'}
+                                流程将导向：{Number(simulationData.amount || 0) > 5000 ? 'Corporate Review Strategy' : 'Auto-Release Flow'}
                               </div>
                               <div className="mt-4 flex gap-4 text-[10px] font-bold opacity-70">
-                                <span>Latency: 4.2ms</span>
-                                <span>Memory: 12.4MB</span>
-                                <span>Status: Verified</span>
+                                <span>延迟: 4.2ms</span>
+                                <span>内存: 12.4MB</span>
+                                <span>状态: 已校验</span>
                               </div>
                            </motion.div>
 
@@ -1555,7 +1583,7 @@ const ArchitectApp: React.FC = () => {
                                  <label className="text-[10px] font-bold text-on-surface-variant uppercase">逻辑表达式 (JS Syntax)</label>
                                  <input 
                                    type="text" 
-                                   placeholder="e.g. data.amount > 1000 && data.deptId == user.deptId"
+                                   placeholder="例如：data.amount > 1000 && data.deptId == user.deptId"
                                    value={dataPerms[selectedRole]?.customRule || ''}
                                    onChange={(e) => setDataPerms(prev => ({ ...prev, [selectedRole]: { ...prev[selectedRole], customRule: e.target.value } }))}
                                    className="w-full bg-white border border-outline-variant rounded-lg p-3 text-xs font-mono"
@@ -1608,7 +1636,7 @@ const ArchitectApp: React.FC = () => {
                              </button>
                          </div>
                          <button 
-                            onClick={() => showNotification('正在生成导出文件...')}
+                            onClick={handleExport}
                             className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-xl font-bold text-xs transition-all hover:shadow-lg shadow-primary/20"
                          >
                             <Download className="w-4 h-4" /> 导出数据
@@ -1803,12 +1831,12 @@ const ArchitectApp: React.FC = () => {
                   >
                     <div className="flex justify-between items-start mb-8">
                       <div>
-                        <h2 className="text-3xl font-extrabold tracking-tighter">Payment Request</h2>
-                        <p className="text-sm text-on-surface-variant font-medium">Drafting v2 for Q4 Finance Review</p>
+                        <h2 className="text-3xl font-extrabold tracking-tighter">支付申请</h2>
+                        <p className="text-sm text-on-surface-variant font-medium">正在起草第四季度财务审查 v2</p>
                       </div>
                       <div className="p-3 bg-surface rounded-2xl flex items-center gap-2">
                         <Activity className="w-4 h-4 text-green-500" />
-                        <span className="text-[10px] font-bold tracking-widest uppercase">Live System</span>
+                        <span className="text-[10px] font-bold tracking-widest uppercase">实时系统</span>
                       </div>
                     </div>
                     <div className="space-y-8">
@@ -1852,7 +1880,7 @@ const ArchitectApp: React.FC = () => {
                          </div>
                       </div>
                       <button className="w-full bg-primary text-white py-4 rounded-xl text-sm font-bold shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all">
-                        Initiate Workflow Request
+                        发起工作流申请
                       </button>
                     </div>
                   </motion.div>
@@ -1866,7 +1894,7 @@ const ArchitectApp: React.FC = () => {
           <div className="p-6 border-b border-outline-variant flex items-center gap-2">
             <Settings className="w-4 h-4 text-outline" />
             <span className="font-bold tracking-tight text-sm">
-              {selectedNode ? 'Step Configuration' : 'Field Properties'}
+              {selectedNode ? '步骤配置' : '字段属性'}
             </span>
           </div>
 
@@ -1874,16 +1902,16 @@ const ArchitectApp: React.FC = () => {
             {(editorTab === 'workflow' && selectedNode) ? (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200 pb-10">
                  <div className="space-y-4">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">Core Configuration</label>
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">核心配置</label>
                     <input 
                       type="text" 
-                      placeholder="Step Title"
+                      placeholder="步骤标题"
                       value={selectedNode.label}
                       onChange={(e) => updateWorkflowNode(selectedNode.id, { label: e.target.value })}
                       className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
                     />
                     <textarea 
-                      placeholder="Operational Description..."
+                      placeholder="操作描述..."
                       value={selectedNode.description}
                       onChange={(e) => updateWorkflowNode(selectedNode.id, { description: e.target.value })}
                       className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[100px]"
@@ -1893,28 +1921,28 @@ const ArchitectApp: React.FC = () => {
                 {selectedNode.type === 'approval' && (
                   <div className="space-y-6 pt-6 border-t border-outline-variant animate-in zoom-in-95 duration-200">
                     <div className="space-y-3">
-                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Approver Targeting</label>
+                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">审批人定向</label>
                        <select 
                          value={selectedNode.config?.assigneeType || 'user'}
                          onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeType: e.target.value as any, assigneeValue: '' } })}
                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                        >
-                         <option value="user">Specific User</option>
-                         <option value="role">Role Based</option>
-                         <option value="dept">Department Head</option>
-                         <option value="initiator">Self (Initiator)</option>
+                         <option value="user">特定用户</option>
+                         <option value="role">角色基础</option>
+                         <option value="dept">部门主管</option>
+                         <option value="initiator">本人（发起人）</option>
                        </select>
                     </div>
 
                     {selectedNode.config?.assigneeType !== 'initiator' && (
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Assignee Selection</label>
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">受让人选择</label>
                         <select 
                           value={selectedNode.config?.assigneeValue || ''}
                           onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeValue: e.target.value } })}
                           className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                         >
-                          <option value="">Select targeting...</option>
+                          <option value="">选择目标...</option>
                           {selectedNode.config?.assigneeType === 'user' && teamMembers.map(m => (
                             <option key={m.id} value={m.name}>{m.name}</option>
                           ))}
@@ -1929,7 +1957,7 @@ const ArchitectApp: React.FC = () => {
                     )}
 
                     <div className="space-y-3">
-                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Concurrence Logic</label>
+                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">并行逻辑</label>
                        <div className="flex bg-surface-container rounded-2xl p-1.5 border border-outline-variant">
                           <button 
                              onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'OR' } })}
@@ -1944,8 +1972,8 @@ const ArchitectApp: React.FC = () => {
 
                     <div className="space-y-4">
                        <div className="flex justify-between items-center">
-                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Sign-off Timeout</label>
-                          <span className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">{selectedNode.config?.timeout || 24} Hours</span>
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">签核超时</label>
+                          <span className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">{selectedNode.config?.timeout || 24} 小时</span>
                        </div>
                        <input 
                           type="range" min="1" max="168"
@@ -1954,13 +1982,13 @@ const ArchitectApp: React.FC = () => {
                           className="w-full accent-primary h-1.5 bg-outline-variant rounded-lg appearance-none cursor-pointer"
                        />
                        <div className="flex justify-between text-[8px] font-bold text-outline uppercase px-1">
-                          <span>1h</span>
-                          <span>7 Days</span>
+                          <span>1小时</span>
+                          <span>7天</span>
                        </div>
                     </div>
 
                     <div className="space-y-3">
-                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Authorized Actions</label>
+                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">授权操作</label>
                        <div className="flex flex-wrap gap-2 text-on-surface">
                           {['approve', 'reject', 'transfer', 'add_signer'].map(action => (
                             <button
@@ -1983,17 +2011,17 @@ const ArchitectApp: React.FC = () => {
                 {selectedNode.type === 'condition' && (
                   <div className="space-y-6 pt-6 border-t border-outline-variant animate-in slide-in-from-bottom-2">
                      <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Evaluation Expression</label>
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">评估表达式</label>
                         <div className="relative group">
                            <div className="absolute top-3 left-3 w-4 h-4 text-primary opacity-20"><Activity className="w-full h-full" /></div>
                            <textarea 
-                              placeholder="e.g. amount > 5000"
+                              placeholder="例如：amount > 5000"
                               value={selectedNode.config?.expression || ''}
                               onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, expression: e.target.value } })}
                               className="w-full bg-on-surface text-green-400 font-mono text-[11px] p-4 pl-10 rounded-2xl min-h-[120px] focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all border border-outline-variant shadow-inner leading-relaxed"
                            />
                         </div>
-                        <p className="text-[10px] text-outline font-medium">Use JavaScript syntax for data comparison.</p>
+                        <p className="text-[10px] text-outline font-medium">使用 JavaScript 语法进行数据对比。</p>
                      </div>
                   </div>
                 )}
@@ -2001,7 +2029,7 @@ const ArchitectApp: React.FC = () => {
             ) : (editorTab === 'design' && selectedField) ? (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Field Label</label>
+                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段名称</label>
                   <input 
                     type="text" 
                     value={selectedField.label}
@@ -2012,7 +2040,7 @@ const ArchitectApp: React.FC = () => {
 
                 {selectedField.placeholder !== undefined && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Placeholder</label>
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">占位提示</label>
                     <input 
                       type="text" 
                       value={selectedField.placeholder}
@@ -2023,7 +2051,7 @@ const ArchitectApp: React.FC = () => {
                 )}
 
                 <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
-                  <span className="text-xs font-bold transition-all">Required Field</span>
+                  <span className="text-xs font-bold transition-all">必填字段</span>
                   <button 
                     onClick={() => updateField(selectedField.id, { required: !selectedField.required })}
                     className={`w-10 h-6 rounded-full relative transition-all ${selectedField.required ? 'bg-primary' : 'bg-outline-variant'}`}
@@ -2035,7 +2063,7 @@ const ArchitectApp: React.FC = () => {
                 {selectedField.type === 'select' && (
                   <div className="space-y-4 pt-4 border-t border-outline-variant">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest">Options</label>
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest">选项列表</label>
                       <button 
                         onClick={() => {
                           const newOpts = [...(selectedField.options || []), `Option ${(selectedField.options?.length || 0) + 1}`];
@@ -2079,10 +2107,10 @@ const ArchitectApp: React.FC = () => {
                   <MousePointer2 className="w-6 h-6 text-outline" />
                 </div>
                 <p className="text-sm text-on-surface-variant font-bold tracking-tight">
-                  Selection tool active
+                  选择工具已激活
                 </p>
                 <p className="text-[10px] text-outline font-medium mt-1">
-                  Select a field or workflow step to configure.
+                  选择一个字段或工作流步骤进行配置。
                 </p>
               </div>
             )}
@@ -2093,7 +2121,7 @@ const ArchitectApp: React.FC = () => {
                onClick={() => setIsSchemaVisible(true)}
                className="w-full bg-on-surface text-white py-3 rounded-xl text-xs font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
              >
-               <Code className="w-3 h-3" /> Export Pipeline Logic
+               <Code className="w-3 h-3" /> 导出流水线逻辑
              </button>
           </div>
         </aside>
@@ -2216,10 +2244,10 @@ const ArchitectApp: React.FC = () => {
                  <button 
                    onClick={() => setViewingSubmission(null)}
                    className="px-8 py-3 bg-on-surface text-white rounded-xl text-xs font-bold hover:shadow-2xl transition-all active:scale-95"
-                 >
-                   完成关闭
-                 </button>
-              </footer>
+                  >
+                    完成关闭
+                  </button>
+               </footer>
             </motion.div>
           </div>
         )}
@@ -2268,26 +2296,26 @@ const ArchitectApp: React.FC = () => {
     </div>
   );
 
-  if (view === 'projects') return <ConsoleLayout viewToken="projects" title="Projects" subtitle="Total 4 forms, 2 deployed"><ProjectsView /></ConsoleLayout>;
-  if (view === 'workflow') return <ConsoleLayout viewToken="workflow" title="Infrastructure Workflow" subtitle="Orchestrate form data logic"><WorkflowView /></ConsoleLayout>;
-  if (view === 'insights') return <ConsoleLayout viewToken="insights" title="Data Insights" subtitle="Deep telemetry analysis"><InsightsView /></ConsoleLayout>;
-  if (view === 'integrations') return <ConsoleLayout viewToken="integrations" title="Cloud Integrations" subtitle="Third-party service connectivity"><IntegrationsView /></ConsoleLayout>;
-  if (view === 'team') return <ConsoleLayout viewToken="team" title="Workspace Team" subtitle="Manage collaborative access"><TeamView /></ConsoleLayout>;
+  if (view === 'projects') return <ConsoleLayout viewToken="projects" title="项目列表" subtitle="总计 4 个表单，2 个已部署"><ProjectsView /></ConsoleLayout>;
+  if (view === 'workflow') return <ConsoleLayout viewToken="workflow" title="基础设施流转" subtitle="编排表单数据逻辑"><WorkflowView /></ConsoleLayout>;
+  if (view === 'insights') return <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="深度遥测分析"><InsightsView /></ConsoleLayout>;
+  if (view === 'integrations') return <ConsoleLayout viewToken="integrations" title="云端集成" subtitle="第三方服务连接能力"><IntegrationsView /></ConsoleLayout>;
+  if (view === 'team') return <ConsoleLayout viewToken="team" title="工作区团队" subtitle="管理协作权限"><TeamView /></ConsoleLayout>;
 
   if (view === 'dashboard') {
     return (
       <ConsoleLayout 
         viewToken="dashboard" 
-        title="Welcome back, Architect" 
-        subtitle="System status is operational • 4 active builds"
+        title="欢迎回来，架构师" 
+        subtitle="系统运行正常 • 4 个活跃构建"
       >
         <div className="p-8 space-y-8 max-w-7xl">
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { label: 'Active Respondants', value: '12,540', trend: '↑ 12.5%', color: 'text-primary' },
-              { label: 'Total Deployments', value: '452', trend: '↑ 8.2%', color: 'text-secondary' },
-              { label: 'API Handshakes', value: '89.4k', trend: '↑ 24.1%', color: 'text-green-500' },
+              { label: '活跃回复者', value: '12,540', trend: '↑ 12.5%', color: 'text-primary' },
+              { label: '总部署数', value: '452', trend: '↑ 8.2%', color: 'text-secondary' },
+              { label: 'API 握手次数', value: '89.4k', trend: '↑ 24.1%', color: 'text-green-500' },
             ].map((stat) => (
               <div key={stat.label} className="sleek-card p-6 flex flex-col gap-2 group transition-transform hover:-translate-y-1">
                 <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{stat.label}</span>
@@ -2296,7 +2324,7 @@ const ArchitectApp: React.FC = () => {
                   <span className={`text-[10px] font-bold ${stat.color}`}>{stat.trend}</span>
                 </div>
                 <div className="mt-4 pt-4 border-t border-outline-variant flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-outline">Last 30 days</span>
+                  <span className="text-[10px] font-medium text-outline">最近 30 天</span>
                   <Activity className={`w-4 h-4 ${stat.color} opacity-20`} />
                 </div>
               </div>
@@ -2308,7 +2336,7 @@ const ArchitectApp: React.FC = () => {
             {/* Main Chart Card */}
             <div className="sleek-card p-8 flex flex-col gap-6">
               <div className="flex justify-between items-center">
-                <h3 className="font-bold">Form Submission Velocity</h3>
+                <h3 className="font-bold">表单提交速率</h3>
                 <div className="flex bg-surface rounded-lg p-1 gap-1 border border-outline-variant">
                   {['1H', '1D', '1W', '1M'].map((t) => (
                     <button key={t} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${t === '1W' ? 'bg-white shadow-sm text-primary shadow-lg shadow-primary/5' : 'text-outline hover:text-on-surface'}`}>
@@ -2318,7 +2346,7 @@ const ArchitectApp: React.FC = () => {
                 </div>
               </div>
               
-              <div className="h-64 flex items-end gap-2 px-4 pt-8">
+              <div className="h-64 flex items-end gap-2 px-4 pt-8 text-on-surface">
                 {[40, 60, 45, 80, 55, 70, 90, 65, 85, 50, 75, 95].map((h, i) => (
                   <motion.div 
                     key={i}
@@ -2332,28 +2360,28 @@ const ArchitectApp: React.FC = () => {
               </div>
               
               <div className="flex justify-between px-2 text-[10px] font-bold text-outline uppercase tracking-widest">
-                <span>MON</span>
-                <span>TUE</span>
-                <span>WED</span>
-                <span>THU</span>
-                <span>FRI</span>
-                <span>SAT</span>
-                <span>SUN</span>
+                <span>周一</span>
+                <span>周二</span>
+                <span>周三</span>
+                <span>周四</span>
+                <span>周五</span>
+                <span>周六</span>
+                <span>周日</span>
               </div>
             </div>
 
             {/* Activity List */}
             <div className="sleek-card p-8 flex flex-col gap-6">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold">Live Deployments</h3>
+                <h3 className="font-bold text-on-surface">实时动态</h3>
                 <div className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
               </div>
               <div className="space-y-6">
                 {[
-                  { user: 'Chen', action: 'merged onboarding_schema_v2', time: '2h ago', status: 'SUCCESS' },
-                  { user: 'Sarah', action: 'added 3 validation triggers', time: '4h ago', status: 'PENDING' },
-                  { user: 'Heidi', action: 'exported API telemetry', time: '6h ago', status: 'SUCCESS' },
-                  { user: 'System', action: 'auto-scaling applied: node_04', time: '12h ago', status: 'ACTIVE' },
+                  { user: '陈', action: '合并了 入职架构_v2', time: '2小时前', status: 'SUCCESS' },
+                  { user: '莎拉', action: '新增了 3 个校验位', time: '4小时前', status: 'PENDING' },
+                  { user: 'Heidi', action: '导出了 遥测审计数据', time: '6小时前', status: 'SUCCESS' },
+                  { user: '系统', action: '应用自动扩缩: node_04', time: '12小时前', status: 'ACTIVE' },
                 ].map((activity, i) => (
                   <div key={i} className="flex gap-4 group cursor-pointer hover:bg-surface/50 -mx-2 px-2 py-1 rounded-lg transition-colors">
                     <div className="relative">
@@ -2361,11 +2389,11 @@ const ArchitectApp: React.FC = () => {
                         src={`https://picsum.photos/seed/user${i}/100/100`} 
                         className="w-8 h-8 rounded-full border border-outline-variant group-hover:ring-2 group-hover:ring-primary/20 transition-all"
                         referrerPolicy="no-referrer"
-                        alt="Avatar"
+                        alt="头像"
                       />
                       <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${activity.status === 'SUCCESS' ? 'bg-green-500' : 'bg-primary'}`}></div>
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 text-on-surface">
                       <p className="text-xs">
                         <span className="font-bold tracking-tight">{activity.user}</span>
                         <span className="text-on-surface-variant ml-1 font-medium">{activity.action}</span>
@@ -2376,10 +2404,10 @@ const ArchitectApp: React.FC = () => {
                 ))}
               </div>
               <button 
-                onClick={() => showNotification('Audit logs initialized')}
-                className="mt-2 w-full py-3 rounded-xl border border-outline-variant text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                onClick={() => showNotification('审计日志已初始化')}
+                className="mt-2 w-full py-3 rounded-xl border border-outline-variant text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-low transition-all"
               >
-                View Full Audit Log
+                查看完整审计日志
               </button>
             </div>
           </div>
@@ -2387,23 +2415,23 @@ const ArchitectApp: React.FC = () => {
           {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pb-20">
             {[
-              { title: 'New Form', desc: 'Start with blank canvas', icon: FormInput, action: () => setView('editor') },
-              { title: 'Templates', desc: 'Browse enterprise library', icon: LayoutGrid, action: () => setView('editor') },
-              { title: 'Import', desc: 'Upload legacy JSON/CSV', icon: Database, action: () => showNotification('Integrate external data source') },
-              { title: 'Webhooks', desc: 'Manage event triggers', icon: Workflow, action: () => setView('workflow') },
+              { title: '新表单', desc: '从空白画布开始', icon: FormInput, action: () => setView('editor') },
+              { title: '模板中心', desc: '浏览企业级模板库', icon: LayoutGrid, action: () => setView('editor') },
+              { title: '导入数据', desc: '上传旧版 JSON/CSV', icon: Database, action: () => showNotification('集成外部数据源') },
+              { title: '网络钩子', desc: '管理事件触发器', icon: Workflow, action: () => setView('workflow') },
             ].map((action) => (
               <button 
                 key={action.title} 
                 onClick={action.action}
                 className="sleek-card p-5 hover:border-primary border-2 border-transparent transition-all text-left flex flex-col gap-1 group relative overflow-hidden"
               >
-                <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-10 transition-opacity">
+                <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-10 transition-opacity text-on-surface">
                   <action.icon className="w-12 h-12 rotate-12" />
                 </div>
                 <div className="w-10 h-10 bg-surface rounded-lg flex items-center justify-center mb-2 group-hover:bg-primary/5 transition-colors">
                   <action.icon className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
                 </div>
-                <div className="text-sm font-bold tracking-tight">{action.title}</div>
+                <div className="text-sm font-bold tracking-tight text-on-surface">{action.title}</div>
                 <div className="text-[10px] text-on-surface-variant font-medium">{action.desc}</div>
               </button>
             ))}
@@ -2423,18 +2451,18 @@ const ArchitectApp: React.FC = () => {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <LayoutGrid className="text-white w-5 h-5" />
               </div>
-              <span className="font-bold text-xl tracking-tighter">Architect</span>
+              <span className="font-bold text-xl tracking-tighter">架构师</span>
             </div>
             
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-on-surface-variant">
-              <a href="#" className="hover:text-primary transition-colors">Resources</a>
-              <a href="#" className="hover:text-primary transition-colors">Enterprise</a>
-              <a href="#" className="hover:text-primary transition-colors">Pricing</a>
+              <a href="#" className="hover:text-primary transition-colors">资源中心</a>
+              <a href="#" className="hover:text-primary transition-colors">企业方案</a>
+              <a href="#" className="hover:text-primary transition-colors">价格</a>
               <button 
                 onClick={() => setView('dashboard')}
                 className="bg-primary text-white px-5 py-2 rounded-lg font-semibold hover:opacity-90 transition-all shadow-md shadow-primary/20"
               >
-                Go to Console
+                进入控制台
               </button>
             </div>
 
@@ -2456,14 +2484,14 @@ const ArchitectApp: React.FC = () => {
             className="md:hidden absolute w-full bg-white border-b border-outline-variant z-40 p-4 shadow-xl"
           >
             <div className="flex flex-col gap-4">
-              <a href="#" className="text-lg font-medium">Resources</a>
-              <a href="#" className="text-lg font-medium">Enterprise</a>
-              <a href="#" className="text-lg font-medium">Pricing</a>
+              <a href="#" className="text-lg font-medium">资源中心</a>
+              <a href="#" className="text-lg font-medium">企业方案</a>
+              <a href="#" className="text-lg font-medium">价格</a>
               <button 
                 onClick={() => setView('dashboard')}
                 className="w-full bg-primary text-white p-3 rounded-md"
               >
-                Go to Console
+                进入控制台
               </button>
             </div>
           </motion.div>
@@ -2484,25 +2512,24 @@ const ArchitectApp: React.FC = () => {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                 </span>
-                New: Workflow Automation Engine
+                上新：工作流自动化引擎
               </div>
               <h1 className="text-5xl md:text-7xl font-extrabold text-on-surface leading-[1.05] tracking-tighter mb-8">
-                Build forms that <br />
-                <span className="text-secondary">power infrastructure.</span>
+                构建支撑 <br />
+                <span className="text-secondary">基础设施的表单。</span>
               </h1>
               <p className="max-w-2xl mx-auto text-lg text-on-surface-variant mb-10 leading-relaxed">
-                Architect is the enterprise-grade form builder for complex workflows, 
-                high-volume data capture, and deep infrastructure integration.
+                架构师是面向复杂工作流、海量数据采集和深度基础设施集成的企业级表单构建器。
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <button 
                   onClick={() => setView('dashboard')}
                   className="bg-primary text-white px-8 py-4 rounded-xl text-lg font-bold hover:shadow-lg hover:shadow-primary/25 transition-all hover:-translate-y-0.5"
                 >
-                  Start Building Free
+                  免费开始构建
                 </button>
                 <button className="bg-white text-on-surface border border-outline-variant px-8 py-4 rounded-xl text-lg font-bold hover:bg-surface-container-low transition-all">
-                  Request a Demo
+                  预约演示
                 </button>
               </div>
             </motion.div>
