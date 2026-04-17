@@ -290,21 +290,21 @@ const ArchitectApp: React.FC = () => {
   const [projectDetailsId, setProjectDetailsId] = React.useState<string | null>(null);
 
   // Permissions State
-  const [selectedRole, setSelectedRole] = React.useState<string>('Editor');
-  const roles = ['Admin', 'Editor', 'Viewer', 'Manager', 'Dept Member'];
+  const [selectedRole, setSelectedRole] = React.useState<string>('编辑');
+  const roles = ['管理员', '编辑', '查看者', '经理', '部门成员'];
   
   const [funcPerms, setFuncPerms] = React.useState<Record<string, string[]>>({
-    'Admin': ['manage', 'design', 'fill', 'view', 'export', 'delete', 'config'],
-    'Editor': ['design', 'fill', 'view', 'export'],
-    'Viewer': ['view'],
-    'Manager': ['view', 'export'],
+    '管理员': ['manage', 'design', 'fill', 'view', 'export', 'delete', 'config'],
+    '编辑': ['design', 'fill', 'view', 'export'],
+    '查看者': ['view'],
+    '经理': ['view', 'export'],
   });
 
   const [dataPerms, setDataPerms] = React.useState<Record<string, { type: 'all' | 'dept' | 'self' | 'custom', customRule?: string }>>({
-    'Admin': { type: 'all' },
-    'Editor': { type: 'dept' },
-    'Viewer': { type: 'self' },
-    'Manager': { type: 'dept' },
+    '管理员': { type: 'all' },
+    '编辑': { type: 'dept' },
+    '查看者': { type: 'self' },
+    '经理': { type: 'dept' },
   });
 
   const functionalOptions = [
@@ -325,11 +325,11 @@ const ArchitectApp: React.FC = () => {
   ];
 
   const teamMembers = [
-    { id: '1', name: 'You (Architect)', role: 'Admin', dept: 'Engineering' },
-    { id: '2', name: 'Sarah Chen', role: 'Editor', dept: 'Product' },
-    { id: '3', name: 'Michael Beck', role: 'Viewer', dept: 'Design' },
-    { id: '4', name: 'Finance Lead', role: 'Manager', dept: 'Finance' },
-    { id: '5', name: 'HR Admin', role: 'Admin', dept: 'HR' },
+    { id: '1', name: '您 (架构师)', role: 'Admin', dept: '工程部' },
+    { id: '2', name: '陈莎拉', role: 'Editor', dept: '产品部' },
+    { id: '3', name: '米高·贝克', role: 'Viewer', dept: '设计部' },
+    { id: '4', name: '财务主管', role: 'Manager', dept: '财务部' },
+    { id: '5', name: 'HR 管理员', role: 'Admin', dept: '人力资源部' },
   ];
 
   const allRoles = Array.from(new Set(teamMembers.map(m => m.role)));
@@ -347,7 +347,7 @@ const ArchitectApp: React.FC = () => {
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
           <LayoutGrid className="text-white w-5 h-5" />
         </div>
-        <span className="font-bold text-xl tracking-tighter">Architect</span>
+        <span className="font-bold text-xl tracking-tighter">架构师 Architect</span>
       </div>
       
       <nav className="flex-1 space-y-1 px-4">
@@ -678,7 +678,7 @@ const ArchitectApp: React.FC = () => {
                            <button 
                              onClick={() => setView('editor')}
                              className="px-3 py-1.5 bg-surface border border-outline-variant rounded-lg text-[10px] font-bold hover:border-primary hover:text-primary transition-all uppercase tracking-widest"
-                           >Edit</button>
+                           >编辑</button>
                            <button className="p-1.5 hover:bg-surface rounded-lg transition-colors text-outline">
                              <MoreVertical className="w-4 h-4" />
                            </button>
@@ -693,7 +693,7 @@ const ArchitectApp: React.FC = () => {
                            <div className="p-4 bg-surface rounded-full text-outline/30">
                               <FileSearch className="w-8 h-8" />
                            </div>
-                           <p className="text-sm font-bold text-outline">No forms found for this project</p>
+                           <p className="text-sm font-bold text-outline">未找到该项目的表单</p>
                         </div>
                       </td>
                     </tr>
@@ -899,7 +899,7 @@ const ArchitectApp: React.FC = () => {
              </div>
              <div className="p-3 bg-surface rounded-xl flex items-center justify-between">
                 <span className="text-xs font-medium text-on-surface-variant break-all">
-                  {user.name.toLowerCase().replace(/ /g, '.')}@architect.io
+                  {user.name.toLowerCase().replace(/ /g, '.')}@architect.com
                 </span>
                 <Settings className="w-3 h-3 text-outline cursor-pointer hover:text-black transition-colors" />
              </div>
@@ -951,7 +951,7 @@ const ArchitectApp: React.FC = () => {
             <div className="flex items-center gap-2 px-3 py-1.5 bg-surface rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary group mr-3">
                <Briefcase className="w-3.5 h-3.5 text-outline group-hover:text-primary transition-colors" />
                <div className="flex flex-col">
-                  <span className="text-[8px] font-bold text-outline uppercase tracking-tighter leading-none">Form Context</span>
+                  <span className="text-[8px] font-bold text-outline uppercase tracking-tighter leading-none">表单上下文</span>
                   <select 
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
@@ -1180,15 +1180,15 @@ const ArchitectApp: React.FC = () => {
               </div>
             ) : (
               <div>
-                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">Basic Fields</h3>
+                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">基础字段</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { type: 'text', icon: Type, label: 'Text' },
-                    { type: 'textarea', icon: LayoutGrid, label: 'Area' },
-                    { type: 'number', icon: Activity, label: 'Number' },
-                    { type: 'date', icon: Calendar, label: 'Date' },
-                    { type: 'select', icon: Menu, label: 'Select' },
-                    { type: 'checkbox', icon: CheckSquare, label: 'Check' },
+                    { type: 'text', icon: Type, label: '文本' },
+                    { type: 'textarea', icon: LayoutGrid, label: '多行' },
+                    { type: 'number', icon: Activity, label: '数字' },
+                    { type: 'date', icon: Calendar, label: '日期' },
+                    { type: 'select', icon: Menu, label: '下拉' },
+                    { type: 'checkbox', icon: CheckSquare, label: '选择' },
                   ].map((item) => (
                     <button
                       key={item.type}
@@ -1206,10 +1206,10 @@ const ArchitectApp: React.FC = () => {
             <div className="bg-surface-container-low rounded-2xl p-4 border border-outline-variant">
               <div className="flex items-center gap-2 mb-2">
                 <ShieldCheck className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-bold tracking-tight">AI Optimizations</span>
+                <span className="text-[10px] font-bold tracking-tight">AI 智能优化</span>
               </div>
               <p className="text-[10px] text-on-surface-variant leading-relaxed font-medium">
-                Our AI can automatically suggest validation rules and optimal sequence paths.
+                我们的 AI 可以自动建议验证规则和最佳执行路径。
               </p>
             </div>
           </div>
@@ -1311,7 +1311,7 @@ const ArchitectApp: React.FC = () => {
 
                             {isBranching && (
                               <div className="mt-4 pt-4 border-t border-dashed border-outline-variant space-y-2">
-                                <div className="text-[10px] font-bold text-outline uppercase tracking-widest">Branch Logic</div>
+                                <div className="text-[10px] font-bold text-outline uppercase tracking-widest">分支逻辑</div>
                                 <div className="flex gap-2">
                                   <span className="text-[10px] font-mono bg-on-surface text-white px-2 py-1 rounded">IF {node.config?.expression}</span>
                                 </div>
@@ -1414,11 +1414,11 @@ const ArchitectApp: React.FC = () => {
                            
                            <div className="space-y-4 relative z-10">
                               {[
-                                 { time: 'T+0s', event: 'Initiator triggered "Payment Initiation"', ok: true },
-                                 { time: 'T+1s', event: 'Manager Approval: Pending (Dept Manager)', ok: true },
-                                 { time: 'T+2s', event: `Condition Threshold: ${Number(simulationData.amount || 0) > 5000 ? 'TRUE' : 'FALSE'} (Path: ${Number(simulationData.amount || 0) > 5000 ? 'Corporate' : 'Auto'})`, ok: true },
-                                 { time: 'T+3s', event: Number(simulationData.amount || 0) > 5000 ? 'CFO Final Sign-off: Required' : 'Processing Complete', ok: true },
-                                 { time: 'T+4s', event: 'Audit Logging: Success', ok: true },
+                                 { time: 'T+0s', event: '发起人触发 "支付申请"', ok: true },
+                                 { time: 'T+1s', event: '经理审批: 待处理 (部门经理)', ok: true },
+                                 { time: 'T+2s', event: `条件阈值: ${Number(simulationData.amount || 0) > 5000 ? '符合' : '不符合'} (路径: ${Number(simulationData.amount || 0) > 5000 ? '企业审核' : '自动放行'})`, ok: true },
+                                 { time: 'T+3s', event: Number(simulationData.amount || 0) > 5000 ? 'CFO 最终签核: 必需' : '处理完成', ok: true },
+                                 { time: 'T+4s', event: '审计日志写入: 成功', ok: true },
                               ].map((trace, i) => (
                                 <motion.div 
                                   key={i} 
@@ -1445,7 +1445,7 @@ const ArchitectApp: React.FC = () => {
                            >
                               <div className="text-[10px] font-bold opacity-80 uppercase mb-1 tracking-widest">最终模拟结果</div>
                               <div className="font-extrabold text-xl tracking-tight">
-                                流程将导向：{Number(simulationData.amount || 0) > 5000 ? 'Corporate Review Strategy' : 'Auto-Release Flow'}
+                                流程将导向：{Number(simulationData.amount || 0) > 5000 ? '企业人工核验策略' : '自动流水释放流程'}
                               </div>
                               <div className="mt-4 flex gap-4 text-[10px] font-bold opacity-70">
                                 <span>延迟: 4.2ms</span>
@@ -2340,7 +2340,7 @@ const ArchitectApp: React.FC = () => {
                 <div className="flex bg-surface rounded-lg p-1 gap-1 border border-outline-variant">
                   {['1H', '1D', '1W', '1M'].map((t) => (
                     <button key={t} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${t === '1W' ? 'bg-white shadow-sm text-primary shadow-lg shadow-primary/5' : 'text-outline hover:text-on-surface'}`}>
-                      {t}
+                      {t === '1H' ? '1小时' : t === '1D' ? '1天' : t === '1W' ? '1周' : '1月'}
                     </button>
                   ))}
                 </div>
@@ -2378,10 +2378,10 @@ const ArchitectApp: React.FC = () => {
               </div>
               <div className="space-y-6">
                 {[
-                  { user: '陈', action: '合并了 入职架构_v2', time: '2小时前', status: 'SUCCESS' },
-                  { user: '莎拉', action: '新增了 3 个校验位', time: '4小时前', status: 'PENDING' },
-                  { user: 'Heidi', action: '导出了 遥测审计数据', time: '6小时前', status: 'SUCCESS' },
-                  { user: '系统', action: '应用自动扩缩: node_04', time: '12小时前', status: 'ACTIVE' },
+                  { user: '陈', action: '合并了 入职架构_v2', time: '2小时前', status: '成功' },
+                  { user: '莎拉', action: '新增了 3 个校验位', time: '4小时前', status: '待处理' },
+                  { user: 'Heidi', action: '导出了 遥测审计数据', time: '6小时前', status: '成功' },
+                  { user: '系统', action: '应用自动扩缩: node_04', time: '12小时前', status: '运行中' },
                 ].map((activity, i) => (
                   <div key={i} className="flex gap-4 group cursor-pointer hover:bg-surface/50 -mx-2 px-2 py-1 rounded-lg transition-colors">
                     <div className="relative">
@@ -2391,7 +2391,7 @@ const ArchitectApp: React.FC = () => {
                         referrerPolicy="no-referrer"
                         alt="头像"
                       />
-                      <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${activity.status === 'SUCCESS' ? 'bg-green-500' : 'bg-primary'}`}></div>
+                      <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${activity.status === '成功' ? 'bg-green-500' : 'bg-primary'}`}></div>
                     </div>
                     <div className="flex-1 text-on-surface">
                       <p className="text-xs">
@@ -2552,7 +2552,7 @@ const ArchitectApp: React.FC = () => {
               
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="bg-white/95 backdrop-blur-xl px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2">
-                  Launch Live Preview <ChevronRight className="w-4 h-4" />
+                  启动实时预览 <ChevronRight className="w-4 h-4" />
                 </div>
               </div>
               
@@ -2572,10 +2572,10 @@ const ArchitectApp: React.FC = () => {
                     <div className="p-2 bg-primary/10 rounded-lg">
                       <FormInput className="w-5 h-5 text-primary" />
                     </div>
-                    <div className="font-bold">Schema Validation</div>
+                    <div className="font-bold">架构校验</div>
                   </div>
                   <p className="text-sm text-on-surface-variant font-medium">
-                    Real-time JSON schema generation with automated type verification across your stack.
+                    基于实时 JSON Schema 生成，可在整个技术栈中实现自动化的类型验证。
                   </p>
                 </div>
               </div>
@@ -2587,8 +2587,8 @@ const ArchitectApp: React.FC = () => {
         <section className="py-24 bg-white border-y border-outline-variant">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold mb-4 tracking-tight">Architectural Foundation</h2>
-              <p className="text-on-surface-variant text-lg">Engineered for teams that demand precision and reliability.</p>
+              <h2 className="text-3xl font-bold mb-4 tracking-tight">架构基石</h2>
+              <p className="text-on-surface-variant text-lg">专为追求精准和可靠性的团队打造。</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -2597,9 +2597,9 @@ const ArchitectApp: React.FC = () => {
                 <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <ShieldCheck className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 tracking-tight">Enterprise Security</h3>
+                <h3 className="text-xl font-bold mb-3 tracking-tight">企业级安全</h3>
                 <p className="text-on-surface-variant mb-6 text-sm leading-relaxed font-medium">
-                  SOC2 Type II compliant with end-to-end encryption and fine-grained access controls.
+                  符合 SOC2 Type II 标准，提供端到端加密和细粒度的访问控制。
                 </p>
                 <div className="rounded-xl overflow-hidden h-32 border border-outline-variant">
                   <img 
@@ -2616,9 +2616,9 @@ const ArchitectApp: React.FC = () => {
                 <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <Database className="w-6 h-6 text-secondary" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 tracking-tight">Infinite Integration</h3>
+                <h3 className="text-xl font-bold mb-3 tracking-tight">无限集成能力</h3>
                 <p className="text-on-surface-variant mb-6 text-sm leading-relaxed font-medium">
-                  Connect to SQL, NoSQL, and internal REST/GraphQL APIs with zero custom code required.
+                  无需编写自定义代码，即可连接到 SQL、NoSQL 以及内部 REST/GraphQL API。
                 </p>
                 <div className="rounded-xl overflow-hidden h-32 border border-outline-variant">
                   <img 
@@ -2635,9 +2635,9 @@ const ArchitectApp: React.FC = () => {
                 <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <Activity className="w-6 h-6 text-green-500" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 tracking-tight">Logic at Scale</h3>
+                <h3 className="text-xl font-bold mb-3 tracking-tight">大规模逻辑处理</h3>
                 <p className="text-on-surface-variant mb-6 text-sm leading-relaxed font-medium">
-                  Dynamic conditional logic that performs instantly even with thousands of fields.
+                  即便拥有数千个字段，动态条件逻辑也能瞬间响应。
                 </p>
                 <div className="rounded-xl overflow-hidden h-32 border border-outline-variant">
                   <img 
@@ -2660,14 +2660,13 @@ const ArchitectApp: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2 text-primary font-bold mb-6">
                     <Layers className="w-5 h-5" />
-                    CASE STUDY: TELCO GLOBAL
+                    案例研究：TELCO GLOBAL
                   </div>
                   <h2 className="text-4xl md:text-5xl font-extrabold mb-8 leading-tight tracking-tight">
-                    Reduced onboarding friction by 74% across 12 countries.
+                    在 12 个国家/地区减少了 74% 的入职摩擦。
                   </h2>
                   <p className="text-on-surface-variant text-lg mb-10 font-medium">
-                    "Architect allowed us to unify our global onboarding process while maintaining 
-                    strict local regulatory compliance via dynamic data routing."
+                    "架构师让我们可以统一全球入职流程，同时通过动态数据路由维持严格的当地法规合规性。"
                   </p>
                   <div className="flex items-center gap-4">
                     <img 
@@ -2678,17 +2677,17 @@ const ArchitectApp: React.FC = () => {
                     />
                     <div>
                       <div className="font-bold">Heidi Vance</div>
-                      <div className="text-sm text-on-surface-variant font-medium">Chief Strategy Officer</div>
+                      <div className="text-sm text-on-surface-variant font-medium">首席战略官</div>
                     </div>
                   </div>
                 </div>
                 <div className="relative px-4">
                   <div className="bg-surface p-8 rounded-2xl border border-outline-variant transform -rotate-1 shadow-inner">
                     <div className="space-y-4">
-                      {['User Validation', 'API Response', 'Logic Trigger', 'Security Handshake'].map((item) => (
+                      {['用户验证', 'API 响应', '逻辑触发', '安全握手'].map((item) => (
                         <div key={item} className="flex items-center justify-between p-3 bg-white rounded-lg border border-outline-variant shadow-sm">
                           <span className="text-sm font-semibold">{item}</span>
-                          <span className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-md font-bold">READY</span>
+                          <span className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-md font-bold">已就绪</span>
                         </div>
                       ))}
                     </div>
@@ -2702,43 +2701,43 @@ const ArchitectApp: React.FC = () => {
         {/* CTA Footer Section */}
         <section className="py-24 sleek-gradient-bg border-t border-outline-variant">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-4xl font-extrabold mb-6 tracking-tight">Build your first form in minutes.</h2>
-            <p className="text-on-surface-variant text-lg mb-10 font-medium">No commitment, no credit card required.</p>
+            <h2 className="text-4xl font-extrabold mb-6 tracking-tight">在几分钟内构建您的第一个表单。</h2>
+            <p className="text-on-surface-variant text-lg mb-10 font-medium">无需承诺，无需填写信用卡信息。</p>
             <button className="bg-primary text-white flex items-center gap-2 px-10 py-5 rounded-xl text-xl font-bold mx-auto hover:shadow-xl hover:shadow-primary/20 transition-all hover:-translate-y-1">
-              Get Started for Free <ChevronRight className="w-5 h-5" />
+              免费开始使用 <ChevronRight className="w-5 h-5" />
             </button>
             <div className="mt-20 grid grid-cols-2 lg:grid-cols-4 gap-12 text-sm text-on-surface-variant">
               <div className="space-y-4">
-                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">Product</div>
-                <a href="#" className="block hover:text-primary">Features</a>
-                <a href="#" className="block hover:text-primary">Integrations</a>
-                <a href="#" className="block hover:text-primary">Enterprise</a>
+                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">产品</div>
+                <a href="#" className="block hover:text-primary">功能</a>
+                <a href="#" className="block hover:text-primary">集成</a>
+                <a href="#" className="block hover:text-primary">企业版</a>
               </div>
               <div className="space-y-4">
-                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">Platform</div>
-                <a href="#" className="block hover:text-primary">Documentation</a>
-                <a href="#" className="block hover:text-primary">API Reference</a>
-                <a href="#" className="block hover:text-primary">Status</a>
+                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">平台</div>
+                <a href="#" className="block hover:text-primary">文档</a>
+                <a href="#" className="block hover:text-primary">API 参考</a>
+                <a href="#" className="block hover:text-primary">服务状态</a>
               </div>
               <div className="space-y-4">
-                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">Company</div>
-                <a href="#" className="block hover:text-primary">About Us</a>
-                <a href="#" className="block hover:text-primary">Careers</a>
-                <a href="#" className="block hover:text-primary">Contact</a>
+                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">公司</div>
+                <a href="#" className="block hover:text-primary">关于我们</a>
+                <a href="#" className="block hover:text-primary">招贤纳士</a>
+                <a href="#" className="block hover:text-primary">联系我们</a>
               </div>
               <div className="space-y-4">
-                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">Social</div>
+                <div className="font-bold text-on-surface uppercase tracking-widest text-xs">社交媒体</div>
                 <a href="#" className="block hover:text-primary">Twitter</a>
                 <a href="#" className="block hover:text-primary">LinkedIn</a>
                 <a href="#" className="block hover:text-primary">GitHub</a>
               </div>
             </div>
             <div className="mt-20 pt-10 border-t border-outline-variant flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-outline font-medium">
-              <div>© 2024 Architectural Software Inc. All rights reserved.</div>
+              <div>© 2024 架构师软件有限公司。保留所有权利。</div>
               <div className="flex gap-8">
-                <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
-                <a href="#" className="hover:text-primary transition-colors">Cookie Settings</a>
+                <a href="#" className="hover:text-primary transition-colors">隐私政策</a>
+                <a href="#" className="hover:text-primary transition-colors">服务条款</a>
+                <a href="#" className="hover:text-primary transition-colors">Cookie 设置</a>
               </div>
             </div>
           </div>
