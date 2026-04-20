@@ -42,7 +42,17 @@ import {
   ArrowUpDown,
   FileSpreadsheet,
   Download,
-  EyeOff
+  EyeOff,
+  Building2,
+  UserCog,
+  UserPlus,
+  UserCheck,
+  UserMinus,
+  History,
+  ListFilter,
+  Link2,
+  TableProperties,
+  Clock3,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -50,7 +60,11 @@ type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'workflow' | '
 
 interface FormField {
   id: string;
-  type: 'text' | 'number' | 'textarea' | 'select' | 'checkbox' | 'date';
+  type: 
+    | 'text' | 'number' | 'textarea' | 'select' | 'checkbox' | 'date'
+    | 'cascade' | 'relateQuery' | 'subform'
+    | 'userSelect' | 'orgSelect' | 'roleSelect'
+    | 'creator' | 'createdAt' | 'modifier' | 'modifiedAt' | 'deleter' | 'deletedAt';
   label: string;
   placeholder?: string;
   required: boolean;
@@ -427,13 +441,13 @@ const ArchitectApp: React.FC = () => {
   );
 
   // Editor Actions
-  const addField = (type: FormField['type']) => {
+  const addField = (type: FormField['type'], customLabel?: string) => {
     const newField: FormField = {
       id: Math.random().toString(36).substr(2, 9),
       type,
-      label: `新建 ${type} 字段`,
+      label: customLabel || `新建 ${type} 字段`,
       required: false,
-      placeholder: type === 'text' ? '请输入内容...' : undefined,
+      placeholder: ['text', 'textarea'].includes(type) ? '请输入内容...' : undefined,
       options: type === 'select' ? ['选项 1', '选项 2'] : undefined,
     };
     setFormFields([...formFields, newField]);
@@ -1179,26 +1193,95 @@ const ArchitectApp: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div>
-                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">基础字段</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { type: 'text', icon: Type, label: '文本' },
-                    { type: 'textarea', icon: LayoutGrid, label: '多行' },
-                    { type: 'number', icon: Activity, label: '数字' },
-                    { type: 'date', icon: Calendar, label: '日期' },
-                    { type: 'select', icon: Menu, label: '下拉' },
-                    { type: 'checkbox', icon: CheckSquare, label: '选择' },
-                  ].map((item) => (
-                    <button
-                      key={item.type}
-                      onClick={() => addField(item.type as FormField['type'])}
-                      className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
-                    >
-                      <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary transition-colors" />
-                      <span className="text-[10px] font-bold">{item.label}</span>
-                    </button>
-                  ))}
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">基础字段</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { type: 'text', icon: Type, label: '文本' },
+                      { type: 'textarea', icon: LayoutGrid, label: '多行' },
+                      { type: 'number', icon: Activity, label: '数字' },
+                      { type: 'date', icon: Calendar, label: '日期' },
+                      { type: 'select', icon: Menu, label: '下拉' },
+                      { type: 'checkbox', icon: CheckSquare, label: '选择' },
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => addField(item.type as FormField['type'], item.label)}
+                        className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
+                      >
+                        <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary transition-colors" />
+                        <span className="text-[10px] font-bold">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">高级字段</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { type: 'cascade', icon: ListFilter, label: '级联选择' },
+                      { type: 'relateQuery', icon: Link2, label: '关联查询' },
+                      { type: 'subform', icon: TableProperties, label: '子表单' },
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => addField(item.type as FormField['type'], item.label)}
+                        className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                           <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
+                        </div>
+                        <span className="text-[10px]">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">业务字段</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { type: 'userSelect', icon: Users, label: '人员选择' },
+                      { type: 'orgSelect', icon: Building2, label: '组织选择' },
+                      { type: 'roleSelect', icon: UserCog, label: '角色选择' },
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => addField(item.type as FormField['type'], item.label)}
+                        className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-primary/5 group-hover:bg-primary/20 transition-colors flex items-center justify-center">
+                           <item.icon className="w-4 h-4 text-primary" />
+                        </div>
+                        <span className="text-[10px]">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">系统字段</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { type: 'creator', icon: UserPlus, label: '创建人' },
+                      { type: 'createdAt', icon: Clock, label: '创建时间' },
+                      { type: 'modifier', icon: UserCheck, label: '修改人' },
+                      { type: 'modifiedAt', icon: History, label: '修改时间' },
+                      { type: 'deleter', icon: UserMinus, label: '删除人' },
+                      { type: 'deletedAt', icon: Clock3, label: '删除时间' },
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => addField(item.type as FormField['type'], item.label)}
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-outline-variant border-dashed hover:border-outline hover:bg-surface transition-all group opacity-70 hover:opacity-100"
+                      >
+                        <item.icon className="w-3.5 h-3.5 text-outline group-hover:text-on-surface transition-colors" />
+                        <span className="text-[9px] font-bold">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
