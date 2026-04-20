@@ -56,7 +56,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
-type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'workflow' | 'insights' | 'integrations' | 'team';
+type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'templates' | 'workflow' | 'insights' | 'integrations' | 'team';
 
 interface FormField {
   id: string;
@@ -69,6 +69,7 @@ interface FormField {
   placeholder?: string;
   required: boolean;
   options?: string[]; // for select
+  width?: '1/1' | '1/2' | '1/3' | '1/4';
 }
 
 interface WorkflowNode {
@@ -142,44 +143,924 @@ const mockSavedForms: SavedForm[] = [
   { id: 'f6', projectId: '4', name: '候选名单 v1', status: 'Archived', createdAt: '2025-12-15', designer: '陈' },
 ];
 
+interface ConfirmModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  confirmText?: string;
+  type?: 'danger' | 'primary';
+}
+
+interface ProjectsViewProps {
+  projects: Project[];
+  projectDetailsId: string | null;
+  savedForms: SavedForm[];
+  isProjectModalOpen: boolean;
+  projectToEdit: Project | null;
+  newProjectName: string;
+  tempProjectName: string;
+  editingProjectTitle: boolean;
+  setProjectDetailsId: (id: string | null) => void;
+  setIsProjectModalOpen: (open: boolean) => void;
+  setProjectToEdit: (p: Project | null) => void;
+  setNewProjectName: (name: string) => void;
+  setTempProjectName: (name: string) => void;
+  setEditingProjectTitle: (editing: boolean) => void;
+  createOrUpdateProject: () => void;
+  deleteProject: (id: string, name: string) => void;
+  deleteForm: (id: string, name: string) => void;
+  updateProjectName: (id: string, name: string) => void;
+  setSelectedProjectId: (id: string) => void;
+  openEditor: (id: string | null) => void;
+  confirmModal: ConfirmModalState;
+  setConfirmModal: React.Dispatch<React.SetStateAction<ConfirmModalState>>;
+}
+
+interface SidebarProps {
+  currentView: ViewType;
+  setView: (view: ViewType) => void;
+}
+
+interface DashboardHeaderProps {
+  title: string;
+  subtitle?: string;
+  showNotification: (text: string) => void;
+}
+
+interface ConsoleLayoutProps {
+  children: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  viewToken: ViewType;
+  notifications: Array<{ id: number; text: string }>;
+  currentView: ViewType;
+  setView: (view: ViewType) => void;
+  showNotification: (text: string) => void;
+}
+
+interface TemplatesViewProps {
+  setView: (view: ViewType) => void;
+  showNotification: (text: string) => void;
+}
+
+interface WorkflowViewProps {
+  workflowStatus: string;
+  setWorkflowStatus: (status: string) => void;
+  workflowInstances: any[];
+  setView: (view: ViewType) => void;
+}
+
+interface InsightsViewProps {
+  showNotification: (text: string) => void;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  dept: string;
+}
+
+interface TeamViewProps {
+  teamMembers: TeamMember[];
+}
+
+interface IntegrationsViewProps {
+  showNotification: (text: string) => void;
+}
+
+interface JsonSchemaModalProps {
+  setIsSchemaVisible: (visible: boolean) => void;
+  formFields: FormField[];
+  showNotification: (text: string) => void;
+}
+
+// Shared UI Components
+const Sidebar = ({ currentView, setView }: SidebarProps) => (
+  <aside className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0">
+    <div className="p-8 flex items-center gap-2 mb-4">
+      <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+        <LayoutGrid className="text-white w-5 h-5" />
+      </div>
+      <span className="font-bold text-xl tracking-tighter">自定义表单</span>
+    </div>
+    
+    <nav className="flex-1 space-y-1 px-4">
+      {[
+        { label: '仪表盘', icon: LayoutGrid, view: 'dashboard' },
+        { label: '应用管理', icon: FormInput, view: 'projects' },
+        { label: '模板中心', icon: LayoutGrid, view: 'templates' },
+        { label: '组织人员', icon: Users, view: 'team' },
+        { label: '团队流转', icon: Workflow, view: 'workflow' },
+        { label: '数据洞察', icon: Activity, view: 'insights' },
+        { label: '集成中心', icon: Database, view: 'integrations' },
+      ].map((item) => (
+        <div 
+          key={item.label}
+          onClick={() => setView(item.view as ViewType)}
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all font-medium text-sm ${
+            currentView === item.view 
+              ? 'bg-primary/5 text-primary' 
+              : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+          }`}
+        >
+          <item.icon className="w-4 h-4" />
+          {item.label}
+        </div>
+      ))}
+    </nav>
+
+    <div className="p-4 border-t border-outline-variant">
+      <div className="bg-surface-container-low rounded-2xl p-4">
+        <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">额度消耗</div>
+        <div className="h-1.5 w-full bg-outline-variant rounded-full overflow-hidden mb-2">
+          <div className="h-full bg-primary w-3/4"></div>
+        </div>
+        <div className="flex justify-between text-[10px] font-bold">
+          <span>1.2k / 1.5k</span>
+          <span className="text-primary cursor-pointer hover:underline">去升级</span>
+        </div>
+      </div>
+      <button 
+        onClick={() => setView('landing')}
+        className="w-full mt-4 flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all font-medium text-sm"
+      >
+        <label className="w-4 h-4 rotate-180 flex items-center justify-center">
+          <ChevronRight className="w-4 h-4" />
+        </label>
+        返回主页
+      </button>
+    </div>
+  </aside>
+);
+
+const DashboardHeader = ({ title, subtitle, showNotification }: DashboardHeaderProps) => (
+  <header className="h-20 sleek-glass px-8 flex items-center justify-between sticky top-0 z-10">
+    <div>
+      <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+      {subtitle && <p className="text-xs text-on-surface-variant font-medium">{subtitle}</p>}
+    </div>
+    <div className="flex items-center gap-4">
+      <button onClick={() => showNotification('没有新通知')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
+        <Bell className="w-5 h-5" />
+        <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
+      </button>
+      <div className="relative group">
+        <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+        <input 
+          type="text" 
+          placeholder="搜索控制台..."
+          className="bg-surface pl-10 pr-4 py-2 rounded-full text-sm border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary/20 w-64 transition-all"
+        />
+      </div>
+      <div className="w-px h-6 bg-outline-variant"></div>
+      <img 
+        src="https://picsum.photos/seed/profile/100/100" 
+        className="w-8 h-8 rounded-full ring-2 ring-primary/10 cursor-pointer hover:ring-primary/30 transition-all border border-outline-variant" 
+        alt="头像"
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  </header>
+);
+
+const ConsoleLayout = ({ children, title, subtitle, viewToken, notifications, currentView, setView, showNotification }: ConsoleLayoutProps) => (
+  <div className="flex h-screen bg-surface overflow-hidden text-on-surface select-none">
+    <Sidebar currentView={currentView} setView={setView} />
+    <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
+      <DashboardHeader title={title} subtitle={subtitle} showNotification={showNotification} />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={viewToken}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
+      
+      <div className="fixed bottom-8 right-8 space-y-2 z-50 pointer-events-none">
+        <AnimatePresence>
+          {notifications.map(n => (
+            <motion.div
+              key={n.id}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="bg-on-surface text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm pointer-events-auto border border-outline-variant/10"
+            >
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+              {n.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </main>
+  </div>
+);
+
+const JsonSchemaModal = ({ setIsSchemaVisible, formFields, showNotification }: JsonSchemaModalProps) => (
+  <motion.div 
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-black/40 backdrop-blur-md"
+    onClick={() => setIsSchemaVisible(false)}
+  >
+    <motion.div 
+      initial={{ scale: 0.9, y: 20 }}
+      animate={{ scale: 1, y: 0 }}
+      exit={{ scale: 0.9, y: 20 }}
+      className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] border border-outline-variant"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface">
+        <div className="flex items-center gap-2">
+          <Code className="w-5 h-5 text-primary" />
+          <span className="font-bold text-lg tracking-tight">JSON 定义</span>
+        </div>
+        <button onClick={() => setIsSchemaVisible(false)} className="p-2 hover:bg-surface-container-low rounded-full transition-colors">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="p-8 overflow-y-auto flex-1 bg-on-surface text-surface-container-low font-mono text-xs leading-relaxed">
+        <pre>{JSON.stringify({
+          formTitle: "架构定义",
+          version: "2.0.4-草稿",
+          fields: formFields
+        }, null, 2)}</pre>
+      </div>
+      <div className="p-6 border-t border-outline-variant bg-surface flex justify-end gap-3">
+        <button 
+          onClick={() => {
+            navigator.clipboard.writeText(JSON.stringify(formFields));
+            showNotification('架构已复制到剪贴板');
+          }}
+          className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-white transition-all"
+        >
+          复制 JSON
+        </button>
+        <button 
+          onClick={() => setIsSchemaVisible(false)}
+          className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold transition-all"
+        >
+          关闭
+        </button>
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
+const ConfirmDialog = ({ confirmModal, setConfirmModal }: { confirmModal: ConfirmModalState, setConfirmModal: React.Dispatch<React.SetStateAction<ConfirmModalState>> }) => (
+  <AnimatePresence>
+    {confirmModal.isOpen && (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/50 backdrop-blur-sm"
+        onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      >
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-8 space-y-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold tracking-tight">{confirmModal.title}</h3>
+            <p className="text-sm text-on-surface-variant font-medium leading-relaxed">
+              {confirmModal.message}
+            </p>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button 
+              onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+              className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all"
+            >
+              取消
+            </button>
+            <button 
+              onClick={confirmModal.onConfirm}
+              className={`px-6 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-lg hover:shadow-xl ${
+                confirmModal.type === 'danger' ? 'bg-error' : 'bg-primary'
+              }`}
+            >
+              {confirmModal.confirmText || '确认'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
+const ProjectsView = ({
+  projects,
+  projectDetailsId,
+  savedForms,
+  isProjectModalOpen,
+  projectToEdit,
+  newProjectName,
+  tempProjectName,
+  editingProjectTitle,
+  setProjectDetailsId,
+  setIsProjectModalOpen,
+  setProjectToEdit,
+  setNewProjectName,
+  setTempProjectName,
+  setEditingProjectTitle,
+  createOrUpdateProject,
+  deleteProject,
+  deleteForm,
+  updateProjectName,
+  setSelectedProjectId,
+  openEditor,
+}: ProjectsViewProps) => {
+  const selectedProject = projects.find(p => p.id === projectDetailsId);
+  const projectForms = savedForms.filter(f => f.projectId === projectDetailsId);
+
+  return (
+    <div className="p-8 space-y-8 max-w-7xl">
+      {!projectDetailsId ? (
+        <>
+          <div className="flex justify-between items-end">
+            <div>
+              <h2 className="text-3xl font-extrabold tracking-tighter">应用</h2>
+              <p className="text-sm text-on-surface-variant font-medium">管理您的应用资产和业务流水线</p>
+            </div>
+            <button 
+              onClick={() => {
+                setProjectToEdit(null);
+                setNewProjectName('');
+                setIsProjectModalOpen(true);
+              }}
+              className="px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm transition-all hover:shadow-lg hover:shadow-primary/20 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> 新建应用
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((project) => (
+              <div 
+                key={project.id} 
+                className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all cursor-pointer"
+                onClick={() => setProjectDetailsId(project.id)}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center text-primary border border-outline-variant group-hover:bg-primary group-hover:text-white transition-all">
+                    <Briefcase className="w-6 h-6" />
+                  </div>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setProjectToEdit(project);
+                        setNewProjectName(project.name);
+                        setIsProjectModalOpen(true);
+                      }}
+                      className="p-2 hover:bg-surface rounded-lg text-outline-variant hover:text-primary transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteProject(project.id, project.name);
+                      }}
+                      className="p-2 hover:bg-error/5 rounded-lg text-outline-variant hover:text-error transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg tracking-tight group-hover:text-primary transition-colors">{project.name}</h3>
+                  <div className="mt-2 flex items-center gap-4 text-[10px] font-bold text-outline uppercase tracking-widest">
+                    <span>{savedForms.filter(f => f.projectId === project.id).length} 个表单</span>
+                    <span>•</span>
+                    <span>{project.responses} 次提交</span>
+                  </div>
+                </div>
+                <div className="mt-auto pt-4 border-t border-outline-variant flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-outline uppercase">更新于 {project.updatedAt}</span>
+                  <ChevronRight className="w-4 h-4 text-outline group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <AnimatePresence>
+            {isProjectModalOpen && (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center p-8 bg-black/40 backdrop-blur-sm">
+                <motion.div 
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                  className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-8 space-y-6"
+                >
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold tracking-tight">{projectToEdit ? '编辑应用' : '创建新应用'}</h3>
+                    <p className="text-sm text-on-surface-variant font-medium">为您的应用资产定义一个清晰的容器</p>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest">应用名称</label>
+                      <input 
+                        autoFocus
+                        type="text" 
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="例如：2024 年度调研"
+                        className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button 
+                      onClick={() => setIsProjectModalOpen(false)}
+                      className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all"
+                    >
+                      取消
+                    </button>
+                    <button 
+                      onClick={createOrUpdateProject}
+                      disabled={!newProjectName.trim()}
+                      className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all disabled:opacity-50"
+                    >
+                      {projectToEdit ? '保存更改' : '确认创建'}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </>
+      ) : (
+        <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
+          <div className="flex items-center gap-4 mb-4">
+            <button 
+              onClick={() => setProjectDetailsId(null)}
+              className="p-2 hover:bg-surface rounded-xl border border-outline-variant transition-all"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-4">
+              {editingProjectTitle ? (
+                <div className="flex items-center gap-2">
+                  <input 
+                    autoFocus
+                    type="text" 
+                    value={tempProjectName}
+                    onChange={(e) => setTempProjectName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') updateProjectName(projectDetailsId, tempProjectName);
+                      if (e.key === 'Escape') setEditingProjectTitle(false);
+                    }}
+                    className="text-3xl font-extrabold tracking-tighter bg-transparent border-b-2 border-primary focus:outline-none"
+                  />
+                  <button 
+                    onClick={() => updateProjectName(projectDetailsId, tempProjectName)}
+                    className="p-2 bg-primary text-white rounded-lg shadow-lg"
+                  >
+                    <Save className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="group flex items-center gap-4">
+                  <h2 
+                    className="text-3xl font-extrabold tracking-tighter cursor-pointer hover:text-primary transition-all"
+                    onClick={() => {
+                      setTempProjectName(selectedProject?.name || '');
+                      setEditingProjectTitle(true);
+                    }}
+                  >
+                    {selectedProject?.name}
+                  </h2>
+                  <Settings className="w-4 h-4 text-outline opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="md:col-span-2 space-y-6">
+              <div className="flex justify-between items-center bg-surface-container rounded-2xl p-6 border border-outline-variant mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-on-surface text-white rounded-xl flex items-center justify-center">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">应用资产列表</div>
+                    <div className="text-[10px] text-on-surface-variant font-medium">共有 {projectForms.length} 个表单组件</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setSelectedProjectId(projectDetailsId);
+                    openEditor(null);
+                  }}
+                  className="px-4 py-2 bg-on-surface text-white rounded-lg text-xs font-bold hover:secondary"
+                >
+                  添加新表单
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {projectForms.map(form => (
+                  <div key={form.id} className="sleek-card p-6 flex items-center gap-6 group hover:border-primary transition-all">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg ${
+                      form.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-primary/5 text-primary'
+                    }`}>
+                      {form.name.charAt(0)}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors">{form.name}</h4>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase ${
+                          form.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {form.status === 'Published' ? '已发布' : '草稿'}
+                        </span>
+                        <span className="text-[10px] text-outline font-bold uppercase tracking-widest">• {form.createdAt} 创建</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => openEditor(form.id)}
+                        className="px-4 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-on-surface hover:text-white transition-all shadow-sm"
+                      >
+                        编辑
+                      </button>
+                      <button 
+                        onClick={() => deleteForm(form.id, form.name)}
+                        className="p-2 hover:bg-error/5 text-outline-variant hover:text-error rounded-xl transition-all"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {projectForms.length === 0 && (
+                  <div className="p-12 text-center border-2 border-dashed border-outline-variant rounded-3xl">
+                     <Database className="w-12 h-12 text-outline-variant mx-auto mb-4" />
+                     <h4 className="font-bold text-outline">暂无表单</h4>
+                     <p className="text-xs text-outline-variant mt-1">点击上方按钮创建该应用的第一个表单</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="sleek-card p-8 bg-surface-container-low border-2 border-outline-variant flex flex-col items-center text-center gap-4">
+                 <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
+                    <Activity className="w-8 h-8 text-primary/20" />
+                 </div>
+                 <h4 className="font-bold">部署洞察力</h4>
+                 <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
+                   该应用当前有 {projectForms.filter(f => f.status === 'Published').length} 个表单处于活跃状态。平均提交成功率为 98.2%。
+                 </p>
+                 <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">查看分析报告</button>
+              </div>
+
+              <div className="sleek-card p-6 space-y-4">
+                 <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest leading-none">导出与安全性</h4>
+                 <div className="space-y-3">
+                    <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
+                       <FileDown className="w-4 h-4" /> 导出成员访问矩阵
+                    </button>
+                    <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
+                       <ShieldCheck className="w-4 h-4" /> 生成审计日志
+                    </button>
+                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TemplatesView = ({ setView, showNotification }: TemplatesViewProps) => {
+  const templates = [
+    { id: 't1', title: '全能 HR 数字化套件', category: '组织人事', desc: '包含招聘、转正、绩效及员工全生命周期管理', color: 'bg-primary' },
+    { id: 't2', title: 'IT 敏捷研发管理', category: '研发效能', desc: '需求池、看板、缺陷追踪与发布记录一体化', color: 'bg-secondary' },
+    { id: 't3', title: '全渠道订单协同', category: '财务供应链', desc: '打通线上线下订单流转，自动生成财务对账流水', color: 'bg-green-500' },
+    { id: 't4', title: '政务政令督办系统', category: '行政办公', desc: '任务分办、进度追踪、自动催办与效能统计报告', color: 'bg-amber-500' },
+    { id: 't5', title: '智慧零售巡店系统', category: '连锁门店', desc: '移动端拍照巡店、问题整改闭环与多级评分报表', color: 'bg-blue-500' },
+    { id: 't6', title: '大型活动策划流', category: '市场营销', desc: '资源申请、供应商比价、现场执行与物料盘点', color: 'bg-purple-500' },
+  ];
+
+  return (
+    <div className="p-8 space-y-8 max-w-7xl pb-32">
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-extrabold tracking-tighter">模板中心</h2>
+          <p className="text-sm text-on-surface-variant font-medium">行业专家预设的成熟解决方案，即刻启用</p>
+        </div>
+        <div className="flex gap-2">
+           <button className="px-4 py-2 bg-surface border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all">所有行业</button>
+           <button className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all">按行业搜索</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {templates.map((tpl) => (
+          <div key={tpl.id} className="sleek-card group overflow-hidden border border-outline-variant hover:border-primary/50 transition-all flex flex-col h-full bg-white shadow-sm hover:shadow-xl">
+             <div className={`h-40 ${tpl.color} relative overflow-hidden flex items-center justify-center`}>
+                <div className="absolute inset-0 opacity-10 flex flex-wrap gap-4 p-4">
+                   {Array.from({ length: 40 }).map((_, i) => (
+                     <LayoutGrid key={i} className="w-8 h-8 rotate-12" />
+                   ))}
+                </div>
+                <div className="relative p-6 text-center">
+                   <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4 inline-block mb-2">
+                      <LayoutGrid className="text-white w-8 h-8" />
+                   </div>
+                </div>
+             </div>
+             
+             <div className="p-8 flex-1 flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <span className="text-[10px] font-bold text-outline uppercase tracking-widest bg-surface px-2 py-1 rounded inline-block">{tpl.category}</span>
+                  <div className="flex -space-x-2">
+                     {[1,2,3].map(i => <img key={i} src={`https://picsum.photos/seed/u${i}/40/40`} className="w-6 h-6 rounded-full border-2 border-white" referrerPolicy="no-referrer" alt="user" />)}
+                  </div>
+                </div>
+                <h3 className="text-lg font-extrabold tracking-tight mb-2 group-hover:text-primary transition-colors">{tpl.title}</h3>
+                <p className="text-xs text-on-surface-variant leading-relaxed mb-8 flex-1 font-medium">{tpl.desc}</p>
+                <button 
+                  onClick={() => {
+                    setView('projects');
+                    showNotification(`模板“${tpl.title}”正在导入工作区...`);
+                  }}
+                  className="w-full py-3 bg-on-surface text-white rounded-xl text-xs font-bold hover:secondary transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> 启用模板
+                </button>
+             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const WorkflowView = ({ workflowStatus, setWorkflowStatus, workflowInstances, setView }: WorkflowViewProps) => (
+  <div className="p-8 space-y-8 max-w-7xl pb-32">
+    <div className="flex justify-between items-end">
+      <div>
+        <h2 className="text-3xl font-extrabold tracking-tighter">已发布的流程</h2>
+        <p className="text-sm text-on-surface-variant font-medium">监控活跃的流程实例和运行遥测数据</p>
+      </div>
+      <div className="flex bg-surface-container rounded-xl p-1.5 border border-outline-variant shadow-sm text-on-surface">
+         <button 
+           onClick={() => setWorkflowStatus('active')}
+           className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'active' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-outline hover:text-on-surface'}`}
+         >活跃中</button>
+         <button 
+           onClick={() => setWorkflowStatus('inactive')}
+           className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'inactive' ? 'bg-on-surface text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
+         >已暂停</button>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
+         <div className="sleek-card overflow-hidden border-2 border-outline-variant shadow-sm text-on-surface">
+            <div className="p-6 border-b border-outline-variant bg-surface-container-low/50 flex justify-between items-center">
+               <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> 活跃实例</h3>
+               <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded tracking-widest uppercase">实时</span>
+            </div>
+            <div className="divide-y divide-outline-variant">
+               {workflowInstances.map(inst => (
+                 <div key={inst.id} className="p-6 flex items-center gap-6 hover:bg-surface transition-colors group cursor-pointer">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${inst.status === 'Completed' ? 'bg-green-100 border-green-200 text-green-700' : 'bg-primary/10 border-primary/20 text-primary'}`}>
+                      {inst.status === 'Completed' ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1">
+                       <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-bold text-sm tracking-tight">请求 #{inst.id}</span>
+                          <span className="text-[10px] font-bold text-outline">• {inst.initiator}</span>
+                       </div>
+                       <div className="text-[10px] font-medium text-on-surface-variant">步骤: <span className="font-bold text-primary">{inst.currentStep}</span> • 发起于 {inst.startTime}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <button className="px-3 py-1.5 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:bg-on-surface shadow transition-all opacity-0 group-hover:opacity-100 uppercase tracking-widest">催办</button>
+                       <ChevronRight className="w-4 h-4 text-outline" />
+                    </div>
+                 </div>
+               ))}
+            </div>
+         </div>
+      </div>
+
+      <div className="space-y-6 text-on-surface">
+         <div className="sleek-card p-6 bg-primary text-white space-y-4 shadow-2xl shadow-primary/30">
+            <div className="flex justify-between items-start">
+               <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                  <Workflow className="w-6 h-6" />
+               </div>
+               <div className="text-right">
+                  <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">流程效率</div>
+                  <div className="text-2xl font-extrabold">94.2%</div>
+               </div>
+            </div>
+            <div>
+               <h4 className="font-extrabold tracking-tight text-white uppercase text-xs">引擎运行正常</h4>
+               <p className="text-[11px] opacity-80 mt-1 font-medium leading-relaxed">系统正在自动扩缩以处理支付峰值。平均延迟：240ms</p>
+            </div>
+            <button 
+               onClick={() => setView('editor')}
+               className="w-full py-3 bg-white text-primary rounded-xl text-xs font-bold hover:bg-surface-container transition-all shadow-lg"
+            >优化设计器</button>
+         </div>
+
+         <div className="sleek-card p-6 space-y-4 shadow-sm border border-outline-variant">
+            <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">快捷操作</h4>
+            <div className="space-y-2">
+               {[
+                 { label: '导出审计日志', icon: FileDown },
+                 { label: '刷新缓存', icon: Trash2 },
+                 { label: '重建索引', icon: RefreshCw },
+               ].map(action => (
+                 <button key={action.label} className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold text-xs text-on-surface">
+                    <div className="flex items-center gap-3">
+                       <action.icon className="w-4 h-4 text-outline group-hover:text-primary transition-colors" />
+                       <span>{action.label}</span>
+                    </div>
+                    <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all text-primary" />
+                 </button>
+               ))}
+            </div>
+         </div>
+      </div>
+    </div>
+  </div>
+);
+
+const InsightsView = ({ showNotification }: InsightsViewProps) => (
+  <div className="p-8 space-y-8 max-w-7xl">
+     <div className="flex justify-between items-end">
+      <div>
+        <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">数据引擎</h2>
+        <p className="text-sm text-on-surface-variant font-medium">实时遥测和提交分析数据</p>
+      </div>
+      <button 
+        onClick={() => showNotification('导出报告已排队')}
+        className="flex items-center gap-2 px-6 py-3 bg-on-surface text-white rounded-xl font-bold text-sm transition-all hover:opacity-90"
+      >
+        <Share2 className="w-4 h-4" /> 导出报告
+      </button>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {[
+        { l: '平均完成时间', v: '2.4m', t: '-12%' },
+        { l: '流失率', v: '18.4%', t: '+2.1%' },
+        { l: '峰值加载时间', v: '44ms', t: '-4ms' },
+        { l: '唯一握手次数', v: '4.2k', t: '+800' },
+      ].map(item => (
+        <div key={item.l} className="sleek-card p-6 text-on-surface">
+          <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">{item.l}</div>
+          <div className="text-2xl font-extrabold">{item.v}</div>
+          <span className="text-[10px] font-bold text-green-600">{item.t}</span>
+        </div>
+      ))}
+    </div>
+
+    <div className="sleek-card p-12 flex flex-col items-center justify-center text-center gap-4 border-dashed border-2 text-on-surface">
+       <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center">
+          <Activity className="w-8 h-8 text-primary opacity-20" />
+       </div>
+       <h4 className="font-bold text-xl">高级可视化引擎</h4>
+       <p className="text-sm text-on-surface-variant max-w-md">在专业版计划中，通过热力图、漏斗图和地理位置指标自定义您的报告仪表板。</p>
+       <button className="bg-primary text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xl shadow-primary/20">查看更多洞察</button>
+    </div>
+  </div>
+);
+
+const IntegrationsView = ({ showNotification }: IntegrationsViewProps) => (
+  <div className="p-8 space-y-8 max-w-7xl">
+    <div className="mb-8">
+      <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">集成中心</h2>
+      <p className="text-sm text-on-surface-variant font-medium">将 Architect 连接到您现有的技术栈</p>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {[
+        { name: 'Slack', desc: '在您的频道中接收即时提醒', connected: true },
+        { name: 'Zapier', desc: '连接 5,000+ 其它应用程序', connected: false },
+        { name: 'Google Sheets', desc: '自动导出回复数据', connected: true },
+        { name: 'Salesforce', desc: '将潜在客户同步至您的 CRM', connected: false },
+        { name: 'Segment', desc: '将事件流式传输到您的数据平台', connected: false },
+        { name: 'Webhooks', desc: '自定义 HTTP 事件触发器', connected: true },
+      ].map((app) => (
+        <div key={app.name} className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all text-on-surface">
+          <div className="flex justify-between items-start">
+            <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center text-on-surface-variant border border-outline-variant font-bold text-lg">
+              {app.name[0]}
+            </div>
+            {app.connected ? (
+              <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase">已连接</span>
+            ) : (
+              <button 
+                onClick={() => showNotification(`正在连接 ${app.name}...`)}
+                className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest"
+              >连接</button>
+            )}
+          </div>
+          <div>
+            <h5 className="font-bold tracking-tight">{app.name}</h5>
+            <p className="text-xs text-on-surface-variant mt-1 font-medium">{app.desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const TeamView = ({ teamMembers }: TeamViewProps) => (
+  <div className="p-8 space-y-8 max-w-7xl pb-32">
+    <div className="flex justify-between items-end">
+      <div>
+        <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">团队成员</h2>
+        <p className="text-sm text-on-surface-variant font-medium">管理访问控制、协作权限和部门架构</p>
+      </div>
+      <button className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm transition-all hover:shadow-lg">
+        <Users className="w-4 h-4" /> 邀请成员
+      </button>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {teamMembers.map((user, idx) => (
+        <div key={user.id} className="sleek-card p-6 flex flex-col gap-4 border-2 border-outline-variant hover:border-primary transition-all group text-on-surface">
+           <div className="flex items-center gap-4">
+             <img src={`https://picsum.photos/seed/user-${idx}/100/100`} className="w-12 h-12 rounded-2xl border border-outline-variant" referrerPolicy="no-referrer" alt="头像" />
+             <div>
+                <h6 className="font-bold text-sm">{user.name}</h6>
+                <p className="text-[10px] text-outline font-bold tracking-widest uppercase">{user.role === 'Admin' ? '管理员' : user.role === 'Editor' ? '编辑' : user.role === 'Viewer' ? '查看者' : '经理'} • {user.dept}</p>
+             </div>
+           </div>
+           <div className="p-3 bg-surface rounded-xl flex items-center justify-between">
+              <span className="text-xs font-medium text-on-surface-variant break-all">
+                {user.name.toLowerCase().replace(/ /g, '.')}@architect.com
+              </span>
+              <Settings className="w-3 h-3 text-outline cursor-pointer hover:text-black transition-colors" />
+           </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const ArchitectApp: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [view, setView] = React.useState<ViewType>('landing');
-  const [formFields, setFormFields] = React.useState<FormField[]>([
-    { id: '1', type: 'text', label: '全名', placeholder: '请输入您的姓名', required: true },
-    { id: '2', type: 'date', label: '出生日期', required: false },
-  ]);
   const [selectedFieldId, setSelectedFieldId] = React.useState<string | null>(null);
-  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'permissions' | 'simulate' | 'data' | 'preview'>('design');
-  const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([
-    { id: 'node-1', type: 'start', label: '支付发起', description: '表单提交时触发', targets: ['node-2'] },
-    { 
-      id: 'node-2', 
-      type: 'approval', 
-      label: '经理审批', 
-      description: '部门主管审核', 
-      targets: ['node-5'],
-      config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR', actions: ['approve', 'reject', 'transfer'] } 
-    },
-    { 
-      id: 'node-5', 
-      type: 'condition', 
-      label: '金额阈值', 
-      description: '基于支付总额的逻辑分支', 
-      targets: ['node-3', 'node-4'],
-      config: { expression: 'amount > 5000', defaultBranch: 'node-4' }
-    },
-    { 
-      id: 'node-3', 
-      type: 'approval', 
-      label: 'CFO 最终签核', 
-      description: '高频值请求所需', 
-      targets: ['node-4'],
-      config: { assigneeType: 'role', assigneeValue: 'CFO', approvalType: 'AND' } 
-    },
-    { id: 'node-4', type: 'end', label: '处理完成', description: '数据同步至 ERP', targets: [] },
-  ]);
+  const [selectedFormId, setSelectedFormId] = React.useState<string | null>(null);
+  
+  // Storage for each form's fields and nodes
+  const [formFieldsMap, setFormFieldsMap] = React.useState<Record<string, FormField[]>>({
+    'f1': [
+      { id: '1', type: 'text', label: '员工全名', placeholder: '请输入姓名', required: true, width: '1/1' },
+      { id: '2', type: 'date', label: '入职日期', required: true, width: '1/2' },
+      { id: '3', type: 'select', label: '所在部门', options: ['研发部', '市场部', '人力资源'], required: true, width: '1/2' },
+    ],
+    'f2': [
+      { id: '1', type: 'text', label: '评估标题', required: true, width: '1/1' },
+      { id: '2', type: 'textarea', label: '性能描述', required: true, width: '1/1' },
+    ],
+    'f3': [
+      { id: '1', type: 'number', label: '打分', required: true, width: '1/2' },
+      { id: '2', type: 'textarea', label: '改进建议', required: false, width: '1/1' },
+    ]
+  });
+  
+  const [workflowNodesMap, setWorkflowNodesMap] = React.useState<Record<string, WorkflowNode[]>>({
+    'f1': [
+      { id: 'node-1', type: 'start', label: 'HR发起', description: '新员工入职触发', targets: ['node-2'] },
+      { id: 'node-2', type: 'approval', label: '部门经理审批', targets: ['node-4'], config: { assigneeType: 'role', assigneeValue: '部门经理' } },
+      { id: 'node-4', type: 'end', label: '入职完成', targets: [] },
+    ],
+    'f2': [
+      { id: 'node-1', type: 'start', label: '评估提交', targets: ['node-2'] },
+      { id: 'node-2', type: 'approval', label: '交叉评估', targets: ['node-3'], config: { assigneeType: 'user', assigneeValue: '技术专家' } },
+      { id: 'node-3', type: 'end', label: '归档', targets: [] },
+    ]
+  });
+
+  const [formFields, setFormFields] = React.useState<FormField[]>([]);
+  const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'permissions' | 'simulate' | 'data' | 'preview'>('design');
+  const [propertyTab, setPropertyTab] = React.useState<'props' | 'style'>('props');
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
   const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([
     { id: 'wf-1', projectId: '1', initiator: '陈', startTime: '1小时前', status: 'Pending', currentStep: '经理审批', history: [] },
@@ -302,6 +1183,85 @@ const ArchitectApp: React.FC = () => {
   const [notifications, setNotifications] = React.useState<{id: number, text: string}[]>([]);
   const [selectedProjectId, setSelectedProjectId] = React.useState<string>(mockProjects[1].id);
   const [projectDetailsId, setProjectDetailsId] = React.useState<string | null>(null);
+  const [projects, setProjects] = React.useState<Project[]>(mockProjects);
+  const [savedForms, setSavedForms] = React.useState<SavedForm[]>(mockSavedForms);
+  const [editingProjectTitle, setEditingProjectTitle] = React.useState(false);
+  const [tempProjectName, setTempProjectName] = React.useState('');
+  
+  const [isProjectModalOpen, setIsProjectModalOpen] = React.useState(false);
+  const [newProjectName, setNewProjectName] = React.useState('');
+  const [projectToEdit, setProjectToEdit] = React.useState<Project | null>(null);
+
+  // Custom Confirmation Modal State
+  const [confirmModal, setConfirmModal] = React.useState<ConfirmModalState>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const [editingFormName, setEditingFormName] = React.useState(false);
+  const [tempFormName, setTempFormName] = React.useState('');
+
+  const updateProjectName = (id: string, newName: string) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
+    setEditingProjectTitle(false);
+    showNotification('应用名称已更新');
+  };
+
+  const deleteProject = (id: string, name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: '删除应用',
+      message: `确定要删除应用“${name}”吗？这将删除该应用下的所有表单和数据，此操作不可撤销。`,
+      confirmText: '确认删除',
+      type: 'danger',
+      onConfirm: () => {
+        setProjects(prev => prev.filter(p => p.id !== id));
+        setSavedForms(prev => prev.filter(f => f.projectId !== id));
+        showNotification(`应用“${name}”已删除`);
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const deleteForm = (id: string, name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: '删除表单',
+      message: `确定要删除表单“${name}”吗？此操作不可撤销。`,
+      confirmText: '确认删除',
+      type: 'danger',
+      onConfirm: () => {
+        setSavedForms(prev => prev.filter(f => f.id !== id));
+        showNotification(`表单“${name}”已删除`);
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const createOrUpdateProject = () => {
+    if (!newProjectName.trim()) return;
+    
+    if (projectToEdit) {
+      setProjects(prev => prev.map(p => p.id === projectToEdit.id ? { ...p, name: newProjectName } : p));
+      showNotification(`应用“${newProjectName}”更新成功`);
+    } else {
+      const newProject: Project = {
+        id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        name: newProjectName,
+        updatedAt: '刚刚',
+        status: 'Draft',
+        responses: 0
+      };
+      setProjects(prev => [newProject, ...prev]);
+      showNotification(`应用“${newProjectName}”创建成功`);
+    }
+    
+    setIsProjectModalOpen(false);
+    setNewProjectName('');
+    setProjectToEdit(null);
+  };
 
   // Permissions State
   const [selectedRole, setSelectedRole] = React.useState<string>('编辑');
@@ -339,7 +1299,7 @@ const ArchitectApp: React.FC = () => {
   ];
 
   const teamMembers = [
-    { id: '1', name: '您 (架构师)', role: 'Admin', dept: '工程部' },
+    { id: '1', name: '您 (管理员)', role: 'Admin', dept: '工程部' },
     { id: '2', name: '陈莎拉', role: 'Editor', dept: '产品部' },
     { id: '3', name: '米高·贝克', role: 'Viewer', dept: '设计部' },
     { id: '4', name: '财务主管', role: 'Manager', dept: '财务部' },
@@ -355,91 +1315,64 @@ const ArchitectApp: React.FC = () => {
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
 
-  const Sidebar = ({ currentView }: { currentView: ViewType }) => (
-    <aside className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0">
-      <div className="p-8 flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-          <LayoutGrid className="text-white w-5 h-5" />
-        </div>
-        <span className="font-bold text-xl tracking-tighter">架构师 Architect</span>
-      </div>
-      
-      <nav className="flex-1 space-y-1 px-4">
-        {[
-          { label: '控制台概览', icon: LayoutGrid, view: 'dashboard' },
-          { label: '表单项目', icon: FormInput, view: 'projects' },
-          { label: '团队流转', icon: Workflow, view: 'workflow' },
-          { label: '数据洞察', icon: Activity, view: 'insights' },
-          { label: '集成中心', icon: Database, view: 'integrations' },
-          { label: '团队成员', icon: Users, view: 'team' },
-        ].map((item) => (
-          <div 
-            key={item.label}
-            onClick={() => setView(item.view as ViewType)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all font-medium text-sm ${
-              currentView === item.view 
-                ? 'bg-primary/5 text-primary' 
-                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
-            }`}
-          >
-            <item.icon className="w-4 h-4" />
-            {item.label}
-          </div>
-        ))}
-      </nav>
+  const openEditor = (formId: string | null) => {
+    setSelectedFormId(formId);
+    setEditingFormName(false);
+    
+    if (formId) {
+      const form = savedForms.find(f => f.id === formId);
+      setTempFormName(form?.name || '');
+    } else {
+      setTempFormName('新建表单');
+    }
 
-      <div className="p-4 border-t border-outline-variant">
-        <div className="bg-surface-container-low rounded-2xl p-4">
-          <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">额度消耗</div>
-          <div className="h-1.5 w-full bg-outline-variant rounded-full overflow-hidden mb-2">
-            <div className="h-full bg-primary w-3/4"></div>
-          </div>
-          <div className="flex justify-between text-[10px] font-bold">
-            <span>1.2k / 1.5k</span>
-            <span className="text-primary cursor-pointer hover:underline">去升级</span>
-          </div>
-        </div>
-        <button 
-          onClick={() => setView('landing')}
-          className="w-full mt-4 flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all font-medium text-sm"
-        >
-          <ChevronRight className="w-4 h-4 rotate-180" />
-          返回主页
-        </button>
-      </div>
-    </aside>
-  );
+    // Load from map or use default if not found
+    const fields = (formId && formFieldsMap[formId]) ? [...formFieldsMap[formId]] : [
+      { id: '1', type: 'text', label: '全名', placeholder: '请输入您的姓名', required: true, width: '1/1' },
+      { id: '2', type: 'date', label: '出生日期', required: false, width: '1/1' },
+    ];
+    const nodes = (formId && workflowNodesMap[formId]) ? [...workflowNodesMap[formId]] : [
+      { id: 'node-1', type: 'start', label: '流程开始', description: '表单提交自动触发', targets: ['node-2'] },
+      { id: 'node-2', type: 'end', label: '流程结束', targets: [] },
+    ];
+    
+    setFormFields(fields);
+    setWorkflowNodes(nodes);
+    setView('editor');
+    setEditorTab('design');
+    setSelectedFieldId(null);
+    setSelectedNodeId(null);
+  };
 
-  const DashboardHeader = ({ title, subtitle }: { title: string, subtitle?: string }) => (
-    <header className="h-20 sleek-glass px-8 flex items-center justify-between sticky top-0 z-10">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">{title}</h1>
-        {subtitle && <p className="text-xs text-on-surface-variant font-medium">{subtitle}</p>}
-      </div>
-      <div className="flex items-center gap-4">
-        <button onClick={() => showNotification('没有新通知')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
-        </button>
-        <div className="relative group">
-          <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
-          <input 
-            type="text" 
-            placeholder="搜索控制台..."
-            className="bg-surface pl-10 pr-4 py-2 rounded-full text-sm border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary/20 w-64 transition-all"
-          />
-        </div>
-        <div className="w-px h-6 bg-outline-variant"></div>
-        <img 
-          src="https://picsum.photos/seed/profile/100/100" 
-          className="w-8 h-8 rounded-full ring-2 ring-primary/10 cursor-pointer hover:ring-primary/30 transition-all border border-outline-variant" 
-          alt="头像"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    </header>
-  );
+  const saveCurrentForm = () => {
+    let currentId = selectedFormId;
+    const finalFormName = tempFormName || '新建表单';
+    
+    if (!currentId) {
+      // Create new form record
+      const newId = `f-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const newForm: SavedForm = {
+        id: newId,
+        projectId: selectedProjectId,
+        name: finalFormName,
+        status: 'Draft',
+        createdAt: new Date().toISOString().split('T')[0],
+        designer: '您'
+      };
+      setSavedForms(prev => [newForm, ...prev]);
+      currentId = newId;
+      setSelectedFormId(newId);
+    } else {
+      // Update existing form name if changed
+      setSavedForms(prev => prev.map(f => f.id === currentId ? { ...f, name: finalFormName } : f));
+    }
 
+    setFormFieldsMap(prev => ({ ...prev, [currentId!]: formFields }));
+    setWorkflowNodesMap(prev => ({ ...prev, [currentId!]: workflowNodes }));
+    
+    const project = projects.find(p => p.id === selectedProjectId);
+    showNotification(`表单“${finalFormName}”已保存到应用：${project?.name}`);
+  };
   // Editor Actions
   const addField = (type: FormField['type'], customLabel?: string) => {
     const newField: FormField = {
@@ -449,6 +1382,7 @@ const ArchitectApp: React.FC = () => {
       required: false,
       placeholder: ['text', 'textarea'].includes(type) ? '请输入内容...' : undefined,
       options: type === 'select' ? ['选项 1', '选项 2'] : undefined,
+      width: '1/1',
     };
     setFormFields([...formFields, newField]);
     setSelectedFieldId(newField.id);
@@ -499,430 +1433,6 @@ const ArchitectApp: React.FC = () => {
   const selectedField = formFields.find(f => f.id === selectedFieldId);
   const selectedNode = workflowNodes.find(n => n.id === selectedNodeId);
 
-  const JsonSchemaModal = () => (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-black/40 backdrop-blur-md"
-      onClick={() => setIsSchemaVisible(false)}
-    >
-      <motion.div 
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] border border-outline-variant"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface">
-          <div className="flex items-center gap-2">
-            <Code className="w-5 h-5 text-primary" />
-            <span className="font-bold text-lg tracking-tight">JSON 定义</span>
-          </div>
-          <button onClick={() => setIsSchemaVisible(false)} className="p-2 hover:bg-surface-container-low rounded-full transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-8 overflow-y-auto flex-1 bg-on-surface text-surface-container-low font-mono text-xs leading-relaxed">
-          <pre>{JSON.stringify({
-            formTitle: "入职架构",
-            version: "2.0.4-草稿",
-            fields: formFields
-          }, null, 2)}</pre>
-        </div>
-        <div className="p-6 border-t border-outline-variant bg-surface flex justify-end gap-3">
-          <button 
-            onClick={() => {
-              navigator.clipboard.writeText(JSON.stringify(formFields));
-              showNotification('架构已复制到剪贴板');
-            }}
-            className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-white transition-all"
-          >
-            复制 JSON
-          </button>
-          <button 
-            onClick={() => setIsSchemaVisible(false)}
-            className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold transition-all"
-          >
-            关闭
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-
-  // Sub-Views Components
-  const ProjectsView = () => {
-    const selectedProject = mockProjects.find(p => p.id === projectDetailsId);
-    const relatedForms = mockSavedForms.filter(f => f.projectId === projectDetailsId);
-
-    return (
-      <div className="p-8 space-y-8 max-w-7xl animate-in fade-in duration-500">
-        {!projectDetailsId ? (
-          <>
-            <div className="flex justify-between items-end">
-              <div>
-                <h2 className="text-3xl font-extrabold tracking-tighter">表单项目</h2>
-                <p className="text-sm text-on-surface-variant font-medium">管理您的活跃架构和部署流水线</p>
-              </div>
-              <button 
-                onClick={() => setView('editor')}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
-              >
-                <Plus className="w-4 h-4" /> 创建新项目
-              </button>
-            </div>
-
-            <div className="sleek-card overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-surface-container-low border-b border-outline-variant">
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">项目名称</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">状态</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">回复数</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">最后更新</th>
-                    <th className="px-6 py-4 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {mockProjects.map((project) => (
-                    <tr 
-                      key={project.id} 
-                      className="hover:bg-surface/50 transition-colors group cursor-pointer"
-                      onClick={() => setProjectDetailsId(project.id)}
-                    >
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
-                            <FormInput className="w-5 h-5" />
-                          </div>
-                          <span className="font-bold text-sm tracking-tight">{project.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${
-                          project.status === 'Published' ? 'bg-green-100 text-green-700' : 
-                          project.status === 'Draft' ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-outline'
-                        }`}>
-                          {project.status === 'Published' ? '已发布' : project.status === 'Draft' ? '草稿' : '已归档'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5 font-mono text-xs font-bold">{project.responses.toLocaleString()}</td>
-                      <td className="px-6 py-5 text-xs text-on-surface-variant font-medium">{project.updatedAt}</td>
-                      <td className="px-6 py-5 text-right">
-                        <button className="p-2 hover:bg-surface rounded-lg transition-colors text-outline hover:text-on-surface">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex justify-between items-end">
-              <div>
-                <button 
-                  onClick={() => setProjectDetailsId(null)}
-                  className="flex items-center gap-2 text-outline hover:text-primary transition-colors mb-4 group"
-                >
-                  <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                  <span className="text-xs font-bold uppercase tracking-widest">返回项目列表</span>
-                </button>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
-                     <FormInput className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-extrabold tracking-tighter">{selectedProject?.name}</h2>
-                    <p className="text-sm text-on-surface-variant font-medium">与此项目关联的表单列表</p>
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setView('editor')}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
-              >
-                <Plus className="w-4 h-4" /> 向项目添加表单
-              </button>
-            </div>
-
-            <div className="sleek-card overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-surface-container-low border-b border-outline-variant">
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">表单名称</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">状态</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">创建时间</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-outline uppercase tracking-widest">设计者</th>
-                    <th className="px-6 py-4 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {relatedForms.map((form) => (
-                    <tr key={form.id} className="hover:bg-surface/50 transition-colors group">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center border border-outline-variant group-hover:border-primary transition-colors">
-                            <Code className="w-4 h-4 text-outline group-hover:text-primary" />
-                          </div>
-                          <span className="font-bold text-sm tracking-tight">{form.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${
-                          form.status === 'Published' ? 'bg-green-100 text-green-700' : 
-                          form.status === 'Draft' ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-outline'
-                        }`}>
-                          {form.status === 'Published' ? '已发布' : form.status === 'Draft' ? '草稿' : '已归档'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5 text-xs text-on-surface-variant font-medium font-mono">{form.createdAt}</td>
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-2">
-                           <div className="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center text-[10px] font-bold text-outline border border-outline-variant">
-                              {form.designer.charAt(0)}
-                           </div>
-                           <span className="text-xs font-bold">{form.designer}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                           <button 
-                             onClick={() => setView('editor')}
-                             className="px-3 py-1.5 bg-surface border border-outline-variant rounded-lg text-[10px] font-bold hover:border-primary hover:text-primary transition-all uppercase tracking-widest"
-                           >编辑</button>
-                           <button className="p-1.5 hover:bg-surface rounded-lg transition-colors text-outline">
-                             <MoreVertical className="w-4 h-4" />
-                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {relatedForms.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                           <div className="p-4 bg-surface rounded-full text-outline/30">
-                              <FileSearch className="w-8 h-8" />
-                           </div>
-                           <p className="text-sm font-bold text-outline">未找到该项目的表单</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  const WorkflowView = () => (
-    <div className="p-8 space-y-8 max-w-7xl pb-32">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">已发布的流程</h2>
-          <p className="text-sm text-on-surface-variant font-medium">监控活跃的流程实例和运行遥测数据</p>
-        </div>
-        <div className="flex bg-surface-container rounded-xl p-1.5 border border-outline-variant shadow-sm text-on-surface">
-           <button 
-             onClick={() => setWorkflowStatus('active')}
-             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'active' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-outline hover:text-on-surface'}`}
-           >活跃中</button>
-           <button 
-             onClick={() => setWorkflowStatus('inactive')}
-             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'inactive' ? 'bg-on-surface text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
-           >已暂停</button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-           <div className="sleek-card overflow-hidden border-2 border-outline-variant shadow-sm">
-              <div className="p-6 border-b border-outline-variant bg-surface-container-low/50 flex justify-between items-center text-on-surface">
-                 <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> 活跃实例</h3>
-                 <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded tracking-widest uppercase">实时</span>
-              </div>
-              <div className="divide-y divide-outline-variant">
-                 {workflowInstances.map(inst => (
-                   <div key={inst.id} className="p-6 flex items-center gap-6 hover:bg-surface transition-colors group cursor-pointer text-on-surface">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${inst.status === 'Completed' ? 'bg-green-100 border-green-200 text-green-700' : 'bg-primary/10 border-primary/20 text-primary'}`}>
-                        {inst.status === 'Completed' ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-                      </div>
-                      <div className="flex-1">
-                         <div className="flex items-center gap-2 mb-0.5">
-                            <span className="font-bold text-sm tracking-tight">请求 #{inst.id}</span>
-                            <span className="text-[10px] font-bold text-outline">• {inst.initiator}</span>
-                         </div>
-                         <div className="text-[10px] font-medium text-on-surface-variant">步骤: <span className="font-bold text-primary">{inst.currentStep}</span> • 发起于 {inst.startTime}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                         <button className="px-3 py-1.5 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:secondary transition-all opacity-0 group-hover:opacity-100 font-bold uppercase tracking-widest">催办</button>
-                         <ChevronRight className="w-4 h-4 text-outline" />
-                      </div>
-                   </div>
-                 ))}
-              </div>
-           </div>
-        </div>
-
-        <div className="space-y-6 text-on-surface">
-           <div className="sleek-card p-6 bg-primary text-white space-y-4 shadow-2xl shadow-primary/30">
-              <div className="flex justify-between items-start">
-                 <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-                    <Workflow className="w-6 h-6" />
-                 </div>
-                 <div className="text-right">
-                    <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">流程效率</div>
-                    <div className="text-2xl font-extrabold">94.2%</div>
-                 </div>
-              </div>
-              <div>
-                 <h4 className="font-extrabold tracking-tight text-white uppercase text-xs">引擎运行正常</h4>
-                 <p className="text-[11px] opacity-80 mt-1 font-medium leading-relaxed">系统正在自动扩缩以处理支付峰值。平均延迟：240ms</p>
-              </div>
-              <button 
-                 onClick={() => setView('editor')}
-                 className="w-full py-3 bg-white text-primary rounded-xl text-xs font-bold hover:bg-surface-container transition-all shadow-lg"
-              >优化设计器</button>
-           </div>
-
-           <div className="sleek-card p-6 space-y-4 shadow-sm border border-outline-variant">
-              <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">快捷操作</h4>
-              <div className="space-y-2">
-                 {[
-                   { label: '导出审计日志', icon: FileDown },
-                   { label: '刷新缓存', icon: Trash2 },
-                   { label: '重建索引', icon: RefreshCw },
-                 ].map(action => (
-                   <button key={action.label} className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold text-xs text-on-surface">
-                      <div className="flex items-center gap-3">
-                         <action.icon className="w-4 h-4 text-outline group-hover:text-primary transition-colors" />
-                         <span>{action.label}</span>
-                      </div>
-                      <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all text-primary" />
-                   </button>
-                 ))}
-              </div>
-           </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const InsightsView = () => (
-    <div className="p-8 space-y-8 max-w-7xl">
-       <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">数据引擎</h2>
-          <p className="text-sm text-on-surface-variant font-medium">实时遥测和提交分析数据</p>
-        </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-on-surface text-white rounded-xl font-bold text-sm transition-all hover:opacity-90">
-          <Share2 className="w-4 h-4" /> 导出报告
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {[
-          { l: '平均完成时间', v: '2.4m', t: '-12%' },
-          { l: '流失率', v: '18.4%', t: '+2.1%' },
-          { l: '峰值加载时间', v: '44ms', t: '-4ms' },
-          { l: '唯一握手次数', v: '4.2k', t: '+800' },
-        ].map(item => (
-          <div key={item.l} className="sleek-card p-6">
-            <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">{item.l}</div>
-            <div className="text-2xl font-extrabold">{item.v}</div>
-            <span className="text-[10px] font-bold text-green-600">{item.t}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="sleek-card p-12 flex flex-col items-center justify-center text-center gap-4 border-dashed border-2">
-         <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center">
-            <Activity className="w-8 h-8 text-primary opacity-20" />
-         </div>
-         <h4 className="font-bold text-xl">高级可视化引擎</h4>
-         <p className="text-sm text-on-surface-variant max-w-md">在专业版计划中，通过热力图、漏斗图和地理位置指标自定义您的报告仪表板。</p>
-         <button className="bg-primary text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xl shadow-primary/20">查看更多洞察</button>
-      </div>
-    </div>
-  );
-
-  const IntegrationsView = () => (
-    <div className="p-8 space-y-8 max-w-7xl">
-      <div className="mb-8">
-        <h2 className="text-3xl font-extrabold tracking-tighter">集成中心</h2>
-        <p className="text-sm text-on-surface-variant font-medium">将 Architect 连接到您现有的技术栈</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          { name: 'Slack', desc: '在您的频道中接收即时提醒', connected: true },
-          { name: 'Zapier', desc: '连接 5,000+ 其它应用程序', connected: false },
-          { name: 'Google Sheets', desc: '自动导出回复数据', connected: true },
-          { name: 'Salesforce', desc: '将潜在客户同步至您的 CRM', connected: false },
-          { name: 'Segment', desc: '将事件流式传输到您的数据平台', connected: false },
-          { name: 'Webhooks', desc: '自定义 HTTP 事件触发器', connected: true },
-        ].map((app) => (
-          <div key={app.name} className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all text-on-surface">
-            <div className="flex justify-between items-start">
-              <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center text-on-surface-variant border border-outline-variant font-bold text-lg">
-                {app.name[0]}
-              </div>
-              {app.connected ? (
-                <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase">已连接</span>
-              ) : (
-                <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">连接</button>
-              )}
-            </div>
-            <div>
-              <h5 className="font-bold tracking-tight">{app.name}</h5>
-              <p className="text-xs text-on-surface-variant mt-1 font-medium">{app.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const TeamView = () => (
-    <div className="p-8 space-y-8 max-w-7xl pb-32">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">团队成员</h2>
-          <p className="text-sm text-on-surface-variant font-medium">管理访问控制、协作权限和部门架构</p>
-        </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm transition-all hover:shadow-lg">
-          <Users className="w-4 h-4" /> 邀请成员
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {teamMembers.map((user, idx) => (
-          <div key={user.id} className="sleek-card p-6 flex flex-col gap-4 border-2 border-outline-variant hover:border-primary transition-all group">
-             <div className="flex items-center gap-4">
-               <img src={`https://picsum.photos/seed/user-${idx}/100/100`} className="w-12 h-12 rounded-2xl border border-outline-variant" referrerPolicy="no-referrer" alt="头像" />
-               <div>
-                  <h6 className="font-bold text-sm">{user.name}</h6>
-                  <p className="text-[10px] text-outline font-bold tracking-widest uppercase">{user.role === 'Admin' ? '管理员' : user.role === 'Editor' ? '编辑' : user.role === 'Viewer' ? '查看者' : '经理'} • {user.dept}</p>
-               </div>
-             </div>
-             <div className="p-3 bg-surface rounded-xl flex items-center justify-between">
-                <span className="text-xs font-medium text-on-surface-variant break-all">
-                  {user.name.toLowerCase().replace(/ /g, '.')}@architect.com
-                </span>
-                <Settings className="w-3 h-3 text-outline cursor-pointer hover:text-black transition-colors" />
-             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   if (view === 'editor') {
     return (
       <div className="flex flex-col h-screen bg-surface overflow-hidden text-on-surface">
@@ -936,8 +1446,42 @@ const ArchitectApp: React.FC = () => {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-4">
-              <h2 className="font-bold tracking-tight">支付申请 V2</h2>
-              <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">活跃中</span>
+              <div className="relative group flex items-center">
+                {editingFormName ? (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      autoFocus
+                      type="text" 
+                      value={tempFormName}
+                      onChange={(e) => setTempFormName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEditingFormName(false);
+                        if (e.key === 'Escape') {
+                          if (selectedFormId) setTempFormName(savedForms.find(f => f.id === selectedFormId)?.name || '');
+                          setEditingFormName(false);
+                        }
+                      }}
+                      className="font-bold tracking-tight bg-white border-b border-primary focus:outline-none"
+                    />
+                    <button onClick={() => setEditingFormName(false)} className="text-primary"><Save className="w-3 h-3"/></button>
+                  </div>
+                ) : (
+                  <h2 
+                    className="font-bold tracking-tight cursor-pointer hover:text-primary transition-colors flex items-center gap-2 group"
+                    onClick={() => setEditingFormName(true)}
+                  >
+                    {tempFormName || '新建表单'}
+                    <Settings className="w-3 h-3 text-outline opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </h2>
+                )}
+              </div>
+              <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest ${
+                selectedFormId && savedForms.find(f => f.id === selectedFormId)?.status === 'Published' 
+                ? 'bg-green-100 text-green-700' 
+                : 'bg-amber-100 text-amber-700'
+              }`}>
+                {selectedFormId ? (savedForms.find(f => f.id === selectedFormId)?.status === 'Published' ? '已发布' : '草稿') : '新表单'}
+              </span>
             </div>
           </div>
           
@@ -971,7 +1515,7 @@ const ArchitectApp: React.FC = () => {
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                     className="bg-transparent text-xs font-extrabold focus:outline-none cursor-pointer pr-4 appearance-none hover:text-primary transition-colors h-4 leading-none"
                   >
-                    {mockProjects.map(p => (
+                    {projects.map(p => (
                       <option key={p.id} value={p.id} className="text-on-surface">{p.name}</option>
                     ))}
                   </select>
@@ -988,10 +1532,7 @@ const ArchitectApp: React.FC = () => {
             </button>
 
             <button 
-              onClick={() => {
-                const project = mockProjects.find(p => p.id === selectedProjectId);
-                showNotification(`表单已成功保存到项目：${project?.name}`);
-              }} 
+              onClick={saveCurrentForm} 
               className="flex items-center justify-center w-10 h-10 bg-primary text-white rounded-xl font-extrabold hover:shadow-xl hover:shadow-primary/30 transition-all active:scale-95 group"
               title="保存更改"
             >
@@ -1302,13 +1843,18 @@ const ArchitectApp: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-12 canvas-grid relative bg-surface">
           <div className="max-w-4xl mx-auto">
               {editorTab === 'design' && (
-                <div className="max-w-2xl mx-auto space-y-4 pb-20">
-                  <Reorder.Group axis="y" values={formFields} onReorder={setFormFields} className="space-y-4">
+                <div className="max-w-4xl mx-auto space-y-4 pb-20">
+                  <Reorder.Group axis="y" values={formFields} onReorder={setFormFields} className="flex flex-wrap gap-4">
                     {formFields.map((field) => (
                       <Reorder.Item 
                         key={field.id} 
                         value={field}
-                        className={`sleek-card p-6 cursor-grab active:cursor-grabbing border-2 transition-all ${selectedFieldId === field.id ? 'border-primary ring-4 ring-primary/5' : 'border-outline-variant hover:border-outline'}`}
+                        style={{
+                          width: field.width === '1/2' ? 'calc((100% - 1rem) / 2)' : 
+                                 field.width === '1/3' ? 'calc((100% - 2rem) / 3)' :
+                                 field.width === '1/4' ? 'calc((100% - 3rem) / 4)' : '100%'
+                        }}
+                        className={`sleek-card p-6 cursor-grab active:cursor-grabbing border-2 transition-all shrink-0 ${selectedFieldId === field.id ? 'border-primary ring-4 ring-primary/5' : 'border-outline-variant hover:border-outline'}`}
                         onClick={() => setSelectedFieldId(field.id)}
                       >
                         <div className="flex justify-between items-start mb-4">
@@ -1325,9 +1871,9 @@ const ArchitectApp: React.FC = () => {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                        <div className="font-bold mb-1">{field.label}</div>
-                        <div className="text-xs text-on-surface-variant font-medium">
-                          {field.placeholder || "无占位符"} • {field.required ? "必填" : "非必填"}
+                        <div className="font-bold mb-1 truncate">{field.label}</div>
+                        <div className="text-[10px] text-on-surface-variant font-medium truncate">
+                          {field.placeholder || "无占位符"} • {field.required ? "必填" : "非必填"} • {field.width || "1/1"}
                         </div>
                       </Reorder.Item>
                     ))}
@@ -1458,10 +2004,18 @@ const ArchitectApp: React.FC = () => {
                               className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tighter"
                             >重置</button>
                          </div>
-                         <div className="space-y-4">
+                         <div className="flex flex-wrap gap-x-4 gap-y-4">
                             {formFields && formFields.filter(f => ['text', 'number', 'select'].includes(f.type)).length > 0 ? (
                               formFields.filter(f => ['text', 'number', 'select'].includes(f.type)).map(field => (
-                                <div key={field.id} className="space-y-2">
+                                <div 
+                                  key={field.id} 
+                                  className="space-y-2"
+                                  style={{
+                                    width: field.width === '1/2' ? 'calc((100% - 1rem) / 2)' : 
+                                           field.width === '1/3' ? 'calc((100% - 2rem) / 3)' :
+                                           field.width === '1/4' ? 'calc((100% - 3rem) / 4)' : '100%'
+                                  }}
+                                >
                                   <label className="text-[10px] font-bold text-outline uppercase tracking-widest leading-none mb-1 block">{field.label}</label>
                                   <input 
                                     type={field.type === 'number' ? 'number' : 'text'}
@@ -1473,7 +2027,7 @@ const ArchitectApp: React.FC = () => {
                                 </div>
                               ))
                             ) : (
-                              <div className="p-4 bg-surface text-center rounded-xl border border-dashed border-outline-variant">
+                              <div className="p-4 bg-surface text-center rounded-xl border border-dashed border-outline-variant w-full">
                                 <p className="text-[10px] font-bold text-outline">无可用模拟字段</p>
                               </div>
                             )}
@@ -1914,17 +2468,27 @@ const ArchitectApp: React.FC = () => {
                   >
                     <div className="flex justify-between items-start mb-8">
                       <div>
-                        <h2 className="text-3xl font-extrabold tracking-tighter">支付申请</h2>
-                        <p className="text-sm text-on-surface-variant font-medium">正在起草第四季度财务审查 v2</p>
+                        <h2 className="text-3xl font-extrabold tracking-tighter">
+                          {selectedFormId ? savedForms.find(f => f.id === selectedFormId)?.name : '预览表单'}
+                        </h2>
+                        <p className="text-sm text-on-surface-variant font-medium">预览您的设计成果</p>
                       </div>
                       <div className="p-3 bg-surface rounded-2xl flex items-center gap-2">
                         <Activity className="w-4 h-4 text-green-500" />
-                        <span className="text-[10px] font-bold tracking-widest uppercase">实时系统</span>
+                        <span className="text-[10px] font-bold tracking-widest uppercase">校验通过</span>
                       </div>
                     </div>
-                    <div className="space-y-8">
+                    <div className="flex flex-wrap gap-x-4 gap-y-8">
                       {formFields.map((field) => (
-                        <div key={field.id} className="space-y-2">
+                        <div 
+                          key={field.id} 
+                          className="space-y-2 shrink-0"
+                          style={{
+                            width: field.width === '1/2' ? 'calc((100% - 1rem) / 2)' : 
+                                   field.width === '1/3' ? 'calc((100% - 2rem) / 3)' :
+                                   field.width === '1/4' ? 'calc((100% - 3rem) / 4)' : '100%'
+                          }}
+                        >
                           <label className="text-sm font-bold block select-none">
                             {field.label} {field.required && <span className="text-error">*</span>}
                           </label>
@@ -2110,79 +2674,141 @@ const ArchitectApp: React.FC = () => {
                 )}
               </div>
             ) : (editorTab === 'design' && selectedField) ? (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段名称</label>
-                  <input 
-                    type="text" 
-                    value={selectedField.label}
-                    onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
-                    className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                  />
+              <div key={selectedField.id} className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                {/* Property Tabs */}
+                <div className="flex bg-surface-container rounded-xl p-1 border border-outline-variant">
+                   <button 
+                     onClick={() => setPropertyTab('props')}
+                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold tracking-widest transition-all ${propertyTab === 'props' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline hover:text-on-surface uppercase'}`}
+                   >属性</button>
+                   <button 
+                     onClick={() => setPropertyTab('style')}
+                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold tracking-widest transition-all ${propertyTab === 'style' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline hover:text-on-surface uppercase'}`}
+                   >样式</button>
                 </div>
 
-                {selectedField.placeholder !== undefined && (
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">占位提示</label>
-                    <input 
-                      type="text" 
-                      value={selectedField.placeholder}
-                      onChange={(e) => updateField(selectedField.id, { placeholder: e.target.value })}
-                      className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                    />
-                  </div>
-                )}
+                <AnimatePresence mode="wait">
+                  {propertyTab === 'props' ? (
+                    <motion.div 
+                      key="props"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="space-y-6"
+                    >
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段名称</label>
+                        <input 
+                          type="text" 
+                          value={selectedField.label}
+                          onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                        />
+                      </div>
 
-                <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
-                  <span className="text-xs font-bold transition-all">必填字段</span>
-                  <button 
-                    onClick={() => updateField(selectedField.id, { required: !selectedField.required })}
-                    className={`w-10 h-6 rounded-full relative transition-all ${selectedField.required ? 'bg-primary' : 'bg-outline-variant'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${selectedField.required ? 'left-5' : 'left-1'}`}></div>
-                  </button>
-                </div>
-
-                {selectedField.type === 'select' && (
-                  <div className="space-y-4 pt-4 border-t border-outline-variant">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest">选项列表</label>
-                      <button 
-                        onClick={() => {
-                          const newOpts = [...(selectedField.options || []), `Option ${(selectedField.options?.length || 0) + 1}`];
-                          updateField(selectedField.id, { options: newOpts });
-                        }}
-                        className="p-1 hover:bg-surface rounded-md"
-                      >
-                        <Plus className="w-3 h-3 text-primary" />
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      {selectedField.options?.map((opt, idx) => (
-                        <div key={idx} className="flex gap-2">
+                      {selectedField.placeholder !== undefined && (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">占位提示</label>
                           <input 
-                            value={opt}
-                            onChange={(e) => {
-                              const newOpts = [...(selectedField.options || [])];
-                              newOpts[idx] = e.target.value;
-                              updateField(selectedField.id, { options: newOpts });
-                            }}
-                            className="flex-1 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-medium"
+                            type="text" 
+                            value={selectedField.placeholder}
+                            onChange={(e) => updateField(selectedField.id, { placeholder: e.target.value })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
                           />
-                          <button 
-                            onClick={() => {
-                              const newOpts = (selectedField.options || []).filter((_, i) => i !== idx);
-                              updateField(selectedField.id, { options: newOpts });
-                            }}
-                            className="p-2 text-outline hover:text-error transition-colors"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
+
+                      <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
+                        <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">必填字段</span>
+                        <button 
+                          onClick={() => updateField(selectedField.id, { required: !selectedField.required })}
+                          className={`w-10 h-6 rounded-full relative transition-all ${selectedField.required ? 'bg-primary' : 'bg-outline-variant'}`}
+                        >
+                          <motion.div 
+                            animate={{ left: selectedField.required ? '1.25rem' : '0.25rem' }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                          />
+                        </button>
+                      </div>
+
+                      {selectedField.type === 'select' && (
+                        <div className="space-y-4 pt-4 border-t border-outline-variant">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest">选项列表</label>
+                            <button 
+                              onClick={() => {
+                                const newOpts = [...(selectedField.options || []), `Option ${(selectedField.options?.length || 0) + 1}`];
+                                updateField(selectedField.id, { options: newOpts });
+                              }}
+                              className="p-1 hover:bg-surface rounded-md text-primary"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {selectedField.options?.map((opt, idx) => (
+                              <div key={idx} className="flex gap-2">
+                                <input 
+                                  value={opt}
+                                  onChange={(e) => {
+                                    const newOpts = [...(selectedField.options || [])];
+                                    newOpts[idx] = e.target.value;
+                                    updateField(selectedField.id, { options: newOpts });
+                                  }}
+                                  className="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-2 text-xs font-medium focus:ring-2 focus:ring-primary/20 outline-none"
+                                />
+                                <button 
+                                  onClick={() => {
+                                    const newOpts = (selectedField.options || []).filter((_, i) => i !== idx);
+                                    updateField(selectedField.id, { options: newOpts });
+                                  }}
+                                  className="p-2 text-outline hover:text-error transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  ) : (
+                    <motion.div 
+                      key="style"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      className="space-y-6"
+                    >
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">布局宽度</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(['1/1', '1/2', '1/3', '1/4'] as const).map((w) => (
+                            <button
+                              key={w}
+                              onClick={() => updateField(selectedField.id, { width: w })}
+                              className={`py-3 rounded-xl border text-[10px] font-extrabold transition-all ${selectedField.width === w ? 'border-primary bg-primary/5 text-primary shadow-sm shadow-primary/5' : 'border-outline-variant bg-surface hover:border-outline'}`}
+                            >
+                              {w} 宽度
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-outline font-medium leading-relaxed bg-surface p-3 rounded-xl border border-outline-variant border-dashed">
+                          调整字段在画布中的占据比例。支持响应式布局自动适配。
+                        </p>
+                      </div>
+
+                      <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant border-dashed">
+                         <div className="text-[10px] font-bold text-on-surface-variant flex items-center gap-2 mb-2">
+                            <Layers className="w-3 h-3" /> 高级样式库 (即将上线)
+                         </div>
+                         <div className="h-1.5 w-full bg-outline-variant rounded-full overflow-hidden">
+                            <div className="h-full bg-primary/20 w-1/3 animate-pulse"></div>
+                         </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-surface-container-low/30 h-full">
@@ -2211,7 +2837,6 @@ const ArchitectApp: React.FC = () => {
       </div>
 
       <AnimatePresence>
-        {isSchemaVisible && <JsonSchemaModal />}
         {viewingSubmission && (
           <div className="fixed inset-0 z-[100] flex items-center justify-end bg-on-surface/40 backdrop-blur-sm">
             <motion.div 
@@ -2334,63 +2959,65 @@ const ArchitectApp: React.FC = () => {
             </motion.div>
           </div>
         )}
-        {isSchemaVisible && <JsonSchemaModal />}
+        {isSchemaVisible && <JsonSchemaModal setIsSchemaVisible={setIsSchemaVisible} formFields={formFields} showNotification={showNotification} />}
       </AnimatePresence>
     </div>
     );
   }
 
-  // Modular Console Layout
-  const ConsoleLayout = ({ children, title, subtitle, viewToken }: { children: React.ReactNode, title: string, subtitle?: string, viewToken: ViewType }) => (
-    <div className="flex h-screen bg-surface overflow-hidden text-on-surface select-none">
-      <Sidebar currentView={viewToken} />
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
-        <DashboardHeader title={title} subtitle={subtitle} />
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={viewToken}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
-        
-        {/* Simple Notification Toast */}
-        <div className="fixed bottom-8 right-8 space-y-2 z-50 pointer-events-none">
-          <AnimatePresence>
-            {notifications.map(n => (
-              <motion.div
-                key={n.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="bg-on-surface text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm pointer-events-auto border border-outline-variant/10"
-              >
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                {n.text}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      </main>
-    </div>
+  if (view === 'projects') return (
+    <ConsoleLayout 
+      viewToken="projects" 
+      title="应用列表" 
+      subtitle="总计 4 个应用，2 个已部署"
+      notifications={notifications}
+      currentView={view}
+      setView={setView}
+      showNotification={showNotification}
+    >
+      <ProjectsView 
+        projects={projects}
+        projectDetailsId={projectDetailsId}
+        savedForms={savedForms}
+        isProjectModalOpen={isProjectModalOpen}
+        projectToEdit={projectToEdit}
+        newProjectName={newProjectName}
+        tempProjectName={tempProjectName}
+        editingProjectTitle={editingProjectTitle}
+        setProjectDetailsId={setProjectDetailsId}
+        setIsProjectModalOpen={setIsProjectModalOpen}
+        setProjectToEdit={setProjectToEdit}
+        setNewProjectName={setNewProjectName}
+        setTempProjectName={setTempProjectName}
+        setEditingProjectTitle={setEditingProjectTitle}
+        createOrUpdateProject={createOrUpdateProject}
+        deleteProject={deleteProject}
+        deleteForm={deleteForm}
+        updateProjectName={updateProjectName}
+        setSelectedProjectId={setSelectedProjectId}
+        openEditor={openEditor}
+        confirmModal={confirmModal}
+        setConfirmModal={setConfirmModal}
+      />
+      <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
+    </ConsoleLayout>
   );
-
-  if (view === 'projects') return <ConsoleLayout viewToken="projects" title="项目列表" subtitle="总计 4 个表单，2 个已部署"><ProjectsView /></ConsoleLayout>;
-  if (view === 'workflow') return <ConsoleLayout viewToken="workflow" title="基础设施流转" subtitle="编排表单数据逻辑"><WorkflowView /></ConsoleLayout>;
-  if (view === 'insights') return <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="深度遥测分析"><InsightsView /></ConsoleLayout>;
-  if (view === 'integrations') return <ConsoleLayout viewToken="integrations" title="云端集成" subtitle="第三方服务连接能力"><IntegrationsView /></ConsoleLayout>;
-  if (view === 'team') return <ConsoleLayout viewToken="team" title="工作区团队" subtitle="管理协作权限"><TeamView /></ConsoleLayout>;
+  if (view === 'templates') return <ConsoleLayout viewToken="templates" title="模板中心" subtitle="基于行业案例快速构建" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><TemplatesView setView={setView} showNotification={showNotification} /></ConsoleLayout>;
+  if (view === 'workflow') return <ConsoleLayout viewToken="workflow" title="基础设施流转" subtitle="编排表单数据逻辑" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><WorkflowView workflowStatus={workflowStatus} setWorkflowStatus={setWorkflowStatus} workflowInstances={workflowInstances} setView={setView} /></ConsoleLayout>;
+  if (view === 'insights') return <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="深度遥测分析" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><InsightsView showNotification={showNotification} /></ConsoleLayout>;
+  if (view === 'integrations') return <ConsoleLayout viewToken="integrations" title="云端集成" subtitle="第三方服务连接能力" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><IntegrationsView showNotification={showNotification} /></ConsoleLayout>;
+  if (view === 'team') return <ConsoleLayout viewToken="team" title="工作区团队" subtitle="管理协作权限" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><TeamView teamMembers={teamMembers} /></ConsoleLayout>;
 
   if (view === 'dashboard') {
     return (
       <ConsoleLayout 
         viewToken="dashboard" 
-        title="欢迎回来，架构师" 
+        title="欢迎回来，小鲤" 
         subtitle="系统运行正常 • 4 个活跃构建"
+        currentView={view}
+        setView={setView}
+        showNotification={showNotification}
+        notifications={notifications}
       >
         <div className="p-8 space-y-8 max-w-7xl">
           {/* Stats Grid */}
@@ -2534,7 +3161,7 @@ const ArchitectApp: React.FC = () => {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <LayoutGrid className="text-white w-5 h-5" />
               </div>
-              <span className="font-bold text-xl tracking-tighter">架构师</span>
+              <span className="font-bold text-xl tracking-tighter">自定义表单</span>
             </div>
             
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-on-surface-variant">
@@ -2602,7 +3229,7 @@ const ArchitectApp: React.FC = () => {
                 <span className="text-secondary">基础设施的表单。</span>
               </h1>
               <p className="max-w-2xl mx-auto text-lg text-on-surface-variant mb-10 leading-relaxed">
-                架构师是面向复杂工作流、海量数据采集和深度基础设施集成的企业级表单构建器。
+                自定义表单是面向复杂工作流、海量数据采集和深度基础设施集成的企业级表单构建器。
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <button 
@@ -2749,7 +3376,7 @@ const ArchitectApp: React.FC = () => {
                     在 12 个国家/地区减少了 74% 的入职摩擦。
                   </h2>
                   <p className="text-on-surface-variant text-lg mb-10 font-medium">
-                    "架构师让我们可以统一全球入职流程，同时通过动态数据路由维持严格的当地法规合规性。"
+                    "自定义表单让我们可以统一全球入职流程，同时通过动态数据路由维持严格的当地法规合规性。"
                   </p>
                   <div className="flex items-center gap-4">
                     <img 
@@ -2816,7 +3443,7 @@ const ArchitectApp: React.FC = () => {
               </div>
             </div>
             <div className="mt-20 pt-10 border-t border-outline-variant flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-outline font-medium">
-              <div>© 2024 架构师软件有限公司。保留所有权利。</div>
+              <div>© 2024 自定义表单软件有限公司。保留所有权利。</div>
               <div className="flex gap-8">
                 <a href="#" className="hover:text-primary transition-colors">隐私政策</a>
                 <a href="#" className="hover:text-primary transition-colors">服务条款</a>
