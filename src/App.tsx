@@ -43,6 +43,10 @@ import {
   FileSpreadsheet,
   Download,
   EyeOff,
+  Link,
+  QrCode,
+  Copy,
+  Info,
   Building2,
   UserCog,
   UserPlus,
@@ -1584,7 +1588,20 @@ const ArchitectApp: React.FC = () => {
   const [formFields, setFormFields] = React.useState<FormField[]>([]);
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
-  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'permissions' | 'simulate' | 'data' | 'preview'>('design');
+  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
+  const [publishMode, setPublishMode] = React.useState<'internal' | 'public'>('public');
+  const [publishLinks, setPublishLinks] = React.useState({
+    page: 'http://f.architect.com/p/default_123',
+    form: 'http://f.architect.com/f/default_456'
+  });
+  const [customLinks, setCustomLinks] = React.useState({
+    page: '',
+    form: ''
+  });
+  const [internalAccess, setInternalAccess] = React.useState({
+    page: { orgs: [] as string[], roles: [] as string[], users: [] as string[] },
+    form: { orgs: [] as string[], roles: [] as string[], users: [] as string[] }
+  });
   const [propertyTab, setPropertyTab] = React.useState<'props' | 'style'>('props');
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
   const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([
@@ -2107,8 +2124,8 @@ const ArchitectApp: React.FC = () => {
               {[
                 { id: 'design', label: '设计', icon: Code },
                 { id: 'workflow', label: '流程', icon: Workflow },
-                { id: 'permissions', label: '权限', icon: ShieldCheck },
                 { id: 'simulate', label: '仿真', icon: Activity },
+                { id: 'publish', label: '发布', icon: Globe },
                 { id: 'data', label: '数据', icon: Database },
               ].map(tab => (
                 <button 
@@ -2163,7 +2180,7 @@ const ArchitectApp: React.FC = () => {
           <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center">
               <span className="font-bold tracking-tight text-sm">
-                {editorTab === 'workflow' ? '流程组件' : editorTab === 'permissions' ? '权限角色' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '字段库'}
+                {editorTab === 'workflow' ? '流程组件' : editorTab === 'publish' ? '发布渠道' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '字段库'}
               </span>
             </div>
           
@@ -2241,38 +2258,38 @@ const ArchitectApp: React.FC = () => {
                   ))}
                 </div>
               </div>
-            ) : editorTab === 'permissions' ? (
+            ) : editorTab === 'publish' ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">选择角色</h3>
-                  <button className="p-1 hover:bg-surface rounded-md">
-                    <Plus className="w-3 h-3 text-primary" />
-                  </button>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">发布模式</h3>
                 </div>
                 <div className="space-y-2">
-                  {roles.map((role) => (
+                  {[
+                    { id: 'public', label: '公开发布', icon: Globe, desc: '任何人通过链接访问' },
+                    { id: 'internal', label: '内部发布', icon: ShieldCheck, desc: '仅指定组织人员访问' },
+                  ].map((mode) => (
                     <button
-                      key={role}
-                      onClick={() => setSelectedRole(role)}
-                      className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${selectedRole === role ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline'}`}
+                      key={mode.id}
+                      onClick={() => setPublishMode(mode.id as any)}
+                      className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${publishMode === mode.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline'}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${selectedRole === role ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant'}`}>
-                          <Users className="w-4 h-4" />
-                        </div>
-                        <span className={`text-xs font-bold ${selectedRole === role ? 'text-primary' : ''}`}>{role}</span>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${publishMode === mode.id ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant'}`}>
+                        <mode.icon className="w-4 h-4" />
                       </div>
-                      {selectedRole === role && <ChevronRight className="w-4 h-4 text-primary" />}
+                      <div className="text-left">
+                        <div className={`text-xs font-bold ${publishMode === mode.id ? 'text-primary' : ''}`}>{mode.label}</div>
+                        <div className="text-[10px] text-on-surface-variant font-medium">{mode.desc}</div>
+                      </div>
                     </button>
                   ))}
                 </div>
                 <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant mt-6">
                    <div className="flex items-center gap-2 mb-2">
-                     <ShieldCheck className="w-4 h-4 text-primary" />
-                     <span className="text-[10px] font-bold">权限概念</span>
+                     <Info className="w-4 h-4 text-primary" />
+                     <span className="text-[10px] font-bold">发布说明</span>
                    </div>
                    <p className="text-[10px] text-on-surface-variant font-medium leading-relaxed">
-                     角色权限的更改将立即影响当前所有流程中分配到该角色的用户。
+                     更改发布模式可能导致现有访问链接失效，请谨慎操作。
                    </p>
                 </div>
               </div>
@@ -2718,155 +2735,168 @@ const ArchitectApp: React.FC = () => {
                 </motion.div>
               )}
 
-              {editorTab === 'permissions' && (
-                <div className="max-w-4xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {editorTab === 'publish' && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="max-w-4xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                >
                   <header className="mb-8">
-                    <h2 className="text-2xl font-extrabold tracking-tight">权限配置：{selectedRole}</h2>
-                    <p className="text-sm text-on-surface-variant font-medium">配置该角色对表单的操作权限及数据访问范围</p>
+                    <h2 className="text-2xl font-extrabold tracking-tight">发布设置：{publishMode === 'public' ? '公开发布' : '内部发布'}</h2>
+                    <p className="text-sm text-on-surface-variant font-medium">配置表单的访问方式、生成的链接以及访问权限</p>
                   </header>
 
-                  <section className="space-y-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                        <Settings className="w-5 h-5" />
-                      </div>
-                      <h3 className="font-bold tracking-tight">一、角色权限配置</h3>
-                    </div>
-                    
-                    <div className="bg-white p-8 rounded-2xl border border-outline-variant shadow-sm space-y-6">
-                      <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                  {publishMode === 'public' ? (
+                    <div className="space-y-6">
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
                         <div>
-                          <h4 className="font-bold text-sm">功能权限项</h4>
-                          <p className="text-[10px] text-on-surface-variant font-medium">最小权限原则：默认无权限，需显式授权</p>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            const allIds = functionalOptions.map(o => o.id);
-                            setFuncPerms(prev => ({ ...prev, [selectedRole]: allIds }));
-                          }}
-                          className="text-[10px] font-bold text-primary hover:underline transition-all"
-                        >
-                          全部授权
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {functionalOptions.map((opt) => {
-                          const isChecked = funcPerms[selectedRole]?.includes(opt.id);
-                          return (
-                            <div 
-                              key={opt.id}
-                              onClick={() => {
-                                const current = funcPerms[selectedRole] || [];
-                                const next = current.includes(opt.id) 
-                                  ? current.filter(id => id !== opt.id)
-                                  : [...current, opt.id];
-                                setFuncPerms(prev => ({ ...prev, [selectedRole]: next }));
-                              }}
-                              className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${isChecked ? 'border-primary bg-primary/5' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
-                            >
-                              <div className="flex gap-4">
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isChecked ? 'bg-primary border-primary' : 'border-outline-variant bg-white'}`}>
-                                  {isChecked && <Plus className="w-3 h-3 text-white rotate-45" style={{ transform: 'rotate(0deg)' }} />}
-                                </div>
-                                <div>
-                                  <div className={`text-xs font-bold ${isChecked ? 'text-primary' : 'text-on-surface'}`}>{opt.label}</div>
-                                  <div className="text-[10px] text-on-surface-variant font-medium">{opt.desc}</div>
+                          <h3 className="font-bold flex items-center gap-2 text-lg mb-4 cursor-default">
+                             <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                               <LayoutGrid className="w-4 h-4 text-primary" />
+                             </div>
+                             页面访问链接
+                          </h3>
+                          <div className="space-y-6">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">默认链接</label>
+                              <div className="flex gap-2">
+                                <input readOnly value={publishLinks.page} className="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none" />
+                                <div className="flex gap-2">
+                                  <button onClick={() => { navigator.clipboard.writeText(publishLinks.page); showNotification('链接已复制'); }} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
+                                  <button onClick={() => showNotification('正在下载二维码...')} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
+                                  <a href={publishLinks.page} target="_blank" rel="noreferrer" className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></a>
                                 </div>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="space-y-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                        <Database className="w-5 h-5" />
-                      </div>
-                      <h3 className="font-bold tracking-tight">二、数据权限配置</h3>
-                    </div>
-
-                    <div className="bg-white p-8 rounded-2xl border border-outline-variant shadow-sm space-y-8">
-                       <div className="space-y-4">
-                         <div className="text-[10px] font-bold text-outline uppercase tracking-widest border-b border-outline-variant pb-2">数据权限类型</div>
-                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {dataScopeOptions.map(opt => (
-                              <div 
-                                key={opt.id}
-                                onClick={() => setDataPerms(prev => ({ ...prev, [selectedRole]: { ...prev[selectedRole], type: opt.id as any } }))}
-                                className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${dataPerms[selectedRole]?.type === opt.id ? 'border-primary bg-primary/5' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
-                              >
-                                <div>
-                                  <div className={`text-xs font-bold ${dataPerms[selectedRole]?.type === opt.id ? 'text-primary' : 'text-on-surface'}`}>{opt.label}</div>
-                                  <div className="text-[10px] text-on-surface-variant font-medium">{opt.desc}</div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">自定义链接</label>
+                              <div className="flex gap-2">
+                                <div className="flex items-center gap-2 bg-surface border border-outline-variant rounded-xl px-4 py-3 flex-1">
+                                  <span className="text-xs text-outline font-mono">architect.com/p/</span>
+                                  <input 
+                                    placeholder="输入自定义路径" 
+                                    value={customLinks.page}
+                                    onChange={(e) => setCustomLinks({...customLinks, page: e.target.value})}
+                                    className="bg-transparent text-xs font-bold font-mono outline-none flex-1" 
+                                  />
                                 </div>
-                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${dataPerms[selectedRole]?.type === opt.id ? 'border-primary' : 'border-outline-variant'}`}>
-                                  {dataPerms[selectedRole]?.type === opt.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                <div className="flex gap-2">
+                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
+                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
+                                  <button className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></button>
                                 </div>
                               </div>
-                            ))}
-                         </div>
-                       </div>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
 
-                       {dataPerms[selectedRole]?.type === 'custom' && (
-                         <div className="space-y-4 pt-6 border-t border-outline-variant animate-in fade-in slide-in-from-top-4 duration-300">
-                           <div className="text-[10px] font-bold text-outline uppercase tracking-widest">自定义权限规则</div>
-                           <div className="p-4 bg-surface rounded-xl border border-outline-variant space-y-4">
-                              <div className="flex gap-4">
-                                 <div className="flex-1 space-y-2">
-                                    <label className="text-[10px] font-bold text-on-surface-variant uppercase">组织架构</label>
-                                    <select className="w-full bg-white border border-outline-variant rounded-lg p-3 text-xs font-medium">
-                                       <option>选择部门 / 分支</option>
-                                       <option>HR Department</option>
-                                       <option>Finance Center</option>
-                                       <option>Engineering Team</option>
-                                    </select>
-                                 </div>
-                                 <div className="flex-1 space-y-2">
-                                    <label className="text-[10px] font-bold text-on-surface-variant uppercase">数据字段</label>
-                                    <select className="w-full bg-white border border-outline-variant rounded-lg p-3 text-xs font-medium">
-                                       <option>选择过滤字段</option>
-                                       {formFields.map(f => <option key={f.id}>{f.label}</option>)}
-                                    </select>
-                                 </div>
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
+                        <div>
+                          <h3 className="font-bold flex items-center gap-2 text-lg mb-4 cursor-default">
+                             <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                               <FormInput className="w-4 h-4 text-primary" />
+                             </div>
+                             表单填写链接
+                          </h3>
+                          <div className="space-y-6">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">默认链接</label>
+                              <div className="flex gap-2">
+                                <input readOnly value={publishLinks.form} className="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none" />
+                                <div className="flex gap-2">
+                                  <button onClick={() => { navigator.clipboard.writeText(publishLinks.form); showNotification('链接已复制'); }} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
+                                  <button onClick={() => showNotification('正在下载二维码...')} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
+                                  <a href={publishLinks.form} target="_blank" rel="noreferrer" className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></a>
+                                </div>
                               </div>
-                              <div className="space-y-2">
-                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase">逻辑表达式 (JS Syntax)</label>
-                                 <input 
-                                   type="text" 
-                                   placeholder="例如：data.amount > 1000 && data.deptId == user.deptId"
-                                   value={dataPerms[selectedRole]?.customRule || ''}
-                                   onChange={(e) => setDataPerms(prev => ({ ...prev, [selectedRole]: { ...prev[selectedRole], customRule: e.target.value } }))}
-                                   className="w-full bg-white border border-outline-variant rounded-lg p-3 text-xs font-mono"
-                                 />
-                                 <p className="text-[10px] text-outline font-medium">使用 JavaScript 表达式定义更复杂的行级数据权限过滤逻辑。</p>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">自定义链接</label>
+                              <div className="flex gap-2">
+                                <div className="flex items-center gap-2 bg-surface border border-outline-variant rounded-xl px-4 py-3 flex-1">
+                                  <span className="text-xs text-outline font-mono">architect.com/f/</span>
+                                  <input 
+                                    placeholder="输入自定义路径" 
+                                    value={customLinks.form}
+                                    onChange={(e) => setCustomLinks({...customLinks, form: e.target.value})}
+                                    className="bg-transparent text-xs font-bold font-mono outline-none flex-1" 
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
+                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
+                                  <button className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></button>
+                                </div>
                               </div>
-                           </div>
-                         </div>
-                       )}
-
-                       <div className="flex justify-end gap-3 pt-6 border-t border-outline-variant">
-                          <button 
-                            onClick={() => showNotification('配置已重置')}
-                            className="px-6 py-2.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface transition-all border border-outline-variant"
-                          >
-                            重置
-                          </button>
-                          <button 
-                            onClick={() => showNotification(`“${selectedRole}”的权限已保存成功`)}
-                            className="px-8 py-2.5 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2"
-                          >
-                            <Save className="w-4 h-4" /> 保存当前角色配置
-                          </button>
-                       </div>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
                     </div>
-                  </section>
-                </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
+                         <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                            <h3 className="font-bold flex items-center gap-2 cursor-default"><Building2 className="w-5 h-5 text-primary" /> 页面访问限制</h3>
+                            <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">清空所选</button>
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="space-y-3">
+                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
+                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                  <Building2 className="w-4 h-4 text-outline" /> <span>选择部门 / 组织</span>
+                               </div>
+                            </div>
+                            <div className="space-y-3">
+                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">指定角色</label>
+                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                  <UserCog className="w-4 h-4 text-outline" /> <span>选择权限角色</span>
+                               </div>
+                            </div>
+                            <div className="space-y-3">
+                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">具体人员</label>
+                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                  <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
+                               </div>
+                            </div>
+                         </div>
+                      </section>
+
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
+                         <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                            <h3 className="font-bold flex items-center gap-2 cursor-default"><FormInput className="w-5 h-5 text-primary" /> 表单填写限制</h3>
+                            <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">清空所选</button>
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="space-y-3">
+                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
+                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                  <Building2 className="w-4 h-4 text-outline" /> <span>选择部门 / 组织</span>
+                               </div>
+                            </div>
+                            <div className="space-y-3">
+                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">指定角色</label>
+                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                  <UserCog className="w-4 h-4 text-outline" /> <span>选择权限角色</span>
+                               </div>
+                            </div>
+                            <div className="space-y-3">
+                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">具体人员</label>
+                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                  <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
+                               </div>
+                            </div>
+                         </div>
+                      </section>
+
+                      <div className="flex justify-end p-4">
+                         <button onClick={() => showNotification('访问限制已生效')} className="px-12 py-4 bg-primary text-white rounded-2xl font-extrabold shadow-xl shadow-primary/20 hover:scale-105 transition-all">确认并发布</button>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
               )}
-
               {editorTab === 'data' && (
                 <div className="max-w-7xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
