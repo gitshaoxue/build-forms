@@ -53,10 +53,12 @@ import {
   Link2,
   TableProperties,
   Clock3,
+  Edit,
+  Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
-type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'templates' | 'workflow' | 'insights' | 'integrations' | 'team';
+type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'workflow' | 'insights' | 'integrations' | 'team';
 
 interface FormField {
   id: string;
@@ -175,6 +177,8 @@ interface ProjectsViewProps {
   openEditor: (id: string | null) => void;
   confirmModal: ConfirmModalState;
   setConfirmModal: React.Dispatch<React.SetStateAction<ConfirmModalState>>;
+  showNotification: (text: string) => void;
+  setView: (v: ViewType) => void;
 }
 
 interface SidebarProps {
@@ -199,11 +203,6 @@ interface ConsoleLayoutProps {
   showNotification: (text: string) => void;
 }
 
-interface TemplatesViewProps {
-  setView: (view: ViewType) => void;
-  showNotification: (text: string) => void;
-}
-
 interface WorkflowViewProps {
   workflowStatus: string;
   setWorkflowStatus: (status: string) => void;
@@ -219,11 +218,27 @@ interface TeamMember {
   id: string;
   name: string;
   role: string;
-  dept: string;
+  deptId: string;
+  email: string;
+  status: 'Active' | 'Inactive' | 'Pending';
+  createdAt: string;
+}
+
+interface OrgNode {
+  id: string;
+  name: string;
+  children?: OrgNode[];
 }
 
 interface TeamViewProps {
   teamMembers: TeamMember[];
+  orgData: OrgNode[];
+  onAddMember: (member: Omit<TeamMember, 'id' | 'createdAt' | 'status'>) => void;
+  onUpdateMember: (member: TeamMember) => void;
+  onDeleteMember: (id: string) => void;
+  onAddDept: (parentId: string | null, name: string) => void;
+  onUpdateDept: (id: string, name: string) => void;
+  onDeleteDept: (id: string) => void;
 }
 
 interface IntegrationsViewProps {
@@ -250,7 +265,6 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
       {[
         { label: '仪表盘', icon: LayoutGrid, view: 'dashboard' },
         { label: '应用管理', icon: FormInput, view: 'projects' },
-        { label: '模板中心', icon: LayoutGrid, view: 'templates' },
         { label: '组织人员', icon: Users, view: 'team' },
         { label: '团队流转', icon: Workflow, view: 'workflow' },
         { label: '数据洞察', icon: Activity, view: 'insights' },
@@ -480,9 +494,26 @@ const ProjectsView = ({
   updateProjectName,
   setSelectedProjectId,
   openEditor,
+  showNotification,
+  setView
 }: ProjectsViewProps) => {
+  const [activeTab, setActiveTab] = React.useState<'recent' | 'mine' | 'templates'>('recent');
+  
   const selectedProject = projects.find(p => p.id === projectDetailsId);
   const projectForms = savedForms.filter(f => f.projectId === projectDetailsId);
+
+  const templates = [
+    { id: 't1', title: '全能 HR 数字化套件', category: '组织人事', desc: '包含招聘、转正、绩效及员工全生命周期管理', color: 'bg-primary' },
+    { id: 't2', title: 'IT 敏捷研发管理', category: '研发效能', desc: '需求池、看板、缺陷追踪与发布记录一体化', color: 'bg-secondary' },
+    { id: 't3', title: '全渠道订单协同', category: '财务供应链', desc: '打通线上线下订单流转，自动生成财务对账流水', color: 'bg-green-500' },
+    { id: 't4', title: '政务政令督办系统', category: '行政办公', desc: '任务分办、进度追踪、自动催办与效能统计报告', color: 'bg-amber-500' },
+    { id: 't5', title: '智慧零售巡店系统', category: '连锁门店', desc: '移动端拍照巡店、问题整改闭环与多级评分报表', color: 'bg-blue-500' },
+    { id: 't6', title: '大型活动策划流', category: '市场营销', desc: '资源申请、供应商比价、现场执行与物料盘点', color: 'bg-purple-500' },
+  ];
+
+  const displayedProjects = activeTab === 'recent' 
+    ? [...projects].sort((a,b) => b.updatedAt.includes('小时') ? 1 : -1).slice(0, 3) 
+    : projects;
 
   return (
     <div className="p-8 space-y-8 max-w-7xl">
@@ -490,8 +521,8 @@ const ProjectsView = ({
         <>
           <div className="flex justify-between items-end">
             <div>
-              <h2 className="text-3xl font-extrabold tracking-tighter">应用</h2>
-              <p className="text-sm text-on-surface-variant font-medium">管理您的应用资产和业务流水线</p>
+              <h2 className="text-3xl font-extrabold tracking-tighter">应用管理</h2>
+              <p className="text-sm text-on-surface-variant font-medium">构建、分发并监控您的数字化表单系统</p>
             </div>
             <button 
               onClick={() => {
@@ -505,55 +536,120 @@ const ProjectsView = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <div 
-                key={project.id} 
-                className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all cursor-pointer"
-                onClick={() => setProjectDetailsId(project.id)}
+          {/* Tabs */}
+          <div className="flex border-b border-outline-variant gap-8 overflow-x-auto no-scrollbar">
+            {[
+              { id: 'recent', label: '最近访问', icon: Clock },
+              { id: 'mine', label: '我的应用', icon: Briefcase },
+              { id: 'templates', label: '模板中心', icon: LayoutGrid },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 pb-4 text-sm font-bold transition-all relative border-b-2 ${
+                  activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-outline hover:text-on-surface'
+                }`}
               >
-                <div className="flex justify-between items-start">
-                  <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center text-primary border border-outline-variant group-hover:bg-primary group-hover:text-white transition-all">
-                    <Briefcase className="w-6 h-6" />
-                  </div>
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setProjectToEdit(project);
-                        setNewProjectName(project.name);
-                        setIsProjectModalOpen(true);
-                      }}
-                      className="p-2 hover:bg-surface rounded-lg text-outline-variant hover:text-primary transition-colors"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteProject(project.id, project.name);
-                      }}
-                      className="p-2 hover:bg-error/5 rounded-lg text-outline-variant hover:text-error transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg tracking-tight group-hover:text-primary transition-colors">{project.name}</h3>
-                  <div className="mt-2 flex items-center gap-4 text-[10px] font-bold text-outline uppercase tracking-widest">
-                    <span>{savedForms.filter(f => f.projectId === project.id).length} 个表单</span>
-                    <span>•</span>
-                    <span>{project.responses} 次提交</span>
-                  </div>
-                </div>
-                <div className="mt-auto pt-4 border-t border-outline-variant flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-outline uppercase">更新于 {project.updatedAt}</span>
-                  <ChevronRight className="w-4 h-4 text-outline group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
             ))}
           </div>
+
+          {activeTab === 'templates' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-300">
+               {templates.map((tpl) => (
+                <div key={tpl.id} className="sleek-card group overflow-hidden border border-outline-variant hover:border-primary/50 transition-all flex flex-col h-full bg-white shadow-sm hover:shadow-xl">
+                   <div className={`h-32 ${tpl.color} relative overflow-hidden flex items-center justify-center`}>
+                      <div className="absolute inset-0 opacity-10 flex flex-wrap gap-4 p-4">
+                         {Array.from({ length: 40 }).map((_, i) => (
+                           <LayoutGrid key={i} className="w-8 h-8 rotate-12" />
+                         ))}
+                      </div>
+                      <LayoutGrid className="text-white w-8 h-8 relative opacity-50" />
+                   </div>
+                   <div className="p-6 flex-1 flex flex-col">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[9px] font-bold text-outline uppercase tracking-widest bg-surface px-2 py-0.5 rounded">{tpl.category}</span>
+                      </div>
+                      <h3 className="text-base font-extrabold tracking-tight mb-1 group-hover:text-primary transition-colors">{tpl.title}</h3>
+                      <p className="text-[10px] text-on-surface-variant leading-relaxed mb-6 flex-1 font-medium">{tpl.desc}</p>
+                      <button 
+                        onClick={() => {
+                          showNotification(`模板“${tpl.title}”正在导入工作区...`);
+                          setActiveTab('mine');
+                        }}
+                        className="w-full py-2.5 bg-on-surface text-white rounded-xl text-xs font-bold hover:secondary transition-all flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> 立即启用
+                      </button>
+                   </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              {displayedProjects.map((project) => (
+                <div 
+                  key={project.id} 
+                  className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all cursor-pointer"
+                  onClick={() => setProjectDetailsId(project.id)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center text-primary border border-outline-variant group-hover:bg-primary group-hover:text-white transition-all">
+                      <Briefcase className="w-6 h-6" />
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProjectToEdit(project);
+                          setNewProjectName(project.name);
+                          setIsProjectModalOpen(true);
+                        }}
+                        className="p-2 hover:bg-surface rounded-lg text-outline-variant hover:text-primary transition-colors"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteProject(project.id, project.name);
+                        }}
+                        className="p-2 hover:bg-error/5 rounded-lg text-outline-variant hover:text-error transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg tracking-tight group-hover:text-primary transition-colors">{project.name}</h3>
+                    <div className="mt-2 flex items-center gap-4 text-[10px] font-bold text-outline uppercase tracking-widest">
+                      <span>{savedForms.filter(f => f.projectId === project.id).length} 个表单</span>
+                      <span>•</span>
+                      <span>{project.responses} 次提交</span>
+                    </div>
+                  </div>
+                  <div className="mt-auto pt-4 border-t border-outline-variant flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-outline uppercase">更新于 {project.updatedAt}</span>
+                    <ChevronRight className="w-4 h-4 text-outline group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              ))}
+              {displayedProjects.length === 0 && (
+                <div className="col-span-full py-20 flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-3xl opacity-50 space-y-4 bg-surface-container/10">
+                   <Briefcase className="w-12 h-12 text-outline-variant mb-2" />
+                   <p className="text-sm font-bold text-outline">暂无应用</p>
+                   <button 
+                    onClick={() => setIsProjectModalOpen(true)}
+                    className="text-xs text-primary font-bold hover:underline"
+                   >
+                     立即创建第一个应用
+                   </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <AnimatePresence>
             {isProjectModalOpen && (
@@ -722,92 +818,27 @@ const ProjectsView = ({
                     <Activity className="w-8 h-8 text-primary/20" />
                  </div>
                  <h4 className="font-bold">部署洞察力</h4>
-                 <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
-                   该应用当前有 {projectForms.filter(f => f.status === 'Published').length} 个表单处于活跃状态。平均提交成功率为 98.2%。
-                 </p>
-                 <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">查看分析报告</button>
-              </div>
+                  <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
+                    该应用当前有 {projectForms.filter(f => f.status === 'Published').length} 个表单处于活跃状态。平均提交成功率为 98.2%。
+                  </p>
+                  <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest mt-2">查看分析报告</button>
+               </div>
 
-              <div className="sleek-card p-6 space-y-4">
-                 <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest leading-none">导出与安全性</h4>
-                 <div className="space-y-3">
-                    <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
-                       <FileDown className="w-4 h-4" /> 导出成员访问矩阵
-                    </button>
-                    <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
-                       <ShieldCheck className="w-4 h-4" /> 生成审计日志
-                    </button>
-                 </div>
-              </div>
+               <div className="sleek-card p-6 space-y-4">
+                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest leading-none">导出与安全性</h4>
+                  <div className="space-y-3">
+                     <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
+                        <FileDown className="w-4 h-4" /> 导出成员访问矩阵
+                     </button>
+                     <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
+                        <ShieldCheck className="w-4 h-4" /> 生成审计日志
+                     </button>
+                  </div>
+               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-const TemplatesView = ({ setView, showNotification }: TemplatesViewProps) => {
-  const templates = [
-    { id: 't1', title: '全能 HR 数字化套件', category: '组织人事', desc: '包含招聘、转正、绩效及员工全生命周期管理', color: 'bg-primary' },
-    { id: 't2', title: 'IT 敏捷研发管理', category: '研发效能', desc: '需求池、看板、缺陷追踪与发布记录一体化', color: 'bg-secondary' },
-    { id: 't3', title: '全渠道订单协同', category: '财务供应链', desc: '打通线上线下订单流转，自动生成财务对账流水', color: 'bg-green-500' },
-    { id: 't4', title: '政务政令督办系统', category: '行政办公', desc: '任务分办、进度追踪、自动催办与效能统计报告', color: 'bg-amber-500' },
-    { id: 't5', title: '智慧零售巡店系统', category: '连锁门店', desc: '移动端拍照巡店、问题整改闭环与多级评分报表', color: 'bg-blue-500' },
-    { id: 't6', title: '大型活动策划流', category: '市场营销', desc: '资源申请、供应商比价、现场执行与物料盘点', color: 'bg-purple-500' },
-  ];
-
-  return (
-    <div className="p-8 space-y-8 max-w-7xl pb-32">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tighter">模板中心</h2>
-          <p className="text-sm text-on-surface-variant font-medium">行业专家预设的成熟解决方案，即刻启用</p>
-        </div>
-        <div className="flex gap-2">
-           <button className="px-4 py-2 bg-surface border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all">所有行业</button>
-           <button className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all">按行业搜索</button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {templates.map((tpl) => (
-          <div key={tpl.id} className="sleek-card group overflow-hidden border border-outline-variant hover:border-primary/50 transition-all flex flex-col h-full bg-white shadow-sm hover:shadow-xl">
-             <div className={`h-40 ${tpl.color} relative overflow-hidden flex items-center justify-center`}>
-                <div className="absolute inset-0 opacity-10 flex flex-wrap gap-4 p-4">
-                   {Array.from({ length: 40 }).map((_, i) => (
-                     <LayoutGrid key={i} className="w-8 h-8 rotate-12" />
-                   ))}
-                </div>
-                <div className="relative p-6 text-center">
-                   <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4 inline-block mb-2">
-                      <LayoutGrid className="text-white w-8 h-8" />
-                   </div>
-                </div>
-             </div>
-             
-             <div className="p-8 flex-1 flex flex-col">
-                <div className="flex justify-between items-start mb-4">
-                  <span className="text-[10px] font-bold text-outline uppercase tracking-widest bg-surface px-2 py-1 rounded inline-block">{tpl.category}</span>
-                  <div className="flex -space-x-2">
-                     {[1,2,3].map(i => <img key={i} src={`https://picsum.photos/seed/u${i}/40/40`} className="w-6 h-6 rounded-full border-2 border-white" referrerPolicy="no-referrer" alt="user" />)}
-                  </div>
-                </div>
-                <h3 className="text-lg font-extrabold tracking-tight mb-2 group-hover:text-primary transition-colors">{tpl.title}</h3>
-                <p className="text-xs text-on-surface-variant leading-relaxed mb-8 flex-1 font-medium">{tpl.desc}</p>
-                <button 
-                  onClick={() => {
-                    setView('projects');
-                    showNotification(`模板“${tpl.title}”正在导入工作区...`);
-                  }}
-                  className="w-full py-3 bg-on-surface text-white rounded-xl text-xs font-bold hover:secondary transition-all flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> 启用模板
-                </button>
-             </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };
@@ -986,39 +1017,533 @@ const IntegrationsView = ({ showNotification }: IntegrationsViewProps) => (
   </div>
 );
 
-const TeamView = ({ teamMembers }: TeamViewProps) => (
-  <div className="p-8 space-y-8 max-w-7xl pb-32">
-    <div className="flex justify-between items-end">
-      <div>
-        <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">团队成员</h2>
-        <p className="text-sm text-on-surface-variant font-medium">管理访问控制、协作权限和部门架构</p>
-      </div>
-      <button className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm transition-all hover:shadow-lg">
-        <Users className="w-4 h-4" /> 邀请成员
-      </button>
-    </div>
+interface OrgTreeItemProps {
+  key?: string | number;
+  node: OrgNode;
+  selectedDeptId: string | null;
+  onSelect: (id: string) => void;
+  onAdd: (parentId: string) => void;
+  onEdit: (node: OrgNode) => void;
+  onDelete: (id: string) => void;
+  level?: number;
+}
 
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {teamMembers.map((user, idx) => (
-        <div key={user.id} className="sleek-card p-6 flex flex-col gap-4 border-2 border-outline-variant hover:border-primary transition-all group text-on-surface">
-           <div className="flex items-center gap-4">
-             <img src={`https://picsum.photos/seed/user-${idx}/100/100`} className="w-12 h-12 rounded-2xl border border-outline-variant" referrerPolicy="no-referrer" alt="头像" />
-             <div>
-                <h6 className="font-bold text-sm">{user.name}</h6>
-                <p className="text-[10px] text-outline font-bold tracking-widest uppercase">{user.role === 'Admin' ? '管理员' : user.role === 'Editor' ? '编辑' : user.role === 'Viewer' ? '查看者' : '经理'} • {user.dept}</p>
-             </div>
-           </div>
-           <div className="p-3 bg-surface rounded-xl flex items-center justify-between">
-              <span className="text-xs font-medium text-on-surface-variant break-all">
-                {user.name.toLowerCase().replace(/ /g, '.')}@architect.com
-              </span>
-              <Settings className="w-3 h-3 text-outline cursor-pointer hover:text-black transition-colors" />
-           </div>
+const OrgTreeItem = ({ 
+  node, 
+  selectedDeptId, 
+  onSelect, 
+  onAdd, 
+  onEdit, 
+  onDelete,
+  level = 0 
+}: OrgTreeItemProps) => {
+  const [isExpanded, setIsExpanded] = React.useState(true);
+  const hasChildren = node.children && node.children.length > 0;
+
+  return (
+    <div className="select-none">
+      <div 
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all group ${
+          selectedDeptId === node.id ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container-low text-on-surface-variant'
+        }`}
+        style={{ paddingLeft: `${level * 16 + 12}px` }}
+        onClick={() => onSelect(node.id)}
+      >
+        <div 
+          className="w-4 h-4 flex items-center justify-center text-outline transition-transform"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+        >
+          {hasChildren ? (
+            <ChevronRight className={`w-3 h-3 transform transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+          ) : (
+            <div className="w-1 h-1 rounded-full bg-outline-variant" />
+          )}
         </div>
-      ))}
+        
+        <div className="flex-1 flex items-center gap-2 overflow-hidden">
+          <Database className="w-3.5 h-3.5 shrink-0 opacity-50" />
+          <span className="text-xs font-bold truncate">{node.name}</span>
+        </div>
+
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+          <Plus className="w-3.5 h-3.5 hover:text-primary p-0.5" onClick={(e) => { e.stopPropagation(); onAdd(node.id); }} />
+          <Edit className="w-3.5 h-3.5 hover:text-primary p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(node); }} />
+          <Trash2 className="w-3.5 h-3.5 hover:text-error p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }} />
+        </div>
+      </div>
+
+      {hasChildren && isExpanded && (
+        <div className="mt-0.5">
+          {node.children!.map(child => (
+            <OrgTreeItem 
+              key={child.id} 
+              node={child} 
+              selectedDeptId={selectedDeptId} 
+              onSelect={onSelect} 
+              onAdd={onAdd}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              level={level + 1} 
+            />
+          ))}
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
+
+const TeamView = ({ 
+  teamMembers, 
+  orgData, 
+  onAddMember, 
+  onUpdateMember, 
+  onDeleteMember,
+  onAddDept,
+  onUpdateDept,
+  onDeleteDept
+}: TeamViewProps) => {
+  const [selectedDeptId, setSelectedDeptId] = React.useState<string | null>(orgData[0]?.id || null);
+  const [isMemberModalOpen, setIsMemberModalOpen] = React.useState(false);
+  const [isDeptModalOpen, setIsDeptModalOpen] = React.useState(false);
+  const [editingMember, setEditingMember] = React.useState<TeamMember | null>(null);
+  const [editingDept, setEditingDept] = React.useState<OrgNode | null>(null);
+  const [deptParentId, setDeptParentId] = React.useState<string | null>(null);
+
+  // Filter states
+  const [filterName, setFilterName] = React.useState('');
+  const [filterRole, setFilterRole] = React.useState('All');
+  const [filterStatus, setFilterStatus] = React.useState('All');
+
+  // Member Form states
+  const [memberName, setMemberName] = React.useState('');
+  const [memberRole, setMemberRole] = React.useState('Editor');
+  const [memberDept, setMemberDept] = React.useState('');
+  const [memberEmail, setMemberEmail] = React.useState('');
+  const [deptName, setDeptName] = React.useState('');
+
+  const getDeptNameById = (id: string, nodes: OrgNode[]): string => {
+    for (const node of nodes) {
+      if (node.id === id) return node.name;
+      if (node.children) {
+        const found = getDeptNameById(id, node.children);
+        if (found !== '未知部门') return found;
+      }
+    }
+    return '未知部门';
+  };
+
+  const filteredMembers = teamMembers.filter(m => {
+    // Dept filter (from tree selection)
+    if (selectedDeptId && m.deptId !== selectedDeptId) {
+      // Logic for showing sub-dept members could be added here if needed, but for now exact match
+      // return false;
+    }
+    
+    const matchesDept = !selectedDeptId || m.deptId === selectedDeptId;
+    const matchesName = m.name.toLowerCase().includes(filterName.toLowerCase()) || m.id.includes(filterName);
+    const matchesRole = filterRole === 'All' || m.role === filterRole;
+    const matchesStatus = filterStatus === 'All' || m.status === filterStatus;
+
+    return matchesDept && matchesName && matchesRole && matchesStatus;
+  });
+
+  const currentDeptName = selectedDeptId ? getDeptNameById(selectedDeptId, orgData) : '所有成员';
+
+  const resetMemberForm = () => {
+    setMemberName('');
+    setMemberRole('Editor');
+    setMemberDept(selectedDeptId || '');
+    setMemberEmail('');
+    setEditingMember(null);
+  };
+
+  const handleMemberSubmit = () => {
+    if (!memberName || !memberDept) return;
+    
+    if (editingMember) {
+      onUpdateMember({
+        ...editingMember,
+        name: memberName,
+        role: memberRole,
+        deptId: memberDept,
+        email: memberEmail
+      });
+    } else {
+      onAddMember({
+        name: memberName,
+        role: memberRole,
+        deptId: memberDept,
+        email: memberEmail
+      });
+    }
+    setIsMemberModalOpen(false);
+    resetMemberForm();
+  };
+
+  const handleDeptSubmit = () => {
+    if (!deptName) return;
+    if (editingDept) {
+      onUpdateDept(editingDept.id, deptName);
+    } else {
+      onAddDept(deptParentId, deptName);
+    }
+    setIsDeptModalOpen(false);
+    setDeptName('');
+    setEditingDept(null);
+  };
+
+  return (
+    <div className="flex h-full bg-surface-container-lowest">
+      {/* Org Tree Sidebar */}
+      <div className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0">
+        <div className="p-6 border-b border-outline-variant flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-primary" />
+            <h3 className="font-bold tracking-tight">组织架构</h3>
+          </div>
+          <button 
+            onClick={() => { setDeptParentId(null); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
+            className="p-1 hover:bg-surface-container-low rounded-lg text-outline-variant hover:text-primary transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 border-b border-outline-variant">
+           <button 
+             onClick={() => setSelectedDeptId(null)}
+             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${!selectedDeptId ? 'bg-primary text-white' : 'hover:bg-surface-container-low text-on-surface-variant'}`}
+           >
+             🏢 全公司所有成员
+           </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+          {orgData.map(node => (
+            <OrgTreeItem 
+              key={node.id} 
+              node={node} 
+              selectedDeptId={selectedDeptId} 
+              onSelect={setSelectedDeptId} 
+              onAdd={(pid) => { setDeptParentId(pid); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
+              onEdit={(node) => { setDeptParentId(null); setEditingDept(node); setDeptName(node.name); setIsDeptModalOpen(true); }}
+              onDelete={onDeleteDept}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Member List Main Area */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+        {/* Top Header & Filters */}
+        <div className="p-8 border-b border-outline-variant space-y-8 bg-surface/10">
+          <div className="flex justify-between items-center">
+            <div className="space-y-1">
+              <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface flex items-center gap-3">
+                {currentDeptName}
+              </h2>
+              <p className="text-sm text-on-surface-variant font-medium">配置人员基本信息、角色分组及行业化数据权限</p>
+            </div>
+            <button 
+              onClick={() => { resetMemberForm(); setIsMemberModalOpen(true); }}
+              className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm transition-all hover:shadow-xl shadow-primary/20"
+            >
+              <UserPlus className="w-4 h-4" /> 新增成员
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="col-span-1 md:col-span-2 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+              <input 
+                type="text" 
+                placeholder="搜索姓名或工号 ID..."
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                className="w-full bg-white border border-outline-variant rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+              />
+            </div>
+            <div>
+              <select 
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                className="w-full bg-white border border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:outline-none font-bold"
+              >
+                <option value="All">所有角色</option>
+                <option value="Admin">管理员</option>
+                <option value="Editor">编辑者</option>
+                <option value="Manager">经理</option>
+                <option value="Viewer">查看者</option>
+              </select>
+            </div>
+            <div>
+              <select 
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full bg-white border border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:outline-none font-bold"
+              >
+                <option value="All">所有状态</option>
+                <option value="Active">活跃</option>
+                <option value="Inactive">待激活</option>
+                <option value="Pending">待激活</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+               <button 
+                 onClick={() => { setFilterName(''); setFilterRole('All'); setFilterStatus('All'); }}
+                 className="px-4 py-2 text-primary text-xs font-bold hover:bg-primary/10 rounded-xl transition-all"
+               >
+                 重置
+               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Data List Table */}
+        <div className="flex-1 overflow-auto custom-scrollbar p-8">
+           <table className="w-full text-left border-separate border-spacing-y-2">
+              <thead>
+                 <tr className="text-[10px] font-bold text-outline uppercase tracking-widest">
+                    <th className="px-4 py-3">ID</th>
+                    <th className="px-4 py-3">成员姓名</th>
+                    <th className="px-4 py-3">所属部门</th>
+                    <th className="px-4 py-3">角色</th>
+                    <th className="px-4 py-3">电子邮箱</th>
+                    <th className="px-4 py-3">状态</th>
+                    <th className="px-4 py-3">创建时间</th>
+                    <th className="px-4 py-3 text-right">操作</th>
+                 </tr>
+              </thead>
+              <tbody>
+                 {filteredMembers.map((user) => (
+                   <tr key={user.id} className="group hover:bg-surface-container-low transition-all">
+                      <td className="px-4 py-4 text-[10px] font-bold text-outline-variant font-mono bg-surface-container-lowest first:rounded-l-2xl">{user.id}</td>
+                      <td className="px-4 py-4 bg-surface-container-lowest">
+                         <div className="flex items-center gap-3">
+                             <img 
+                               src={`https://picsum.photos/seed/user-${user.id}/100/100`} 
+                               className="w-8 h-8 rounded-lg border border-outline-variant" 
+                               referrerPolicy="no-referrer"
+                               alt="Avatar"
+                             />
+                             <span className="font-bold text-sm text-on-surface">{user.name}</span>
+                         </div>
+                      </td>
+                      <td className="px-4 py-4 bg-surface-container-lowest">
+                         <span className="text-xs font-medium text-on-surface-variant flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 opacity-50" />
+                            {getDeptNameById(user.deptId, orgData)}
+                         </span>
+                      </td>
+                      <td className="px-4 py-4 bg-surface-container-lowest">
+                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
+                            user.role === 'Admin' ? 'bg-primary/10 text-primary' : 
+                            user.role === 'Manager' ? 'bg-secondary/10 text-secondary' : 
+                            'bg-surface-container text-on-surface-variant'
+                         }`}>
+                           {user.role}
+                         </span>
+                      </td>
+                      <td className="px-4 py-4 bg-surface-container-lowest text-xs font-medium text-on-surface-variant tabular-nums">
+                         {user.email}
+                      </td>
+                      <td className="px-4 py-4 bg-surface-container-lowest">
+                         <div className="flex items-center gap-1.5">
+                            <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-outline-variant'}`}></div>
+                            <span className="text-[10px] font-bold text-outline uppercase">{user.status === 'Active' ? '活跃' : '离线'}</span>
+                         </div>
+                      </td>
+                      <td className="px-4 py-4 bg-surface-container-lowest text-xs font-medium text-on-surface-variant tabular-nums">
+                         {user.createdAt}
+                      </td>
+                      <td className="px-4 py-4 bg-surface-container-lowest last:rounded-r-2xl text-right">
+                         <div className="flex items-center justify-end gap-1">
+                            <button 
+                              onClick={() => {
+                                setEditingMember(user);
+                                setMemberName(user.name);
+                                setMemberRole(user.role);
+                                setMemberDept(user.deptId);
+                                setMemberEmail(user.email);
+                                setIsMemberModalOpen(true);
+                              }}
+                              className="p-1.5 hover:bg-white rounded-lg text-outline-variant hover:text-primary transition-all"
+                            >
+                               <Edit className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => onDeleteMember(user.id)}
+                              className="p-1.5 hover:bg-white rounded-lg text-outline-variant hover:text-error transition-all"
+                            >
+                               <Trash2 className="w-4 h-4" />
+                            </button>
+                         </div>
+                      </td>
+                   </tr>
+                 ))}
+              </tbody>
+           </table>
+
+           {filteredMembers.length === 0 && (
+            <div className="py-20 flex flex-col items-center justify-center opacity-50 space-y-4">
+               <div className="p-6 bg-surface-container rounded-full grayscale">
+                  <Users className="w-12 h-12 text-outline-variant" />
+               </div>
+               <div className="text-center">
+                  <p className="text-sm font-bold text-outline">未找到符合条件的成员</p>
+                  <p className="text-[10px] text-outline-variant font-medium mt-1 uppercase tracking-widest">请尝试调整筛选条件或重置</p>
+               </div>
+            </div>
+           )}
+        </div>
+      </div>
+
+      {/* Member Modal */}
+      <AnimatePresence>
+        {isMemberModalOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-10 space-y-8"
+            >
+              <div className="space-y-2">
+                <h3 className="text-2xl font-extrabold tracking-tighter">{editingMember ? '编辑成员' : '新增成员'}</h3>
+                <p className="text-sm text-on-surface-variant font-medium">配置人员基本信息及所属组织架构</p>
+              </div>
+              
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">姓名</label>
+                  <input 
+                    type="text" 
+                    value={memberName}
+                    onChange={(e) => setMemberName(e.target.value)}
+                    placeholder="请输入真实姓名"
+                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">电子邮箱</label>
+                  <input 
+                    type="email" 
+                    value={memberEmail}
+                    onChange={(e) => setMemberEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">角色</label>
+                    <select 
+                      value={memberRole}
+                      onChange={(e) => setMemberRole(e.target.value)}
+                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                    >
+                      <option value="Admin">管理员</option>
+                      <option value="Editor">编辑</option>
+                      <option value="Viewer">查看者</option>
+                      <option value="Manager">经理</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">所属部门</label>
+                    <select 
+                      value={memberDept}
+                      onChange={(e) => setMemberDept(e.target.value)}
+                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                    >
+                      <option value="">请选择部门</option>
+                      {/* Linearized dept options */}
+                      {(() => {
+                        const linearDepts: {id: string, name: string}[] = [];
+                        const walk = (nodes: OrgNode[], prefix = '') => {
+                          nodes.forEach(n => {
+                            linearDepts.push({ id: n.id, name: `${prefix}${n.name}` });
+                            if (n.children) walk(n.children, `${prefix}  `);
+                          });
+                        };
+                        walk(orgData);
+                        return linearDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>);
+                      })()}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button 
+                  onClick={() => setIsMemberModalOpen(false)}
+                  className="px-6 py-3 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleMemberSubmit}
+                  disabled={!memberName || !memberDept}
+                  className="px-8 py-3 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all disabled:opacity-50"
+                >
+                  {editingMember ? '保存修改' : '确认新增'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Dept Modal */}
+      <AnimatePresence>
+        {isDeptModalOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-10 space-y-8"
+            >
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold tracking-tight">{editingDept ? '编辑部门' : '新增部门'}</h3>
+                {!editingDept && deptParentId && (
+                  <p className="text-xs text-on-surface-variant font-medium">创建于：<span className="text-primary">{getDeptNameById(deptParentId, orgData)}</span> 之下</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-outline uppercase tracking-widest">部门名称</label>
+                <input 
+                  type="text" 
+                  value={deptName}
+                  onChange={(e) => setDeptName(e.target.value)}
+                  placeholder="如：华东大区业务组"
+                  className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button 
+                  onClick={() => setIsDeptModalOpen(false)}
+                  className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleDeptSubmit}
+                  disabled={!deptName}
+                  className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all disabled:opacity-50"
+                >
+                  确认
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const ArchitectApp: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -1181,6 +1706,106 @@ const ArchitectApp: React.FC = () => {
     return str;
   };
   const [notifications, setNotifications] = React.useState<{id: number, text: string}[]>([]);
+  
+  // Organization and Team State
+  const [orgData, setOrgData] = React.useState<OrgNode[]>([
+    {
+      id: 'd1',
+      name: '自定义表单软件有限公司',
+      children: [
+        { id: 'd2', name: '总经办' },
+        { 
+          id: 'd3', 
+          name: '工程部', 
+          children: [
+            { id: 'd3-1', name: '后端开发组' },
+            { id: 'd3-2', name: '前端开发组' },
+            { id: 'd3-3', name: '测试组' },
+          ] 
+        },
+        { id: 'd4', name: '产品部' },
+        { id: 'd5', name: '市场部' },
+        { id: 'd6', name: '人力资源部' },
+        { id: 'd7', name: '财务部' },
+      ]
+    }
+  ]);
+
+  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([
+    { id: '1', name: '小鲤', role: 'Admin', deptId: 'd3', email: 'xiaoli@architect.com', status: 'Active', createdAt: '2024-01-10' },
+    { id: '2', name: '陈莎拉', role: 'Editor', deptId: 'd4', email: 'sarah@architect.com', status: 'Active', createdAt: '2024-01-15' },
+    { id: '3', name: '米高·贝克', role: 'Viewer', deptId: 'd3', email: 'michael@architect.com', status: 'Active', createdAt: '2024-02-01' },
+    { id: '4', name: '财务主管', role: 'Manager', deptId: 'd7', email: 'finance@architect.com', status: 'Active', createdAt: '2024-02-10' },
+    { id: '5', name: 'HR 管理员', role: 'Admin', deptId: 'd6', email: 'hr@architect.com', status: 'Active', createdAt: '2024-02-15' },
+  ]);
+
+  const onAddMember = (m: Omit<TeamMember, 'id' | 'createdAt' | 'status'>) => {
+    const newMember: TeamMember = { 
+      ...m, 
+      id: `u-${Date.now()}`, 
+      status: 'Pending', 
+      createdAt: new Date().toISOString().split('T')[0] 
+    };
+    setTeamMembers(prev => [...prev, newMember]);
+    showNotification(`已添加成员：${m.name}`);
+  };
+
+  const onUpdateMember = (m: TeamMember) => {
+    setTeamMembers(prev => prev.map(member => member.id === m.id ? m : member));
+    showNotification(`已更新成员信息：${m.name}`);
+  };
+
+  const onDeleteMember = (id: string) => {
+    setTeamMembers(prev => prev.filter(m => m.id !== id));
+    showNotification('已移除成员');
+  };
+
+  const onAddDept = (parentId: string | null, name: string) => {
+    const newDept: OrgNode = { id: `d-${Date.now()}`, name };
+    const updateTree = (nodes: OrgNode[]): OrgNode[] => {
+      if (!parentId) return [...nodes, newDept];
+      return nodes.map(node => {
+        if (node.id === parentId) {
+          return { ...node, children: [...(node.children || []), newDept] };
+        }
+        if (node.children) {
+          return { ...node, children: updateTree(node.children) };
+        }
+        return node;
+      });
+    };
+    setOrgData(prev => updateTree(prev));
+    showNotification(`已添加部门：${name}`);
+  };
+
+  const onUpdateDept = (id: string, name: string) => {
+    const updateTree = (nodes: OrgNode[]): OrgNode[] => {
+      return nodes.map(node => {
+        if (node.id === id) {
+          return { ...node, name };
+        }
+        if (node.children) {
+          return { ...node, children: updateTree(node.children) };
+        }
+        return node;
+      });
+    };
+    setOrgData(prev => updateTree(prev));
+    showNotification(`已更新部门名称：${name}`);
+  };
+
+  const onDeleteDept = (id: string) => {
+    const removeFromTree = (nodes: OrgNode[]): OrgNode[] => {
+      return nodes.filter(node => node.id !== id).map(node => {
+        if (node.children) {
+          return { ...node, children: removeFromTree(node.children) };
+        }
+        return node;
+      });
+    };
+    setOrgData(prev => removeFromTree(prev));
+    showNotification('已删除部门');
+  };
   const [selectedProjectId, setSelectedProjectId] = React.useState<string>(mockProjects[1].id);
   const [projectDetailsId, setProjectDetailsId] = React.useState<string | null>(null);
   const [projects, setProjects] = React.useState<Project[]>(mockProjects);
@@ -1298,16 +1923,8 @@ const ArchitectApp: React.FC = () => {
     { id: 'custom', label: '自定义', desc: '按自定义规则配置' },
   ];
 
-  const teamMembers = [
-    { id: '1', name: '您 (管理员)', role: 'Admin', dept: '工程部' },
-    { id: '2', name: '陈莎拉', role: 'Editor', dept: '产品部' },
-    { id: '3', name: '米高·贝克', role: 'Viewer', dept: '设计部' },
-    { id: '4', name: '财务主管', role: 'Manager', dept: '财务部' },
-    { id: '5', name: 'HR 管理员', role: 'Admin', dept: '人力资源部' },
-  ];
-
-  const allRoles = Array.from(new Set(teamMembers.map(m => m.role)));
-  const allDepts = Array.from(new Set(teamMembers.map(m => m.dept)));
+  const allRoles = ['Admin', 'Editor', 'Viewer', 'Manager'];
+  const allDepts = Array.from(new Set(teamMembers.map(m => m.deptId)));
 
   const showNotification = (text: string) => {
     const id = Date.now();
@@ -2991,22 +3608,44 @@ const ArchitectApp: React.FC = () => {
         setTempProjectName={setTempProjectName}
         setEditingProjectTitle={setEditingProjectTitle}
         createOrUpdateProject={createOrUpdateProject}
+        setConfirmModal={setConfirmModal}
         deleteProject={deleteProject}
         deleteForm={deleteForm}
         updateProjectName={updateProjectName}
         setSelectedProjectId={setSelectedProjectId}
         openEditor={openEditor}
         confirmModal={confirmModal}
-        setConfirmModal={setConfirmModal}
+        showNotification={showNotification}
+        setView={setView}
       />
       <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
     </ConsoleLayout>
   );
-  if (view === 'templates') return <ConsoleLayout viewToken="templates" title="模板中心" subtitle="基于行业案例快速构建" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><TemplatesView setView={setView} showNotification={showNotification} /></ConsoleLayout>;
   if (view === 'workflow') return <ConsoleLayout viewToken="workflow" title="基础设施流转" subtitle="编排表单数据逻辑" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><WorkflowView workflowStatus={workflowStatus} setWorkflowStatus={setWorkflowStatus} workflowInstances={workflowInstances} setView={setView} /></ConsoleLayout>;
   if (view === 'insights') return <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="深度遥测分析" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><InsightsView showNotification={showNotification} /></ConsoleLayout>;
   if (view === 'integrations') return <ConsoleLayout viewToken="integrations" title="云端集成" subtitle="第三方服务连接能力" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><IntegrationsView showNotification={showNotification} /></ConsoleLayout>;
-  if (view === 'team') return <ConsoleLayout viewToken="team" title="工作区团队" subtitle="管理协作权限" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><TeamView teamMembers={teamMembers} /></ConsoleLayout>;
+  if (view === 'team') return (
+    <ConsoleLayout 
+      viewToken="team" 
+      title="工作区组织" 
+      subtitle="管理职能架构与人员权限" 
+      currentView={view} 
+      setView={setView} 
+      showNotification={showNotification} 
+      notifications={notifications}
+    >
+      <TeamView 
+        teamMembers={teamMembers} 
+        orgData={orgData}
+        onAddMember={onAddMember}
+        onUpdateMember={onUpdateMember}
+        onDeleteMember={onDeleteMember}
+        onAddDept={onAddDept}
+        onUpdateDept={onUpdateDept}
+        onDeleteDept={onDeleteDept}
+      />
+    </ConsoleLayout>
+  );
 
   if (view === 'dashboard') {
     return (
