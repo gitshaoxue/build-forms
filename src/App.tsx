@@ -59,6 +59,9 @@ import {
   Clock3,
   Edit,
   Shield,
+  Zap,
+  Check,
+  Layout,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -131,6 +134,8 @@ interface Project {
   responses: number;
 }
 
+type FormType = 'normal' | 'workflow' | 'report' | 'dashboard';
+
 interface SavedForm {
   id: string;
   projectId: string;
@@ -138,6 +143,7 @@ interface SavedForm {
   status: 'Published' | 'Draft' | 'Archived';
   createdAt: string;
   designer: string;
+  type: FormType;
 }
 
 interface Submission {
@@ -157,12 +163,12 @@ const mockProjects: Project[] = [
 ];
 
 const mockSavedForms: SavedForm[] = [
-  { id: 'f1', projectId: '1', name: '员工基本信息', status: 'Draft', createdAt: '2026-04-10', designer: '陈' },
-  { id: 'f2', projectId: '1', name: '技术评估', status: 'Draft', createdAt: '2026-04-12', designer: '陈' },
-  { id: 'f3', projectId: '2', name: '产品满意度', status: 'Published', createdAt: '2026-03-20', designer: '莎拉' },
-  { id: 'f4', projectId: '2', name: 'UI 反馈调查', status: 'Published', createdAt: '2026-03-25', designer: '管理员' },
-  { id: 'f5', projectId: '3', name: '客户联系表单', status: 'Published', createdAt: '2026-04-01', designer: '李' },
-  { id: 'f6', projectId: '4', name: '候选名单 v1', status: 'Archived', createdAt: '2025-12-15', designer: '陈' },
+  { id: 'f1', projectId: '1', name: '员工基本信息', status: 'Draft', createdAt: '2026-04-10', designer: '陈', type: 'normal' },
+  { id: 'f2', projectId: '1', name: '技术评估', status: 'Draft', createdAt: '2026-04-12', designer: '陈', type: 'workflow' },
+  { id: 'f3', projectId: '2', name: '产品满意度', status: 'Published', createdAt: '2026-03-20', designer: '莎拉', type: 'normal' },
+  { id: 'f4', projectId: '2', name: 'UI 反馈调查', status: 'Published', createdAt: '2026-03-25', designer: '管理员', type: 'report' },
+  { id: 'f5', projectId: '3', name: '客户联系表单', status: 'Published', createdAt: '2026-04-01', designer: '李', type: 'normal' },
+  { id: 'f6', projectId: '4', name: '候选名单 v1', status: 'Archived', createdAt: '2025-12-15', designer: '陈', type: 'dashboard' },
 ];
 
 interface ConfirmModalState {
@@ -194,7 +200,7 @@ interface ProjectsViewProps {
   deleteForm: (id: string, name: string) => void;
   updateProjectName: (id: string, name: string) => void;
   setSelectedProjectId: (id: string) => void;
-  openEditor: (id: string | null) => void;
+  openEditor: (id: string | null, type?: FormType) => void;
   confirmModal: ConfirmModalState;
   setConfirmModal: React.Dispatch<React.SetStateAction<ConfirmModalState>>;
   showNotification: (text: string) => void;
@@ -518,6 +524,7 @@ const ProjectsView = ({
   setView
 }: ProjectsViewProps) => {
   const [activeTab, setActiveTab] = React.useState<'recent' | 'mine' | 'templates'>('recent');
+  const [showNewFormDropdown, setShowNewFormDropdown] = React.useState(false);
   
   const selectedProject = projects.find(p => p.id === projectDetailsId);
   const projectForms = savedForms.filter(f => f.projectId === projectDetailsId);
@@ -776,15 +783,53 @@ const ProjectsView = ({
                     <div className="text-[10px] text-on-surface-variant font-medium">共有 {projectForms.length} 个表单组件</div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    setSelectedProjectId(projectDetailsId);
-                    openEditor(null);
-                  }}
-                  className="px-4 py-2 bg-on-surface text-white rounded-lg text-xs font-bold hover:secondary"
-                >
-                  添加新表单
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowNewFormDropdown(!showNewFormDropdown)}
+                    className="px-4 py-2 bg-on-surface text-white rounded-lg text-xs font-bold hover:secondary flex items-center gap-2"
+                  >
+                    添加新表单 <ChevronDown className={`w-3 h-3 transition-transform ${showNewFormDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {showNewFormDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowNewFormDropdown(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-outline-variant p-2 z-20"
+                        >
+                          {[
+                            { type: 'normal', label: '普通表单', icon: FormInput, desc: '标准的数据收集页面' },
+                            { type: 'workflow', label: '流程表单', icon: Workflow, desc: '支持节点流转和审批' },
+                            { type: 'report', label: '报表', icon: FileSpreadsheet, desc: '数据统计与导出的表格' },
+                            { type: 'dashboard', label: '仪表盘', icon: LayoutGrid, desc: '可视化的数据监控中心' },
+                          ].map((item) => (
+                            <button
+                              key={item.type}
+                              onClick={() => {
+                                setShowNewFormDropdown(false);
+                                setSelectedProjectId(projectDetailsId);
+                                openEditor(null, item.type as FormType);
+                              }}
+                              className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-surface-container transition-all text-left group"
+                            >
+                              <div className="p-2 bg-surface rounded-lg group-hover:bg-primary/10 transition-colors">
+                                <item.icon className="w-4 h-4 text-outline group-hover:text-primary" />
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-on-surface">{item.label}</div>
+                                <div className="text-[10px] text-outline font-medium">{item.desc}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4">
@@ -796,7 +841,12 @@ const ProjectsView = ({
                       {form.name.charAt(0)}
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors">{form.name}</h4>
+                      <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-2">
+                        {form.name}
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-surface-container border border-outline-variant text-outline uppercase tracking-tight">
+                          {form.type === 'normal' ? '普通' : form.type === 'workflow' ? '流程' : form.type === 'report' ? '报表' : '大屏'}
+                        </span>
+                      </h4>
                       <div className="flex items-center gap-3 mt-1">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase ${
                           form.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
@@ -1570,6 +1620,7 @@ const ArchitectApp: React.FC = () => {
   const [view, setView] = React.useState<ViewType>('landing');
   const [selectedFieldId, setSelectedFieldId] = React.useState<string | null>(null);
   const [selectedFormId, setSelectedFormId] = React.useState<string | null>(null);
+  const [currentFormType, setCurrentFormType] = React.useState<FormType>('normal');
   
   // Storage for each form's fields and nodes
   const [formFieldsMap, setFormFieldsMap] = React.useState<Record<string, FormField[]>>({
@@ -1604,6 +1655,7 @@ const ArchitectApp: React.FC = () => {
   const [formFields, setFormFields] = React.useState<FormField[]>([]);
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+  const [showInsertNodeMenu, setShowInsertNodeMenu] = React.useState<string | null>(null);
   const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
   const [publishMode, setPublishMode] = React.useState<'internal' | 'public'>('public');
   const [publishLinks, setPublishLinks] = React.useState({
@@ -1617,7 +1669,7 @@ const ArchitectApp: React.FC = () => {
   const [internalAccess, setInternalAccess] = React.useState({
     page: { orgs: [] as string[], roles: [] as string[], users: [] as string[] },
     form: { orgs: [] as string[], roles: [] as string[], users: [] as string[] },
-    data: { scope: 'myself' as 'myself' | 'dept' | 'dept_sub' | 'all' }
+    data: { scope: 'myself' as 'myself' | 'dept' | 'dept_sub' | 'all' | 'subordinates' | 'managed_org', mode: 'belonging' as 'belonging' | 'responsible' | 'custom' }
   });
   const [propertyTab, setPropertyTab] = React.useState<'props' | 'style'>('props');
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
@@ -1967,15 +2019,18 @@ const ArchitectApp: React.FC = () => {
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
 
-  const openEditor = (formId: string | null) => {
+  const openEditor = (formId: string | null, type: FormType = 'normal') => {
     setSelectedFormId(formId);
     setEditingFormName(false);
     
     if (formId) {
       const form = savedForms.find(f => f.id === formId);
       setTempFormName(form?.name || '');
+      setCurrentFormType(form?.type || 'normal');
     } else {
-      setTempFormName('新建表单');
+      const typeLabel = type === 'normal' ? '普通表单' : type === 'workflow' ? '流程表单' : type === 'report' ? '报表' : '仪表盘';
+      setTempFormName(`新建${typeLabel}`);
+      setCurrentFormType(type);
     }
 
     // Load from map or use default if not found
@@ -2009,7 +2064,8 @@ const ArchitectApp: React.FC = () => {
         name: finalFormName,
         status: 'Draft',
         createdAt: new Date().toISOString().split('T')[0],
-        designer: '您'
+        designer: '您',
+        type: currentFormType
       };
       setSavedForms(prev => [newForm, ...prev]);
       currentId = newId;
@@ -2073,6 +2129,41 @@ const ArchitectApp: React.FC = () => {
     }
 
     setWorkflowNodes(nodes => [...nodes, newNode]);
+    setSelectedNodeId(newNode.id);
+  };
+
+  const insertWorkflowNode = (prevId: string, type: WorkflowNode['type']) => {
+    const newNode: WorkflowNode = {
+      id: `node-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      label: `新插 ${type} 环节`,
+      description: '在属性面板中配置此环节',
+      targets: [],
+      config: type === 'approval' ? { 
+        assigneeType: 'initiator', 
+        approvalType: 'OR', 
+        timeout: 24,
+        actions: ['approve', 'reject', 'transfer'] 
+      } : (type === 'condition' ? { expression: 'true' } : {})
+    };
+
+    setWorkflowNodes(nodes => {
+      const prevIndex = nodes.findIndex(n => n.id === prevId);
+      if (prevIndex === -1) return [...nodes, newNode];
+
+      const prevNode = nodes[prevIndex];
+      const originalTargets = [...prevNode.targets];
+      newNode.targets = originalTargets;
+
+      const newNodes = [...nodes];
+      // Update the previous node's target to point to the new node
+      newNodes[prevIndex] = { ...prevNode, targets: [newNode.id] };
+      // Insert the new node immediately after the previous node in the array
+      newNodes.splice(prevIndex + 1, 0, newNode);
+      
+      return newNodes;
+    });
+
     setSelectedNodeId(newNode.id);
   };
 
@@ -2604,7 +2695,49 @@ const ArchitectApp: React.FC = () => {
                           </motion.div>
                           
                           {index < workflowNodes.length - 1 && !isBranching && (
-                            <div className="h-12 w-0.5 bg-outline-variant relative my-2">
+                            <div className="h-12 w-0.5 bg-outline-variant relative my-2 group/connector">
+                               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all z-20">
+                                  <div className="relative">
+                                    <button 
+                                      onClick={() => setShowInsertNodeMenu(showInsertNodeMenu === node.id ? null : node.id)}
+                                      className={`w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all ${showInsertNodeMenu === node.id ? 'bg-error text-white rotate-45' : 'bg-primary text-white opacity-0 group-hover/connector:opacity-100'}`}
+                                    >
+                                       <Plus className="w-4 h-4" />
+                                    </button>
+
+                                    <AnimatePresence>
+                                      {showInsertNodeMenu === node.id && (
+                                        <motion.div 
+                                          initial={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
+                                          animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
+                                          exit={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
+                                          className="absolute top-8 left-1/2 bg-white rounded-xl shadow-2xl border border-outline-variant p-1.5 z-30 flex gap-1 min-w-[200px]"
+                                        >
+                                           {[
+                                             { type: 'approval' as const, icon: ShieldCheck, label: '审批' },
+                                             { type: 'notification' as const, icon: Mail, label: '通知' },
+                                             { type: 'cc' as const, icon: Share2, label: '抄送' },
+                                             { type: 'condition' as const, icon: Workflow, label: '条件' },
+                                           ].map((item) => (
+                                             <button
+                                               key={item.type}
+                                               onClick={() => {
+                                                 insertWorkflowNode(node.id, item.type);
+                                                 setShowInsertNodeMenu(null);
+                                               }}
+                                               className="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-primary/5 transition-all group/item"
+                                             >
+                                               <div className="p-1.5 bg-surface rounded-md group-hover/item:bg-primary/10 transition-colors">
+                                                 <item.icon className="w-3.5 h-3.5 text-outline group-hover/item:text-primary" />
+                                               </div>
+                                               <span className="text-[9px] font-bold whitespace-nowrap">{item.label}</span>
+                                             </button>
+                                           ))}
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </div>
+                               </div>
                               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 border-r-2 border-b-2 border-outline-variant rotate-45"></div>
                             </div>
                           )}
@@ -2918,40 +3051,69 @@ const ArchitectApp: React.FC = () => {
                               <Info className="w-3 h-3" />
                             </button>
                          </div>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* 按所属组织 */}
                             <div className="space-y-4">
-                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">预设维度</label>
+                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">按所属组织</label>
                                <div className="grid grid-cols-1 gap-2">
                                   {[
-                                     { id: 'myself', label: '本人', desc: '仅可见本人发起的数据' },
-                                     { id: 'subordinates', label: '本人及下属', desc: '可见本人及其下属的数据' },
-                                     { id: 'dept', label: '本组织', desc: '可见所在部门的所有数据' },
-                                     { id: 'dept_sub', label: '本组织及下级组织', desc: '可见本部门及所有子部门数据' },
-                                     { id: 'managed_org', label: '负责组织', desc: '可见作为负责人所管辖组织的所有数据' },
-                                     { id: 'all', label: '全部', desc: '管理员级别权限，可见全局数据' },
+                                     { id: 'myself', label: '本人', desc: '仅可见本人数据' },
+                                     { id: 'subordinates', label: '本人及下属', desc: '可见本人及下属数据' },
+                                     { id: 'dept', label: '本组织', desc: '可见本部门数据' },
+                                     { id: 'dept_sub', label: '本组织及下级组织', desc: '可见本部门及子部门数据' },
+                                     { id: 'all', label: '全部', desc: '全局可见' },
                                   ].map(scope => (
                                      <button 
                                         key={scope.id}
-                                        onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, scope: scope.id as any }})}
-                                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${internalAccess.data.scope === scope.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
+                                        onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, scope: scope.id as any, mode: 'belonging' }})}
+                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${internalAccess.data.mode === 'belonging' && internalAccess.data.scope === scope.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
                                      >
                                         <div className="text-left">
-                                           <div className={`text-xs font-bold ${internalAccess.data.scope === scope.id ? 'text-primary' : ''}`}>{scope.label}</div>
-                                           <div className="text-[10px] text-on-surface-variant font-medium">{scope.desc}</div>
+                                           <div className={`text-[11px] font-bold ${internalAccess.data.mode === 'belonging' && internalAccess.data.scope === scope.id ? 'text-primary' : ''}`}>{scope.label}</div>
+                                           <div className="text-[9px] text-on-surface-variant line-clamp-1">{scope.desc}</div>
                                         </div>
-                                        {internalAccess.data.scope === scope.id && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                                        {internalAccess.data.mode === 'belonging' && internalAccess.data.scope === scope.id && <Check className="w-3 h-3 text-primary" />}
                                      </button>
                                   ))}
                                </div>
                             </div>
+
+                            {/* 按负责组织 */}
                             <div className="space-y-4">
-                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">自定义维度</label>
-                               <div className="p-6 rounded-2xl border border-outline-variant border-dashed bg-surface/50 text-center space-y-3">
-                                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-outline-variant">
-                                     <Users className="w-5 h-5 text-outline" />
+                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">按负责组织</label>
+                               <button 
+                                  onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, mode: 'responsible' }})}
+                                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${internalAccess.data.mode === 'responsible' ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
+                               >
+                                  <div className="text-left">
+                                     <div className={`text-[11px] font-bold ${internalAccess.data.mode === 'responsible' ? 'text-primary' : ''}`}>负责组织</div>
+                                     <div className="text-[9px] text-on-surface-variant">可见管辖范围内组织数据</div>
                                   </div>
-                                  <p className="text-[10px] text-on-surface-variant font-medium">您可以根据“负责组织”或“特定业务字段”配置精细化权限</p>
-                                  <button className="px-4 py-2 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:opacity-90">添加规则</button>
+                                  {internalAccess.data.mode === 'responsible' && <Check className="w-3 h-3 text-primary" />}
+                               </button>
+                               <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant mt-2 font-medium">
+                                  <p className="text-[9px] text-on-surface-variant leading-relaxed">
+                                    授权后，被授权人可以查看其作为“负责人”身份所关联的所有组织及其下级数据。
+                                  </p>
+                               </div>
+                            </div>
+
+                            {/* 自定义 */}
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">自定义权限</label>
+                               <div className={`p-4 rounded-xl border border-dashed transition-all ${internalAccess.data.mode === 'custom' ? 'border-primary bg-primary/5' : 'border-outline-variant'}`}>
+                                  <div className="flex flex-col items-center text-center gap-2 mb-4">
+                                     <div className="p-2 bg-surface rounded-lg">
+                                        <ListFilter className="w-4 h-4 text-outline" />
+                                     </div>
+                                     <p className="text-[9px] text-on-surface-variant font-medium">根据特定标签配置规则</p>
+                                  </div>
+                                  <button 
+                                    onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, mode: 'custom' }})}
+                                    className={`w-full py-2 rounded-lg text-[10px] font-bold transition-all ${internalAccess.data.mode === 'custom' ? 'bg-primary text-white' : 'bg-on-surface text-white hover:opacity-90'}`}
+                                  >
+                                    启用自定义维度
+                                  </button>
                                </div>
                             </div>
                          </div>
@@ -3437,6 +3599,29 @@ const ArchitectApp: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* 5. 操作授权 */}
+                      <div className="space-y-4 pt-6 border-t border-outline-variant">
+                        <div className="flex items-center gap-2 mb-2">
+                           <Layout className="w-4 h-4 text-primary" />
+                           <label className="text-xs font-bold">操作授权</label>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                           {['approve', 'reject', 'transfer', 'add_signer'].map(action => (
+                             <button
+                                key={action}
+                                onClick={() => {
+                                   const current = selectedNode.config?.actions || ['approve', 'reject', 'transfer'];
+                                   const next = current.includes(action) ? current.filter(a => a !== action) : [...current, action];
+                                   updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, actions: next } });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase transition-all ${selectedNode.config?.actions?.includes(action) || (!selectedNode.config?.actions && ['approve', 'reject', 'transfer'].includes(action)) ? 'bg-primary/5 border-primary text-primary shadow-sm' : 'bg-surface border-outline-variant text-outline'}`}
+                             >
+                                {action.replace('_', ' ')}
+                             </button>
+                           ))}
+                        </div>
+                      </div>
+
                       <div className="space-y-3 pt-6 border-t border-outline-variant">
                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">并行逻辑</label>
                          <div className="flex bg-surface-container rounded-2xl p-1.5 border border-outline-variant">
@@ -3453,28 +3638,6 @@ const ArchitectApp: React.FC = () => {
                     </div>
                   )}
 
-
-
-
-
-                    <div className="space-y-3">
-                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">授权操作</label>
-                       <div className="flex flex-wrap gap-2 text-on-surface">
-                          {['approve', 'reject', 'transfer', 'add_signer'].map(action => (
-                            <button
-                               key={action}
-                               onClick={() => {
-                                  const current = selectedNode.config?.actions || [];
-                                  const next = current.includes(action) ? current.filter(a => a !== action) : [...current, action];
-                                  updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, actions: next } });
-                               }}
-                               className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase transition-all ${selectedNode.config?.actions?.includes(action) ? 'bg-on-surface text-white border-on-surface' : 'bg-surface border-outline-variant text-outline'}`}
-                            >
-                               {action.replace('_', ' ')}
-                            </button>
-                          ))}
-                       </div>
-                    </div>
                 {selectedNode.type === 'condition' && (
                   <div className="space-y-6 pt-6 border-t border-outline-variant animate-in slide-in-from-bottom-2">
                      <div className="space-y-3">
