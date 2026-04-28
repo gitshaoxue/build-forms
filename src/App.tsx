@@ -97,6 +97,14 @@ interface WorkflowNode {
     timeout?: number; // hours
     autoProcess?: 'approve' | 'transfer';
     actions?: string[]; // ['approve', 'reject', 'transfer', 'add_signer']
+    fieldPermissions?: Record<string, 'editable' | 'readonly' | 'hidden'>;
+    buttons?: string[];
+    advanced?: {
+      autoApproveIfInitiator?: boolean;
+      emptyAssigneeAction?: 'pause' | 'skip' | 'transfer_member' | 'transfer_admin';
+      emptyAssigneeTarget?: string;
+      timeoutAction?: string;
+    };
     expression?: string; // for condition
     template?: string;
     defaultBranch?: string; // id of target node
@@ -1608,7 +1616,8 @@ const ArchitectApp: React.FC = () => {
   });
   const [internalAccess, setInternalAccess] = React.useState({
     page: { orgs: [] as string[], roles: [] as string[], users: [] as string[] },
-    form: { orgs: [] as string[], roles: [] as string[], users: [] as string[] }
+    form: { orgs: [] as string[], roles: [] as string[], users: [] as string[] },
+    data: { scope: 'myself' as 'myself' | 'dept' | 'dept_sub' | 'all' }
   });
   const [propertyTab, setPropertyTab] = React.useState<'props' | 'style'>('props');
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
@@ -2902,6 +2911,52 @@ const ArchitectApp: React.FC = () => {
                          </div>
                       </section>
 
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
+                         <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                            <h3 className="font-bold flex items-center gap-2 cursor-default"><Database className="w-5 h-5 text-primary" /> 数据权限控制</h3>
+                            <button className="text-[10px] font-bold text-outline hover:text-primary transition-colors cursor-help">
+                              <Info className="w-3 h-3" />
+                            </button>
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">预设维度</label>
+                               <div className="grid grid-cols-1 gap-2">
+                                  {[
+                                     { id: 'myself', label: '本人', desc: '仅可见本人发起的数据' },
+                                     { id: 'subordinates', label: '本人及下属', desc: '可见本人及其下属的数据' },
+                                     { id: 'dept', label: '本组织', desc: '可见所在部门的所有数据' },
+                                     { id: 'dept_sub', label: '本组织及下级组织', desc: '可见本部门及所有子部门数据' },
+                                     { id: 'managed_org', label: '负责组织', desc: '可见作为负责人所管辖组织的所有数据' },
+                                     { id: 'all', label: '全部', desc: '管理员级别权限，可见全局数据' },
+                                  ].map(scope => (
+                                     <button 
+                                        key={scope.id}
+                                        onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, scope: scope.id as any }})}
+                                        className={`flex items-center justify-between p-4 rounded-xl border transition-all ${internalAccess.data.scope === scope.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
+                                     >
+                                        <div className="text-left">
+                                           <div className={`text-xs font-bold ${internalAccess.data.scope === scope.id ? 'text-primary' : ''}`}>{scope.label}</div>
+                                           <div className="text-[10px] text-on-surface-variant font-medium">{scope.desc}</div>
+                                        </div>
+                                        {internalAccess.data.scope === scope.id && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                                     </button>
+                                  ))}
+                               </div>
+                            </div>
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">自定义维度</label>
+                               <div className="p-6 rounded-2xl border border-outline-variant border-dashed bg-surface/50 text-center space-y-3">
+                                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-outline-variant">
+                                     <Users className="w-5 h-5 text-outline" />
+                                  </div>
+                                  <p className="text-[10px] text-on-surface-variant font-medium">您可以根据“负责组织”或“特定业务字段”配置精细化权限</p>
+                                  <button className="px-4 py-2 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:opacity-90">添加规则</button>
+                               </div>
+                            </div>
+                         </div>
+                      </section>
+
                       <div className="flex justify-end p-4">
                          <button onClick={() => showNotification('访问限制已生效')} className="px-12 py-4 bg-primary text-white rounded-2xl font-extrabold shadow-xl shadow-primary/20 hover:scale-105 transition-all">确认并发布</button>
                       </div>
@@ -3196,102 +3251,211 @@ const ArchitectApp: React.FC = () => {
         </main>
 
         {/* Right Sidebar - Properties */}
-        <aside className="w-80 bg-white border-l border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
-          <div className="p-6 border-b border-outline-variant flex items-center gap-2">
-            <Settings className="w-4 h-4 text-outline" />
-            <span className="font-bold tracking-tight text-sm">
-              {selectedNode ? '步骤配置' : '字段属性'}
-            </span>
-          </div>
+        {(editorTab !== 'publish' && editorTab !== 'data') && (
+          <aside className="w-80 bg-white border-l border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
+            <div className="p-6 border-b border-outline-variant flex items-center gap-2">
+              <Settings className="w-4 h-4 text-outline" />
+              <span className="font-bold tracking-tight text-sm">
+                {selectedNode ? '节点配置' : '字段属性'}
+              </span>
+            </div>
 
-          <div className="p-6 space-y-6 overflow-y-auto flex-1">
-            {(editorTab === 'workflow' && selectedNode) ? (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200 pb-10">
-                 <div className="space-y-4">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">核心配置</label>
-                    <input 
-                      type="text" 
-                      placeholder="步骤标题"
-                      value={selectedNode.label}
-                      onChange={(e) => updateWorkflowNode(selectedNode.id, { label: e.target.value })}
-                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
-                    />
-                    <textarea 
-                      placeholder="操作描述..."
-                      value={selectedNode.description}
-                      onChange={(e) => updateWorkflowNode(selectedNode.id, { description: e.target.value })}
-                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[100px]"
-                    />
-                </div>
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {(editorTab === 'workflow' && selectedNode) ? (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200 pb-10">
+                   <div className="space-y-4">
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">核心配置</label>
+                      <input 
+                        type="text" 
+                        placeholder="节点标题"
+                        value={selectedNode.label}
+                        onChange={(e) => updateWorkflowNode(selectedNode.id, { label: e.target.value })}
+                        className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                      />
+                      <textarea 
+                        placeholder="操作描述..."
+                        value={selectedNode.description}
+                        onChange={(e) => updateWorkflowNode(selectedNode.id, { description: e.target.value })}
+                        className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[100px]"
+                      />
+                  </div>
 
-                {selectedNode.type === 'approval' && (
-                  <div className="space-y-6 pt-6 border-t border-outline-variant animate-in zoom-in-95 duration-200">
-                    <div className="space-y-3">
-                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">审批人定向</label>
-                       <select 
-                         value={selectedNode.config?.assigneeType || 'user'}
-                         onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeType: e.target.value as any, assigneeValue: '' } })}
-                         className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-                       >
-                         <option value="user">特定用户</option>
-                         <option value="role">角色基础</option>
-                         <option value="dept">部门主管</option>
-                         <option value="initiator">本人（发起人）</option>
-                       </select>
-                    </div>
+                  {selectedNode.type === 'approval' && (
+                    <div className="space-y-6 pt-6 border-t border-outline-variant animate-in zoom-in-95 duration-200">
+                      {/* 1. 审批人设置 */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                           <Users className="w-4 h-4 text-primary" />
+                           <label className="text-xs font-bold">审批人设置</label>
+                        </div>
+                        <div className="space-y-3">
+                           <label className="text-[10px] font-bold text-outline uppercase tracking-widest">审批人定向</label>
+                           <select 
+                             value={selectedNode.config?.assigneeType || 'user'}
+                             onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeType: e.target.value as any, assigneeValue: '' } })}
+                             className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                           >
+                             <option value="user">特定用户</option>
+                             <option value="role">角色基础</option>
+                             <option value="dept">部门主管</option>
+                             <option value="initiator">本人（发起人）</option>
+                           </select>
+                        </div>
 
-                    {selectedNode.config?.assigneeType !== 'initiator' && (
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">受让人选择</label>
-                        <select 
-                          value={selectedNode.config?.assigneeValue || ''}
-                          onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeValue: e.target.value } })}
-                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-                        >
-                          <option value="">选择目标...</option>
-                          {selectedNode.config?.assigneeType === 'user' && teamMembers.map(m => (
-                            <option key={m.id} value={m.name}>{m.name}</option>
-                          ))}
-                          {selectedNode.config?.assigneeType === 'role' && allRoles.map(r => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                          {selectedNode.config?.assigneeType === 'dept' && allDepts.map(d => (
-                            <option key={d} value={d}>{d}</option>
-                          ))}
-                        </select>
+                        {selectedNode.config?.assigneeType !== 'initiator' && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest">受让人选择</label>
+                            <select 
+                              value={selectedNode.config?.assigneeValue || ''}
+                              onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeValue: e.target.value } })}
+                              className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                            >
+                              <option value="">选择目标...</option>
+                              {selectedNode.config?.assigneeType === 'user' && teamMembers.map(m => (
+                                <option key={m.id} value={m.name}>{m.name}</option>
+                              ))}
+                              {selectedNode.config?.assigneeType === 'role' && allRoles.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                              {selectedNode.config?.assigneeType === 'dept' && allDepts.map(d => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
-                    )}
 
-                    <div className="space-y-3">
-                       <label className="text-[10px] font-bold text-outline uppercase tracking-widest">并行逻辑</label>
-                       <div className="flex bg-surface-container rounded-2xl p-1.5 border border-outline-variant">
-                          <button 
-                             onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'OR' } })}
-                             className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'OR' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
-                          >或签 (OR)</button>
-                          <button 
-                             onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'AND' } })}
-                             className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'AND' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
-                          >会签 (AND)</button>
-                       </div>
-                    </div>
+                      {/* 2. 审批按钮配置 */}
+                      <div className="space-y-4 pt-6 border-t border-outline-variant">
+                        <div className="flex items-center gap-2 mb-2">
+                           <MousePointer2 className="w-4 h-4 text-primary" />
+                           <label className="text-xs font-bold">审批按钮配置</label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                           {[
+                              { id: 'agree', label: '同意' },
+                              { id: 'reject', label: '拒绝' },
+                              { id: 'save', label: '保存' },
+                              { id: 'transfer', label: '转交' },
+                              { id: 'add_signer', label: '加签' },
+                              { id: 'return', label: '退回' },
+                              { id: 'retract', label: '收回' },
+                           ].map(btn => (
+                             <button
+                                key={btn.id}
+                                onClick={() => {
+                                   const current = selectedNode.config?.buttons || ['agree', 'reject'];
+                                   const next = current.includes(btn.id) ? current.filter(b => b !== btn.id) : [...current, btn.id];
+                                   updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, buttons: next } });
+                                }}
+                                className={`flex items-center justify-between px-3 py-2 rounded-xl border text-[10px] font-bold transition-all ${selectedNode.config?.buttons?.includes(btn.id) || (!selectedNode.config?.buttons && ['agree', 'reject'].includes(btn.id)) ? 'bg-primary/5 border-primary text-primary shadow-sm' : 'bg-surface border-outline-variant text-outline'}`}
+                             >
+                                <span>{btn.label}</span>
+                                {(selectedNode.config?.buttons?.includes(btn.id) || (!selectedNode.config?.buttons && ['agree', 'reject'].includes(btn.id))) && <Check className="w-3 h-3" />}
+                             </button>
+                           ))}
+                        </div>
+                      </div>
 
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center">
-                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">签核超时</label>
-                          <span className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">{selectedNode.config?.timeout || 24} 小时</span>
-                       </div>
-                       <input 
-                          type="range" min="1" max="168"
-                          value={selectedNode.config?.timeout || 24}
-                          onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, timeout: parseInt(e.target.value) } })}
-                          className="w-full accent-primary h-1.5 bg-outline-variant rounded-lg appearance-none cursor-pointer"
-                       />
-                       <div className="flex justify-between text-[8px] font-bold text-outline uppercase px-1">
-                          <span>1小时</span>
-                          <span>7天</span>
-                       </div>
+                      {/* 3. 字段权限设置 */}
+                      <div className="space-y-4 pt-6 border-t border-outline-variant">
+                        <div className="flex items-center gap-2 mb-2">
+                           <ShieldCheck className="w-4 h-4 text-primary" />
+                           <label className="text-xs font-bold">字段权限设置</label>
+                        </div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                           {formFields.map(field => {
+                              const currentVal = selectedNode.config?.fieldPermissions?.[field.id] || 'editable';
+                              return (
+                                <div key={field.id} className="p-3 bg-surface border border-outline-variant rounded-xl space-y-2">
+                                   <div className="flex justify-between items-center">
+                                      <span className="text-[10px] font-bold truncate max-w-[120px]">{field.label}</span>
+                                      <div className="flex gap-1 p-0.5 bg-surface-container rounded-lg border border-outline-variant">
+                                         {[
+                                            { id: 'editable', label: '编辑' },
+                                            { id: 'readonly', label: '只读' },
+                                            { id: 'hidden', label: '隐藏' },
+                                         ].map(perm => (
+                                            <button
+                                               key={perm.id}
+                                               onClick={() => {
+                                                  const next = { ...(selectedNode.config?.fieldPermissions || {}), [field.id]: perm.id as any };
+                                                  updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, fieldPermissions: next } });
+                                               }}
+                                               className={`px-2 py-1 rounded text-[8px] font-bold uppercase transition-all ${currentVal === perm.id ? 'bg-white shadow-sm text-primary' : 'text-outline hover:text-on-surface'}`}
+                                            >
+                                               {perm.label}
+                                            </button>
+                                         ))}
+                                      </div>
+                                   </div>
+                                </div>
+                              );
+                           })}
+                        </div>
+                      </div>
+
+                      {/* 4. 高级设置 */}
+                      <div className="space-y-4 pt-6 border-t border-outline-variant">
+                        <div className="flex items-center gap-2 mb-2">
+                           <Zap className="w-4 h-4 text-primary" />
+                           <label className="text-xs font-bold">高级设置</label>
+                        </div>
+                        <div className="space-y-3">
+                           <div className="flex items-center justify-between p-3 bg-surface border border-outline-variant rounded-xl group hover:border-primary transition-all cursor-pointer"
+                              onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, advanced: { ...selectedNode.config?.advanced, autoApproveIfInitiator: !selectedNode.config?.advanced?.autoApproveIfInitiator } } })}
+                           >
+                              <span className="text-[10px] font-bold text-outline uppercase tracking-widest">发起人自动审批</span>
+                              <div className={`w-8 h-4 rounded-full relative transition-all ${selectedNode.config?.advanced?.autoApproveIfInitiator ? 'bg-primary' : 'bg-outline-variant'}`}>
+                                 <motion.div 
+                                    animate={{ left: selectedNode.config?.advanced?.autoApproveIfInitiator ? '1rem' : '0.125rem' }}
+                                    className="absolute top-0.5 w-3 h-3 bg-white rounded-full" 
+                                 />
+                              </div>
+                           </div>
+
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">审批人为空时</label>
+                              <select 
+                                 value={selectedNode.config?.advanced?.emptyAssigneeAction || 'pause'}
+                                 onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, advanced: { ...selectedNode.config?.advanced, emptyAssigneeAction: e.target.value as any } } })}
+                                 className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                              >
+                                 <option value="pause">流程暂停</option>
+                                 <option value="skip">自动跳过</option>
+                                 <option value="transfer_member">转交给指定成员</option>
+                                 <option value="transfer_admin">转交给管理员</option>
+                              </select>
+                           </div>
+
+                           <div className="space-y-3">
+                              <div className="flex justify-between items-center text-[10px] font-bold text-outline uppercase tracking-widest">审批超时设置</div>
+                              <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-[10px] font-bold text-primary flex items-center gap-2">
+                                 <Info className="w-3.5 h-3.5" /> 超时后触发自定义规则校验
+                              </div>
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-6 border-t border-outline-variant">
+                         <label className="text-[10px] font-bold text-outline uppercase tracking-widest">并行逻辑</label>
+                         <div className="flex bg-surface-container rounded-2xl p-1.5 border border-outline-variant">
+                            <button 
+                               onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'OR' } })}
+                               className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'OR' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
+                            >或签 (OR)</button>
+                            <button 
+                               onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'AND' } })}
+                               className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'AND' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
+                            >会签 (AND)</button>
+                         </div>
+                      </div>
                     </div>
+                  )}
+
+
+
+
 
                     <div className="space-y-3">
                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">授权操作</label>
@@ -3311,9 +3475,6 @@ const ArchitectApp: React.FC = () => {
                           ))}
                        </div>
                     </div>
-                  </div>
-                )}
-
                 {selectedNode.type === 'condition' && (
                   <div className="space-y-6 pt-6 border-t border-outline-variant animate-in slide-in-from-bottom-2">
                      <div className="space-y-3">
@@ -3576,7 +3737,8 @@ const ArchitectApp: React.FC = () => {
              </button>
           </div>
         </aside>
-      </div>
+      )}
+    </div>
 
       <AnimatePresence>
         {viewingSubmission && (
