@@ -76,6 +76,13 @@ interface FormField {
   required: boolean;
   options?: string[]; // for select
   width?: '1/1' | '1/2' | '1/3' | '1/4';
+  code?: string;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  visible: boolean;
+  readOnly: boolean;
+  formula?: string;
 }
 
 interface WorkflowNode {
@@ -111,6 +118,7 @@ interface Project {
   id: string;
   name: string;
   updatedAt: string;
+  lastAccessedAt: number;
   status: 'Published' | 'Draft' | 'Archived';
   responses: number;
 }
@@ -134,10 +142,10 @@ interface Submission {
 }
 
 const mockProjects: Project[] = [
-  { id: '1', name: '入职架构', updatedAt: '2小时前', status: 'Draft', responses: 0 },
-  { id: '2', name: 'Q3 客户反馈', updatedAt: '1天前', status: 'Published', responses: 1240 },
-  { id: '3', name: '企业潜在客户', updatedAt: '3天前', status: 'Published', responses: 852 },
-  { id: '4', name: 'Alpha 候选名单', updatedAt: '5天前', status: 'Archived', responses: 3200 },
+  { id: '1', name: '入职架构', updatedAt: '2小时前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 2, status: 'Draft', responses: 0 },
+  { id: '2', name: 'Q3 客户反馈', updatedAt: '1天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24, status: 'Published', responses: 1240 },
+  { id: '3', name: '企业潜在客户', updatedAt: '3天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24 * 3, status: 'Published', responses: 852 },
+  { id: '4', name: 'Alpha 候选名单', updatedAt: '5天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24 * 5, status: 'Archived', responses: 3200 },
 ];
 
 const mockSavedForms: SavedForm[] = [
@@ -516,7 +524,7 @@ const ProjectsView = ({
   ];
 
   const displayedProjects = activeTab === 'recent' 
-    ? [...projects].sort((a,b) => b.updatedAt.includes('小时') ? 1 : -1).slice(0, 3) 
+    ? [...projects].sort((a,b) => b.lastAccessedAt - a.lastAccessedAt).slice(0, 3) 
     : projects;
 
   return (
@@ -1893,6 +1901,7 @@ const ArchitectApp: React.FC = () => {
         id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         name: newProjectName,
         updatedAt: '刚刚',
+        lastAccessedAt: Date.now(),
         status: 'Draft',
         responses: 0
       };
@@ -2005,7 +2014,7 @@ const ArchitectApp: React.FC = () => {
     setWorkflowNodesMap(prev => ({ ...prev, [currentId!]: workflowNodes }));
     
     const project = projects.find(p => p.id === selectedProjectId);
-    showNotification(`表单“${finalFormName}”已保存到应用：${project?.name}`);
+    showNotification(`保存成功！表单“${finalFormName}”已保存到应用：${project?.name}`);
   };
   // Editor Actions
   const addField = (type: FormField['type'], customLabel?: string) => {
@@ -2017,6 +2026,9 @@ const ArchitectApp: React.FC = () => {
       placeholder: ['text', 'textarea'].includes(type) ? '请输入内容...' : undefined,
       options: type === 'select' ? ['选项 1', '选项 2'] : undefined,
       width: '1/1',
+      code: `field_${Math.random().toString(36).substr(2, 5)}`,
+      visible: true,
+      readOnly: false,
     };
     setFormFields([...formFields, newField]);
     setSelectedFieldId(newField.id);
@@ -3376,6 +3388,89 @@ const ArchitectApp: React.FC = () => {
                             className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段编码</label>
+                        <input 
+                          type="text" 
+                          value={selectedField.code || ''}
+                          onChange={(e) => updateField(selectedField.id, { code: e.target.value })}
+                          placeholder="例如：customer_name"
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                        />
+                      </div>
+
+                      {['text', 'number', 'textarea'].includes(selectedField.type) && (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段长度</label>
+                          <input 
+                            type="number" 
+                            value={selectedField.maxLength || ''}
+                            onChange={(e) => updateField(selectedField.id, { maxLength: e.target.value === '' ? undefined : parseInt(e.target.value) })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                          />
+                        </div>
+                      )}
+
+                      {selectedField.type === 'number' && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest">最小值</label>
+                            <input 
+                              type="number" 
+                              value={selectedField.min ?? ''}
+                              onChange={(e) => updateField(selectedField.id, { min: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+                              className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest">最大值</label>
+                            <input 
+                              type="number" 
+                              value={selectedField.max ?? ''}
+                              onChange={(e) => updateField(selectedField.id, { max: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+                              className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
+                          <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">是否显示</span>
+                          <button 
+                            onClick={() => updateField(selectedField.id, { visible: !selectedField.visible })}
+                            className={`w-8 h-5 rounded-full relative transition-all ${selectedField.visible ? 'bg-primary' : 'bg-outline-variant'}`}
+                          >
+                            <motion.div 
+                              animate={{ left: selectedField.visible ? '1rem' : '0.2rem' }}
+                              className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
+                          <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">字段只读</span>
+                          <button 
+                            onClick={() => updateField(selectedField.id, { readOnly: !selectedField.readOnly })}
+                            className={`w-8 h-5 rounded-full relative transition-all ${selectedField.readOnly ? 'bg-primary' : 'bg-outline-variant'}`}
+                          >
+                            <motion.div 
+                              animate={{ left: selectedField.readOnly ? '1rem' : '0.2rem' }}
+                              className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">计算公式</label>
+                        <textarea 
+                          value={selectedField.formula || ''}
+                          onChange={(e) => updateField(selectedField.id, { formula: e.target.value })}
+                          placeholder="例如：field_total = field_price * field_qty"
+                          className="w-full bg-on-surface text-green-400 border border-outline-variant rounded-xl px-4 py-3 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[80px]"
+                        />
                       </div>
 
                       {selectedField.type === 'select' && (
