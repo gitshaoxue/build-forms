@@ -1475,14 +1475,14 @@ const OrgTreeItem = ({
   return (
     <div className="select-none">
       <div 
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all group ${
-          selectedDeptId === node.id ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container-low text-on-surface-variant'
+        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-all duration-200 group ${
+          selectedDeptId === node.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'hover:bg-surface-container-low text-on-surface-variant'
         }`}
-        style={{ paddingLeft: `${level * 16 + 12}px` }}
+        style={{ marginLeft: `${level * 12}px` }}
         onClick={() => onSelect(node.id)}
       >
         <div 
-          className="w-4 h-4 flex items-center justify-center text-outline transition-transform"
+          className={`w-5 h-5 flex items-center justify-center transition-transform ${selectedDeptId === node.id ? 'text-white' : 'text-outline/40'}`}
           onClick={(e) => {
             e.stopPropagation();
             setIsExpanded(!isExpanded);
@@ -1496,19 +1496,19 @@ const OrgTreeItem = ({
         </div>
         
         <div className="flex-1 flex items-center gap-2 overflow-hidden">
-          <Database className="w-3.5 h-3.5 shrink-0 opacity-50" />
-          <span className="text-xs font-bold truncate">{node.name}</span>
+          <Building2 className={`w-3.5 h-3.5 shrink-0 ${selectedDeptId === node.id ? 'text-white/70' : 'opacity-40'}`} />
+          <span className={`text-xs font-black tracking-tight truncate ${selectedDeptId === node.id ? 'text-white' : 'text-on-surface'}`}>{node.name}</span>
         </div>
 
-        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-          <Plus className="w-3.5 h-3.5 hover:text-primary p-0.5" onClick={(e) => { e.stopPropagation(); onAdd(node.id); }} />
-          <Edit className="w-3.5 h-3.5 hover:text-primary p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(node); }} />
-          <Trash2 className="w-3.5 h-3.5 hover:text-error p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }} />
+        <div className={`flex items-center gap-0.5 transition-all duration-200 ${selectedDeptId === node.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <Plus className="w-4 h-4 p-1 hover:bg-white/20 rounded-md transition-colors" onClick={(e) => { e.stopPropagation(); onAdd(node.id); }} />
+          <Edit className="w-4 h-4 p-1 hover:bg-white/20 rounded-md transition-colors" onClick={(e) => { e.stopPropagation(); onEdit(node); }} />
+          <Trash2 className="w-4 h-4 p-1 hover:bg-white/20 rounded-md transition-colors" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }} />
         </div>
       </div>
 
       {hasChildren && isExpanded && (
-        <div className="mt-0.5">
+        <div className="mt-1">
           {node.children!.map(child => (
             <OrgTreeItem 
               key={child.id} 
@@ -1631,27 +1631,29 @@ const TeamView = ({
     <div className="flex h-full bg-surface-container-lowest">
       {/* Org Tree Sidebar */}
       <div className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0">
-        <div className="p-6 border-b border-outline-variant flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-primary" />
-            <h3 className="font-bold tracking-tight">组织架构</h3>
+        <div className="p-8 border-b border-outline-variant flex items-center justify-between bg-surface-container-low/30">
+          <div className="flex items-center gap-3">
+             <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                <Building2 className="w-4 h-4" />
+             </div>
+            <h3 className="font-black tracking-tighter text-lg">组织人员</h3>
           </div>
           <button 
             onClick={() => { setDeptParentId(null); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
-            className="p-1 hover:bg-surface-container-low rounded-lg text-outline-variant hover:text-primary transition-colors"
+            className="w-8 h-8 flex items-center justify-center hover:bg-primary hover:text-white rounded-xl text-outline-variant transition-all border border-transparent hover:border-primary/20"
           >
             <Plus className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-4 border-b border-outline-variant">
+        <div className="p-6">
            <button 
              onClick={() => setSelectedDeptId(null)}
-             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${!selectedDeptId ? 'bg-primary text-white' : 'hover:bg-surface-container-low text-on-surface-variant'}`}
+             className={`w-full text-left px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${!selectedDeptId ? 'bg-on-surface text-white shadow-xl shadow-black/10' : 'hover:bg-surface-container-low text-on-surface-variant border border-outline-variant/40'}`}
            >
              🏢 全公司所有成员
            </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 pb-12 custom-scrollbar space-y-1">
           {orgData.map(node => (
             <OrgTreeItem 
               key={node.id} 
@@ -2162,7 +2164,7 @@ const ArchitectApp: React.FC = () => {
   const [orgData, setOrgData] = React.useState<OrgNode[]>([
     {
       id: 'd1',
-      name: '自定义表单软件有限公司',
+      name: 'seakoi',
       children: [
         { id: 'd2', name: '总经办' },
         { 
@@ -5081,7 +5083,7 @@ const ArchitectApp: React.FC = () => {
               </div>
             </div>
             <div className="mt-20 pt-10 border-t border-outline-variant flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-outline font-medium">
-              <div>© 2024 自定义表单软件有限公司。保留所有权利。</div>
+              <div>© 2024 seakoi。保留所有权利。</div>
               <div className="flex gap-8">
                 <a href="#" className="hover:text-primary transition-colors">隐私政策</a>
                 <a href="#" className="hover:text-primary transition-colors">服务条款</a>
