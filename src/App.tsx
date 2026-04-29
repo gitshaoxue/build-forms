@@ -344,31 +344,33 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
 );
 
 const DashboardHeader = ({ title, subtitle, showNotification }: DashboardHeaderProps) => (
-  <header className="h-20 sleek-glass px-8 flex items-center justify-between sticky top-0 z-10">
-    <div>
-      <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-      {subtitle && <p className="text-xs text-on-surface-variant font-medium">{subtitle}</p>}
-    </div>
-    <div className="flex items-center gap-4">
-      <button onClick={() => showNotification('没有新通知')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
-        <Bell className="w-5 h-5" />
-        <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
-      </button>
-      <div className="relative group">
-        <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
-        <input 
-          type="text" 
-          placeholder="搜索控制台..."
-          className="bg-surface pl-10 pr-4 py-2 rounded-full text-sm border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary/20 w-64 transition-all"
+  <header className="h-20 sleek-glass sticky top-0 z-10 flex items-center shrink-0">
+    <div className="max-w-7xl mx-auto w-full px-8 flex items-center justify-between">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-on-surface">{title}</h1>
+        {subtitle && <p className="text-xs text-on-surface-variant font-medium">{subtitle}</p>}
+      </div>
+      <div className="flex items-center gap-4">
+        <button onClick={() => showNotification('没有新通知')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
+          <Bell className="w-5 h-5" />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
+        </button>
+        <div className="relative group">
+          <FileSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+          <input 
+            type="text" 
+            placeholder="搜索控制台..."
+            className="bg-surface pl-10 pr-4 py-2 rounded-full text-sm border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary/20 w-64 transition-all"
+          />
+        </div>
+        <div className="w-px h-6 bg-outline-variant"></div>
+        <img 
+          src="https://picsum.photos/seed/profile/100/100" 
+          className="w-8 h-8 rounded-full ring-2 ring-primary/10 cursor-pointer hover:ring-primary/30 transition-all border border-outline-variant" 
+          alt="头像"
+          referrerPolicy="no-referrer"
         />
       </div>
-      <div className="w-px h-6 bg-outline-variant"></div>
-      <img 
-        src="https://picsum.photos/seed/profile/100/100" 
-        className="w-8 h-8 rounded-full ring-2 ring-primary/10 cursor-pointer hover:ring-primary/30 transition-all border border-outline-variant" 
-        alt="头像"
-        referrerPolicy="no-referrer"
-      />
     </div>
   </header>
 );
@@ -766,11 +768,7 @@ const ProjectsView = ({
     <div className="p-8 space-y-8 max-w-7xl">
       {!projectDetailsId ? (
         <>
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-4">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-extrabold tracking-tighter leading-6">应用管理</h2>
-              <p className="text-sm text-on-surface-variant font-medium leading-relaxed max-w-md">构建、分发并监控您的数字化资产，打通组织内部的数据流程孤岛</p>
-            </div>
+          <div className="flex flex-col md:flex-row md:items-end justify-end gap-6 mb-4">
             <button 
               onClick={() => {
                 setProjectToEdit(null);
@@ -1011,7 +1009,7 @@ const ProjectsView = ({
                   ) : (
                     <div className="group flex items-center gap-4">
                       <h2 
-                        className="text-3xl md:text-5xl font-black tracking-tighter leading-none"
+                        className="text-2xl font-black tracking-tight leading-none"
                         onClick={() => {
                           setTempProjectName(selectedProject?.name || '');
                           setEditingProjectTitle(true);
@@ -1035,8 +1033,6 @@ const ProjectsView = ({
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                       <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest">系统已就绪</span>
                     </div>
-                    <span className="text-outline-variant/30">•</span>
-                    <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest">ID: {projectDetailsId?.slice(0, 8)}</span>
                   </div>
                 </div>
               </div>
@@ -1297,11 +1293,7 @@ const WorkflowView = ({ workflowStatus, setWorkflowStatus, workflowInstances, se
 
 const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, workflowInstances, setView }: InsightsViewProps) => (
   <div className="p-8 space-y-8 max-w-7xl pb-32">
-     <div className="flex justify-between items-end">
-      <div>
-        <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">数据与流程洞察</h2>
-        <p className="text-sm text-on-surface-variant font-medium">实时遥测、系统分析与流程监控</p>
-      </div>
+     <div className="flex justify-end items-center gap-6">
       <div className="flex items-center gap-3">
         <div className="flex bg-surface-container rounded-xl p-1.5 border border-outline-variant shadow-sm text-on-surface">
            <button 
@@ -1422,11 +1414,6 @@ const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, wor
 
 const IntegrationsView = ({ showNotification }: IntegrationsViewProps) => (
   <div className="p-8 space-y-8 max-w-7xl">
-    <div className="mb-8">
-      <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">集成中心</h2>
-      <p className="text-sm text-on-surface-variant font-medium">将 Architect 连接到您现有的技术栈</p>
-    </div>
-
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {[
         { name: 'Slack', desc: '在您的频道中接收即时提醒', connected: true },
@@ -4565,16 +4552,18 @@ const ArchitectApp: React.FC = () => {
     );
   }
 
-  if (view === 'projects') return (
-    <ConsoleLayout 
-      viewToken="projects" 
-      title="应用列表" 
-      subtitle="总计 4 个应用，2 个已部署"
-      notifications={notifications}
-      currentView={view}
-      setView={setView}
-      showNotification={showNotification}
-    >
+  if (view === 'projects') {
+    const selectedProject = projects.find(p => p.id === projectDetailsId);
+    return (
+      <ConsoleLayout 
+        viewToken="projects" 
+        title={selectedProject ? selectedProject.name : "应用管理"} 
+        subtitle={selectedProject ? `ID: ${selectedProject.id.slice(0, 8)}` : ""}
+        notifications={notifications}
+        currentView={view}
+        setView={setView}
+        showNotification={showNotification}
+      >
       <ProjectsView 
         projects={projects}
         projectDetailsId={projectDetailsId}
@@ -4603,14 +4592,27 @@ const ArchitectApp: React.FC = () => {
       />
       <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
     </ConsoleLayout>
-  );
-  if (view === 'insights') return <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="深度遥测与流程监控" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><InsightsView showNotification={showNotification} workflowStatus={workflowStatus} setWorkflowStatus={setWorkflowStatus} workflowInstances={workflowInstances} setView={setView} /></ConsoleLayout>;
-  if (view === 'integrations') return <ConsoleLayout viewToken="integrations" title="云端集成" subtitle="第三方服务连接能力" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><IntegrationsView showNotification={showNotification} /></ConsoleLayout>;
+    );
+  }
+  if (view === 'insights') {
+    return (
+      <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}>
+        <InsightsView showNotification={showNotification} workflowStatus={workflowStatus} setWorkflowStatus={setWorkflowStatus} workflowInstances={workflowInstances} setView={setView} />
+      </ConsoleLayout>
+    );
+  }
+  if (view === 'integrations') {
+    return (
+      <ConsoleLayout viewToken="integrations" title="系统集成" subtitle="" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}>
+        <IntegrationsView showNotification={showNotification} />
+      </ConsoleLayout>
+    );
+  }
   if (view === 'team') return (
     <ConsoleLayout 
       viewToken="team" 
-      title="工作区组织" 
-      subtitle="管理职能架构与人员权限" 
+      title="组织人员" 
+      subtitle="" 
       currentView={view} 
       setView={setView} 
       showNotification={showNotification} 
@@ -4630,11 +4632,16 @@ const ArchitectApp: React.FC = () => {
   );
 
   if (view === 'dashboard') {
+    const appsCount = projects.length;
+    const normalFormsCount = savedForms.filter(f => f.type === 'normal').length;
+    const workflowFormsCount = savedForms.filter(f => f.type === 'workflow').length;
+    const reportsFormsCount = savedForms.filter(f => f.type === 'report').length;
+
     return (
       <ConsoleLayout 
         viewToken="dashboard" 
-        title="欢迎回来，小鲤" 
-        subtitle="系统运行正常 • 4 个活跃构建"
+        title="仪表盘" 
+        subtitle=""
         currentView={view}
         setView={setView}
         showNotification={showNotification}
@@ -4642,11 +4649,12 @@ const ArchitectApp: React.FC = () => {
       >
         <div className="p-8 space-y-8 max-w-7xl">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { label: '活跃回复者', value: '12,540', trend: '↑ 12.5%', color: 'text-primary' },
-              { label: '总部署数', value: '452', trend: '↑ 8.2%', color: 'text-secondary' },
-              { label: 'API 握手次数', value: '89.4k', trend: '↑ 24.1%', color: 'text-green-500' },
+              { label: '应用数', value: appsCount, trend: '↑', color: 'text-primary' },
+              { label: '普通表单数', value: normalFormsCount, trend: '↑', color: 'text-secondary' },
+              { label: '流程表单数', value: workflowFormsCount, trend: '↑', color: 'text-green-500' },
+              { label: '报表数', value: reportsFormsCount, trend: '↑', color: 'text-amber-500' },
             ].map((stat) => (
               <div key={stat.label} className="sleek-card p-6 flex flex-col gap-2 group transition-transform hover:-translate-y-1">
                 <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{stat.label}</span>
@@ -4655,7 +4663,7 @@ const ArchitectApp: React.FC = () => {
                   <span className={`text-[10px] font-bold ${stat.color}`}>{stat.trend}</span>
                 </div>
                 <div className="mt-4 pt-4 border-t border-outline-variant flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-outline">最近 30 天</span>
+                  <span className="text-[10px] font-medium text-outline">实时统计</span>
                   <Activity className={`w-4 h-4 ${stat.color} opacity-20`} />
                 </div>
               </div>
@@ -4741,31 +4749,6 @@ const ArchitectApp: React.FC = () => {
                 查看完整审计日志
               </button>
             </div>
-          </div>
-          
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pb-20">
-            {[
-              { title: '新表单', desc: '从空白画布开始', icon: FormInput, action: () => setView('editor') },
-              { title: '模板中心', desc: '浏览企业级模板库', icon: LayoutGrid, action: () => setView('editor') },
-              { title: '导入数据', desc: '上传旧版 JSON/CSV', icon: Database, action: () => showNotification('集成外部数据源') },
-              { title: '网络钩子', desc: '管理事件触发器', icon: Workflow, action: () => setView('workflow') },
-            ].map((action) => (
-              <button 
-                key={action.title} 
-                onClick={action.action}
-                className="sleek-card p-5 hover:border-primary border-2 border-transparent transition-all text-left flex flex-col gap-1 group relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-10 transition-opacity text-on-surface">
-                  <action.icon className="w-12 h-12 rotate-12" />
-                </div>
-                <div className="w-10 h-10 bg-surface rounded-lg flex items-center justify-center mb-2 group-hover:bg-primary/5 transition-colors">
-                  <action.icon className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="text-sm font-bold tracking-tight text-on-surface">{action.title}</div>
-                <div className="text-[10px] text-on-surface-variant font-medium">{action.desc}</div>
-              </button>
-            ))}
           </div>
         </div>
       </ConsoleLayout>
