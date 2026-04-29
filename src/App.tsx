@@ -724,9 +724,27 @@ const ProjectsView = ({
 }: ProjectsViewProps) => {
   const [activeTab, setActiveTab] = React.useState<'recent' | 'mine' | 'templates'>('recent');
   const [showNewFormDropdown, setShowNewFormDropdown] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [typeFilter, setTypeFilter] = React.useState<'all' | 'normal' | 'workflow' | 'report' | 'dashboard'>('all');
+  const [statusFilter, setStatusFilter] = React.useState<'all' | 'Published' | 'Draft'>('all');
   
   const selectedProject = projects.find(p => p.id === projectDetailsId);
-  const projectForms = savedForms.filter(f => f.projectId === projectDetailsId);
+  const rawProjectForms = savedForms.filter(f => f.projectId === projectDetailsId);
+
+  const stats = {
+    total: rawProjectForms.length,
+    normal: rawProjectForms.filter(f => f.type === 'normal').length,
+    workflow: rawProjectForms.filter(f => f.type === 'workflow').length,
+    report: rawProjectForms.filter(f => f.type === 'report').length,
+    dashboard: rawProjectForms.filter(f => f.type === 'dashboard').length,
+  };
+
+  const projectForms = rawProjectForms.filter(form => {
+    const matchesSearch = form.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = typeFilter === 'all' || form.type === typeFilter;
+    const matchesStatus = statusFilter === 'all' || form.status === statusFilter;
+    return matchesSearch && matchesType && matchesStatus;
+  });
 
   const templates = [
     { id: 't1', title: '全能 HR 数字化套件', category: '组织人事', desc: '包含招聘、转正、绩效及员工全生命周期管理', color: 'bg-primary' },
@@ -970,24 +988,68 @@ const ProjectsView = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="md:col-span-2 space-y-6">
-              <div className="flex justify-between items-center bg-surface-container rounded-2xl p-6 border border-outline-variant mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-on-surface text-white rounded-xl flex items-center justify-center">
-                    <Database className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold">应用资产列表</div>
-                    <div className="text-[10px] text-on-surface-variant font-medium">共有 {projectForms.length} 个表单组件</div>
-                  </div>
+          {/* Asset Statistics */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { label: '表单总数', value: stats.total, icon: Database, color: 'bg-primary' },
+                { label: '普通表单', value: stats.normal, icon: FormInput, color: 'bg-blue-500' },
+                { label: '流程表单', value: stats.workflow, icon: Workflow, color: 'bg-purple-500' },
+                { label: '报表数量', value: stats.report, icon: FileSpreadsheet, color: 'bg-green-500' },
+                { label: '仪表盘', value: stats.dashboard, icon: LayoutGrid, color: 'bg-amber-500' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-white border border-outline-variant p-6 rounded-2xl shadow-sm">
+                   <div className="flex items-center gap-3 mb-2">
+                      <div className={`p-2 rounded-lg ${stat.color} text-white`}>
+                        <stat.icon className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-outline uppercase tracking-tight">{stat.label}</span>
+                   </div>
+                   <div className="text-2xl font-extrabold">{stat.value}</div>
                 </div>
-                <div className="relative">
+              ))}
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white border border-outline-variant rounded-2xl p-6 shadow-sm">
+                <div className="flex items-center gap-4 flex-1 w-full">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+                    <input 
+                      type="text" 
+                      placeholder="搜索表单名称..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-surface text-xs font-medium border border-outline-variant rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <select 
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value as any)}
+                    className="px-4 py-2 bg-surface text-xs font-bold border border-outline-variant rounded-xl focus:outline-none"
+                  >
+                    <option value="all">所有类型</option>
+                    <option value="normal">普通表单</option>
+                    <option value="workflow">流程表单</option>
+                    <option value="report">报表</option>
+                    <option value="dashboard">仪表盘</option>
+                  </select>
+                  <select 
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                    className="px-4 py-2 bg-surface text-xs font-bold border border-outline-variant rounded-xl focus:outline-none"
+                  >
+                    <option value="all">所有状态</option>
+                    <option value="Published">已发布</option>
+                    <option value="Draft">草稿</option>
+                  </select>
+                </div>
+                
+                <div className="relative shrink-0">
                   <button 
                     onClick={() => setShowNewFormDropdown(!showNewFormDropdown)}
-                    className="px-4 py-2 bg-on-surface text-white rounded-lg text-xs font-bold hover:secondary flex items-center gap-2"
+                    className="px-6 py-2.5 bg-on-surface text-white rounded-xl text-xs font-bold hover:secondary flex items-center gap-2 shadow-lg shadow-on-surface/20 transition-all active:scale-95"
                   >
-                    添加新表单 <ChevronDown className={`w-3 h-3 transition-transform ${showNewFormDropdown ? 'rotate-180' : ''}`} />
+                    <Plus className="w-4 h-4" /> 添加资产 <ChevronDown className={`w-3 h-3 transition-transform ${showNewFormDropdown ? 'rotate-180' : ''}`} />
                   </button>
 
                   <AnimatePresence>
@@ -1031,81 +1093,70 @@ const ProjectsView = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-24">
                 {projectForms.map(form => (
-                  <div key={form.id} className="sleek-card p-6 flex items-center gap-6 group hover:border-primary transition-all">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg ${
-                      form.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-primary/5 text-primary'
-                    }`}>
-                      {form.name.charAt(0)}
+                  <div key={form.id} className="sleek-card p-6 flex flex-col gap-6 group hover:border-primary transition-all bg-white shadow-sm hover:shadow-xl hover:-translate-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg ${
+                        form.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-primary/5 text-primary'
+                      }`}>
+                        {form.name.charAt(0)}
+                      </div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                        <button 
+                          onClick={() => openEditor(form.id)}
+                          className="p-2 bg-on-surface text-white rounded-lg hover:secondary transition-all shadow-lg"
+                          title="编辑"
+                        >
+                          <Code className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => deleteForm(form.id, form.name)}
+                          className="p-2 border border-outline-variant bg-white rounded-lg hover:bg-error hover:text-white hover:border-error transition-all shadow-sm"
+                          title="删除"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-2">
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-2 truncate">
                         {form.name}
+                      </h4>
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-surface-container border border-outline-variant text-outline uppercase tracking-tight">
                           {form.type === 'normal' ? '普通' : form.type === 'workflow' ? '流程' : form.type === 'report' ? '报表' : '大屏'}
                         </span>
-                      </h4>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase ${
-                          form.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-widest uppercase border ${
+                          form.status === 'Published' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'
                         }`}>
                           {form.status === 'Published' ? '已发布' : '草稿'}
                         </span>
-                        <span className="text-[10px] text-outline font-bold uppercase tracking-widest">• {form.createdAt} 创建</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button 
+                    <div className="pt-4 border-t border-outline-variant flex items-center justify-between mt-auto">
+                       <span className="text-[10px] text-outline font-bold uppercase tracking-widest">{form.createdAt}</span>
+                       <button 
                         onClick={() => openEditor(form.id)}
-                        className="px-4 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-on-surface hover:text-white transition-all shadow-sm"
-                      >
-                        编辑
-                      </button>
-                      <button 
-                        onClick={() => deleteForm(form.id, form.name)}
-                        className="p-2 hover:bg-error/5 text-outline-variant hover:text-error rounded-xl transition-all"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                        className="text-[10px] font-bold text-primary hover:underline"
+                       >
+                         管理资产
+                       </button>
                     </div>
                   </div>
                 ))}
                 {projectForms.length === 0 && (
-                  <div className="p-12 text-center border-2 border-dashed border-outline-variant rounded-3xl">
-                     <Database className="w-12 h-12 text-outline-variant mx-auto mb-4" />
-                     <h4 className="font-bold text-outline">暂无表单</h4>
-                     <p className="text-xs text-outline-variant mt-1">点击上方按钮创建该应用的第一个表单</p>
+                  <div className="col-span-full p-20 text-center border-2 border-dashed border-outline-variant rounded-3xl bg-surface/30">
+                     <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-outline-variant">
+                        <Database className="w-8 h-8 text-outline-variant" />
+                     </div>
+                     <h4 className="font-bold text-on-surface">未发现匹配资产</h4>
+                     <p className="text-xs text-outline-variant mt-2 max-w-xs mx-auto font-medium">调整搜索条件或筛选选项，或者创建新的应用资产</p>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="sleek-card p-8 bg-surface-container-low border-2 border-outline-variant flex flex-col items-center text-center gap-4">
-                 <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
-                    <Activity className="w-8 h-8 text-primary/20" />
-                 </div>
-                 <h4 className="font-bold">部署洞察力</h4>
-                  <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
-                    该应用当前有 {projectForms.filter(f => f.status === 'Published').length} 个表单处于活跃状态。平均提交成功率为 98.2%。
-                  </p>
-                  <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest mt-2">查看分析报告</button>
-               </div>
-
-               <div className="sleek-card p-6 space-y-4">
-                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest leading-none">导出与安全性</h4>
-                  <div className="space-y-3">
-                     <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
-                        <FileDown className="w-4 h-4" /> 导出成员访问矩阵
-                     </button>
-                     <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface transition-all text-xs font-bold text-on-surface-variant border border-outline-variant">
-                        <ShieldCheck className="w-4 h-4" /> 生成审计日志
-                     </button>
-                  </div>
-               </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
