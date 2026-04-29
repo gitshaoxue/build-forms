@@ -299,7 +299,7 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
         { label: '应用管理', icon: FormInput, view: 'projects' },
         { label: '组织人员', icon: Users, view: 'team' },
         { label: '数据洞察', icon: Activity, view: 'insights' },
-        { label: '集成中心', icon: Database, view: 'integrations' },
+        { label: '系统设置', icon: Database, view: 'integrations' },
       ].map((item) => (
         <div 
           key={item.label}
@@ -458,6 +458,200 @@ const JsonSchemaModal = ({ setIsSchemaVisible, formFields, showNotification }: J
     </motion.div>
   </motion.div>
 );
+
+const GlobalSettingsModal = ({ isOpen, onClose, activeTab, setActiveTab }: { isOpen: boolean, onClose: () => void, activeTab: 'workflow' | 'permissions', setActiveTab: (tab: 'workflow' | 'permissions') => void }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <header className="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low/30">
+          <h2 className="text-xl font-bold tracking-tight">全局设置</h2>
+          <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors">
+            <X className="w-5 h-5 text-outline" />
+          </button>
+        </header>
+
+        <div className="p-2 bg-surface-container-low flex border-b border-outline-variant">
+           <button 
+             onClick={() => setActiveTab('workflow')}
+             className={`flex-1 py-3 text-xs font-bold transition-all rounded-lg ${activeTab === 'workflow' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
+           >
+             流程设置
+           </button>
+           <button 
+             onClick={() => setActiveTab('permissions')}
+             className={`flex-1 py-3 text-xs font-bold transition-all rounded-lg ${activeTab === 'permissions' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
+           >
+             字段权限
+           </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+          {activeTab === 'workflow' ? (
+            <div className="space-y-10">
+              <section className="space-y-4">
+                 <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-on-surface">自动审批规则</h3>
+                    <Info className="w-3.5 h-3.5 text-outline" />
+                 </div>
+                 <div className="space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                       <input type="checkbox" className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary" />
+                       <span className="text-xs font-medium text-on-surface-variant">所有发起人合并（所有节点中审批人为发起人时，自动审批）</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                       <input type="checkbox" className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary" />
+                       <span className="text-xs font-medium text-on-surface-variant">相邻审批人合并（相邻节点的审批人相同时，自动审批）</span>
+                    </label>
+                 </div>
+                 <p className="text-[10px] text-outline italic">* 若在节点中修改了自动审批设置，全局设置将会失效</p>
+              </section>
+
+              <section className="space-y-4">
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                       <h3 className="text-sm font-bold text-on-surface">节点提交规则</h3>
+                       <Info className="w-3.5 h-3.5 text-outline" />
+                    </div>
+                    <button className="text-xs text-primary font-bold hover:underline">已配置0条集成&自动化</button>
+                 </div>
+                 <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
+                    <span className="text-xs font-bold text-outline">运行失败时，终止后续关联操作规则</span>
+                    <div className="w-8 h-4 bg-outline-variant/30 rounded-full relative cursor-pointer"><div className="absolute left-1 top-0.5 w-3 h-3 bg-white rounded-full transition-all"></div></div>
+                 </div>
+                 <button className="flex items-center gap-1 text-primary text-xs font-bold">
+                    <Plus className="w-4 h-4" />
+                    添加规则
+                 </button>
+              </section>
+
+              <section className="flex items-center justify-between border-t border-outline-variant pt-8">
+                 <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-on-surface">手写签名</h3>
+                    <Info className="w-3.5 h-3.5 text-outline" />
+                 </div>
+                 <div className="w-8 h-4 bg-outline-variant/30 rounded-full relative cursor-pointer"><div className="absolute left-1 top-0.5 w-3 h-3 bg-white rounded-full transition-all"></div></div>
+              </section>
+
+              <section className="space-y-4">
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                       <h3 className="text-sm font-bold text-on-surface">审批摘要设置</h3>
+                       <Info className="w-3.5 h-3.5 text-outline" />
+                    </div>
+                    <button className="text-xs text-primary font-bold">编辑</button>
+                 </div>
+                 <div className="p-4 bg-surface rounded-xl border border-outline-variant text-[11px] text-on-surface/70 leading-relaxed font-bold">
+                    默认设置（根据节点权限过滤显示字段，默认显示前三个必填字段 + 发起人 + 发起时间）
+                 </div>
+              </section>
+
+              <section className="space-y-4">
+                 <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-on-surface">流程收回控制</h3>
+                    <Info className="w-3.5 h-3.5 text-outline" />
+                 </div>
+                 <label className="flex items-center gap-3 opacity-50 cursor-not-allowed">
+                    <input type="checkbox" disabled className="w-4 h-4 rounded border-outline-variant" />
+                    <span className="text-xs font-medium text-on-surface-variant">开启无痕收回 (收回记录不在审批记录中展示)</span>
+                 </label>
+              </section>
+
+              <section className="space-y-4">
+                 <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-on-surface">「超时处理」不计时间时间段</h3>
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                 </div>
+                 <p className="text-[10px] text-outline font-medium">* 当前流程的所有节点的超时处理都将应用以下不计时间时间段规则</p>
+                 <button className="flex items-center gap-1 text-primary text-xs font-bold">
+                    <Plus className="w-4 h-4" />
+                    添加规则
+                 </button>
+              </section>
+            </div>
+          ) : (
+            <div className="space-y-6">
+               <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                     <h3 className="text-sm font-bold text-on-surface">查看态字段权限</h3>
+                     <Info className="w-3.5 h-3.5 text-outline" />
+                  </div>
+                  <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
+                     非当前节点人员查看审批页面时的字段权限 <br/>
+                     如需针对不同成员配置不同的字段权限，请到“权限设置”中配置 <span className="text-primary cursor-pointer hover:underline">去设置</span>
+                  </div>
+                  <div className="flex justify-end">
+                     <button className="text-[10px] text-primary font-bold">同步表单组件状态</button>
+                  </div>
+               </div>
+
+               <div className="border border-outline-variant rounded-xl overflow-hidden shadow-sm bg-white">
+                 <table className="w-full text-left border-collapse">
+                    <thead>
+                       <tr className="bg-surface text-[10px] uppercase font-bold text-outline border-b border-outline-variant">
+                          <th className="px-6 py-4">组件名称</th>
+                          <th className="px-6 py-4 text-center">可编辑</th>
+                          <th className="px-6 py-4 text-center">只读</th>
+                          <th className="px-6 py-4 text-center">隐藏</th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant text-[11px] font-bold">
+                       {[
+                          { name: '全选', type: 'checkbox' },
+                          { name: '申请人', type: 'radio', value: 'read' },
+                          { name: '申请部门', type: 'radio', value: 'read' },
+                          { name: '申请日期', type: 'radio', value: 'read' },
+                          { name: '领用明细', type: 'radio', value: 'read' },
+                          { name: '领用明细.物品名称', type: 'radio', value: 'read' },
+                          { name: '领用明细.申请数量', type: 'radio', value: 'read' },
+                          { name: '领用明细.物品用途', type: 'radio', value: 'read' },
+                          { name: '附件', type: 'radio', value: 'read' },
+                       ].map((row, i) => (
+                          <tr key={i} className="hover:bg-surface/50 transition-colors">
+                             <td className="px-6 py-4 text-on-surface">{row.name}</td>
+                             <td className="px-6 py-4 text-center">
+                                {row.name === '全选' ? (
+                                   <input type="checkbox" className="w-4 h-4 rounded border-outline-variant mx-auto" />
+                                ) : (
+                                   <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto" />
+                                )}
+                             </td>
+                             <td className="px-6 py-4 text-center">
+                                {row.name === '全选' ? (
+                                   <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-outline-variant mx-auto text-primary" />
+                                ) : (
+                                   <input type="radio" name={`perm-${i}`} defaultChecked className="w-4 h-4 border-outline-variant mx-auto text-primary" />
+                                )}
+                             </td>
+                             <td className="px-6 py-4 text-center">
+                                {row.name === '全选' ? (
+                                   <input type="checkbox" className="w-4 h-4 rounded border-outline-variant mx-auto" />
+                                ) : (
+                                   <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto" />
+                                )}
+                             </td>
+                          </tr>
+                       ))}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+          )}
+        </div>
+
+        <footer className="p-6 border-t border-outline-variant bg-surface flex justify-end gap-3 shrink-0">
+          <button onClick={onClose} className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all">取消</button>
+          <button onClick={onClose} className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all">保存</button>
+        </footer>
+      </motion.div>
+    </div>
+  );
+};
 
 const ConfirmDialog = ({ confirmModal, setConfirmModal }: { confirmModal: ConfirmModalState, setConfirmModal: React.Dispatch<React.SetStateAction<ConfirmModalState>> }) => (
   <AnimatePresence>
@@ -1746,6 +1940,8 @@ const ArchitectApp: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [showInsertNodeMenu, setShowInsertNodeMenu] = React.useState<string | null>(null);
   const [editorTab, setEditorTab] = React.useState<'design' | 'page' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
+  const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = React.useState(false);
+  const [globalSettingsTab, setGlobalSettingsTab] = React.useState<'workflow' | 'permissions'>('workflow');
   const [publishMode, setPublishMode] = React.useState<'internal' | 'public'>('public');
   const [publishLinks, setPublishLinks] = React.useState({
     page: 'http://f.architect.com/p/default_123',
@@ -2662,6 +2858,15 @@ const ArchitectApp: React.FC = () => {
 
         {/* Main Canvas */}
         <main className={`flex-1 overflow-y-auto relative ${editorTab === 'page' ? 'bg-[#f4f7f9] p-0' : 'p-12 canvas-grid bg-surface'}`}>
+          {editorTab === 'workflow' && (
+            <button 
+              onClick={() => setIsGlobalSettingsOpen(true)}
+              className="absolute top-8 right-8 flex items-center gap-2 px-4 py-2 bg-white border border-outline-variant rounded-lg text-[11px] font-bold shadow-sm hover:shadow-md transition-all z-40 group"
+            >
+              <Sliders className="w-3.5 h-3.5 text-primary group-hover:rotate-90 transition-transform" />
+              全局设置
+            </button>
+          )}
           <div className={editorTab === 'page' ? 'w-full h-full flex' : 'max-w-4xl mx-auto'}>
               {editorTab === 'page' && (
                 <>
@@ -3650,7 +3855,7 @@ const ArchitectApp: React.FC = () => {
             <div className="p-6 border-b border-outline-variant flex items-center gap-2">
               <Settings className="w-4 h-4 text-outline" />
               <span className="font-bold tracking-tight text-sm">
-                {selectedNode ? '节点配置' : '字段属性'}
+                {editorTab === 'workflow' ? '节点配置' : '字段属性'}
               </span>
             </div>
 
@@ -4259,6 +4464,12 @@ const ArchitectApp: React.FC = () => {
           </div>
         )}
         {isSchemaVisible && <JsonSchemaModal setIsSchemaVisible={setIsSchemaVisible} formFields={formFields} showNotification={showNotification} />}
+        <GlobalSettingsModal 
+          isOpen={isGlobalSettingsOpen} 
+          onClose={() => setIsGlobalSettingsOpen(false)} 
+          activeTab={globalSettingsTab}
+          setActiveTab={setGlobalSettingsTab}
+        />
       </AnimatePresence>
     </div>
     );
