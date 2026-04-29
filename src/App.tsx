@@ -240,6 +240,10 @@ interface WorkflowViewProps {
 
 interface InsightsViewProps {
   showNotification: (text: string) => void;
+  workflowStatus: string;
+  setWorkflowStatus: (status: string) => void;
+  workflowInstances: any[];
+  setView: (view: ViewType) => void;
 }
 
 interface TeamMember {
@@ -294,7 +298,6 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
         { label: '仪表盘', icon: LayoutGrid, view: 'dashboard' },
         { label: '应用管理', icon: FormInput, view: 'projects' },
         { label: '组织人员', icon: Users, view: 'team' },
-        { label: '流程管理', icon: Workflow, view: 'workflow' },
         { label: '数据洞察', icon: Activity, view: 'insights' },
         { label: '集成中心', icon: Database, view: 'integrations' },
       ].map((item) => (
@@ -1008,29 +1011,41 @@ const WorkflowView = ({ workflowStatus, setWorkflowStatus, workflowInstances, se
   </div>
 );
 
-const InsightsView = ({ showNotification }: InsightsViewProps) => (
-  <div className="p-8 space-y-8 max-w-7xl">
+const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, workflowInstances, setView }: InsightsViewProps) => (
+  <div className="p-8 space-y-8 max-w-7xl pb-32">
      <div className="flex justify-between items-end">
       <div>
-        <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">数据引擎</h2>
-        <p className="text-sm text-on-surface-variant font-medium">实时遥测和提交分析数据</p>
+        <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface">数据与流程洞察</h2>
+        <p className="text-sm text-on-surface-variant font-medium">实时遥测、系统分析与流程监控</p>
       </div>
-      <button 
-        onClick={() => showNotification('导出报告已排队')}
-        className="flex items-center gap-2 px-6 py-3 bg-on-surface text-white rounded-xl font-bold text-sm transition-all hover:opacity-90"
-      >
-        <Share2 className="w-4 h-4" /> 导出报告
-      </button>
+      <div className="flex items-center gap-3">
+        <div className="flex bg-surface-container rounded-xl p-1.5 border border-outline-variant shadow-sm text-on-surface">
+           <button 
+             onClick={() => setWorkflowStatus('active')}
+             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'active' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-outline hover:text-on-surface'}`}
+           >活跃流程</button>
+           <button 
+             onClick={() => setWorkflowStatus('inactive')}
+             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'inactive' ? 'bg-on-surface text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
+           >挂起中</button>
+        </div>
+        <button 
+          onClick={() => showNotification('导出报告已排队')}
+          className="flex items-center gap-2 px-6 py-3 bg-on-surface text-white rounded-xl font-bold text-sm transition-all hover:opacity-90"
+        >
+          <Share2 className="w-4 h-4" /> 导出分析
+        </button>
+      </div>
     </div>
 
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       {[
         { l: '平均完成时间', v: '2.4m', t: '-12%' },
-        { l: '流失率', v: '18.4%', t: '+2.1%' },
-        { l: '峰值加载时间', v: '44ms', t: '-4ms' },
-        { l: '唯一握手次数', v: '4.2k', t: '+800' },
+        { l: '流程流失率', v: '18.4%', t: '+2.1%' },
+        { l: 'API 延迟', v: '44ms', t: '-4ms' },
+        { l: '总流程实例', v: '4.2k', t: '+800' },
       ].map(item => (
-        <div key={item.l} className="sleek-card p-6 text-on-surface">
+        <div key={item.l} className="sleek-card p-6 text-on-surface bg-white">
           <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">{item.l}</div>
           <div className="text-2xl font-extrabold">{item.v}</div>
           <span className="text-[10px] font-bold text-green-600">{item.t}</span>
@@ -1038,13 +1053,85 @@ const InsightsView = ({ showNotification }: InsightsViewProps) => (
       ))}
     </div>
 
-    <div className="sleek-card p-12 flex flex-col items-center justify-center text-center gap-4 border-dashed border-2 text-on-surface">
-       <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center">
-          <Activity className="w-8 h-8 text-primary opacity-20" />
-       </div>
-       <h4 className="font-bold text-xl">高级可视化引擎</h4>
-       <p className="text-sm text-on-surface-variant max-w-md">在专业版计划中，通过热力图、漏斗图和地理位置指标自定义您的报告仪表板。</p>
-       <button className="bg-primary text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xl shadow-primary/20">查看更多洞察</button>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 space-y-6">
+         <div className="sleek-card overflow-hidden border border-outline-variant shadow-sm text-on-surface bg-white">
+            <div className="p-6 border-b border-outline-variant bg-surface-container-low/50 flex justify-between items-center">
+               <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> 活跃流程实例</h3>
+               <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded tracking-widest uppercase">实时同步</span>
+            </div>
+            <div className="divide-y divide-outline-variant">
+               {workflowInstances.map(inst => (
+                 <div key={inst.id} className="p-6 flex items-center gap-6 hover:bg-surface transition-colors group cursor-pointer">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${inst.status === 'Completed' ? 'bg-green-100 border-green-200 text-green-700' : 'bg-primary/10 border-primary/20 text-primary'}`}>
+                      {inst.status === 'Completed' ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1">
+                       <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-bold text-sm tracking-tight">实例 #{inst.id}</span>
+                          <span className="text-[10px] font-bold text-outline">• 发起人: {inst.initiator}</span>
+                       </div>
+                       <div className="text-[10px] font-medium text-on-surface-variant">当前环节: <span className="font-bold text-primary">{inst.currentStep}</span> • {inst.startTime}</div>
+                    </div>
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <button className="px-3 py-1.5 bg-on-surface text-white rounded-lg text-[10px] font-bold hover:opacity-90 shadow transition-all uppercase tracking-widest">详情</button>
+                       <ChevronRight className="w-4 h-4 text-outline" />
+                    </div>
+                 </div>
+               ))}
+            </div>
+         </div>
+
+         <div className="sleek-card p-12 flex flex-col items-center justify-center text-center gap-4 border-dashed border-2 text-on-surface bg-surface/30">
+            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
+                <Activity className="w-8 h-8 text-primary opacity-20" />
+            </div>
+            <h4 className="font-bold text-xl">高级可视化引擎</h4>
+            <p className="text-sm text-on-surface-variant max-w-md">在专业版计划中，通过热力图、漏斗图和地理位置指标自定义您的报告仪表板。</p>
+            <button className="bg-primary text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xl shadow-primary/20">解锁企业版洞察</button>
+         </div>
+      </div>
+
+      <div className="space-y-6">
+         <div className="sleek-card p-6 bg-primary text-white space-y-4 shadow-2xl shadow-primary/30">
+            <div className="flex justify-between items-start">
+               <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                  <Workflow className="w-6 h-6" />
+               </div>
+               <div className="text-right">
+                  <div className="text-[10px] font-bold opacity-60 uppercase tracking-widest">系统负载</div>
+                  <div className="text-2xl font-extrabold">94.2%</div>
+               </div>
+            </div>
+            <div>
+               <h4 className="font-extrabold tracking-tight text-white uppercase text-xs">流程引擎状态正常</h4>
+               <p className="text-[11px] opacity-80 mt-1 font-medium leading-relaxed">系统正在自动扩缩以处理提交峰值。平均执行延迟：240ms</p>
+            </div>
+            <button 
+               onClick={() => setView('projects')}
+               className="w-full py-3 bg-white text-primary rounded-xl text-xs font-bold hover:bg-surface-container transition-all shadow-lg"
+            >调整应用配置</button>
+         </div>
+
+         <div className="sleek-card p-6 space-y-4 shadow-sm border border-outline-variant bg-white">
+            <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">流程维护工具</h4>
+            <div className="space-y-2">
+               {[
+                 { label: '导出全量审计日志', icon: FileDown },
+                 { label: '重置实时索引', icon: RefreshCw },
+                 { label: '清除引擎缓存', icon: Trash2 },
+               ].map(action => (
+                 <button key={action.label} className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold text-xs text-on-surface">
+                    <div className="flex items-center gap-3">
+                       <action.icon className="w-4 h-4 text-outline group-hover:text-primary transition-colors" />
+                       <span>{action.label}</span>
+                    </div>
+                    <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all text-primary" />
+                 </button>
+               ))}
+            </div>
+         </div>
+      </div>
     </div>
   </div>
 );
@@ -4216,8 +4303,7 @@ const ArchitectApp: React.FC = () => {
       <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
     </ConsoleLayout>
   );
-  if (view === 'workflow') return <ConsoleLayout viewToken="workflow" title="基础设施流转" subtitle="编排表单数据逻辑" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><WorkflowView workflowStatus={workflowStatus} setWorkflowStatus={setWorkflowStatus} workflowInstances={workflowInstances} setView={setView} /></ConsoleLayout>;
-  if (view === 'insights') return <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="深度遥测分析" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><InsightsView showNotification={showNotification} /></ConsoleLayout>;
+  if (view === 'insights') return <ConsoleLayout viewToken="insights" title="数据洞察" subtitle="深度遥测与流程监控" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><InsightsView showNotification={showNotification} workflowStatus={workflowStatus} setWorkflowStatus={setWorkflowStatus} workflowInstances={workflowInstances} setView={setView} /></ConsoleLayout>;
   if (view === 'integrations') return <ConsoleLayout viewToken="integrations" title="云端集成" subtitle="第三方服务连接能力" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}><IntegrationsView showNotification={showNotification} /></ConsoleLayout>;
   if (view === 'team') return (
     <ConsoleLayout 
