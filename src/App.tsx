@@ -62,6 +62,8 @@ import {
   Zap,
   Check,
   Layout,
+  Sliders,
+  Printer,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -292,7 +294,7 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
         { label: '仪表盘', icon: LayoutGrid, view: 'dashboard' },
         { label: '应用管理', icon: FormInput, view: 'projects' },
         { label: '组织人员', icon: Users, view: 'team' },
-        { label: '团队流转', icon: Workflow, view: 'workflow' },
+        { label: '流程管理', icon: Workflow, view: 'workflow' },
         { label: '数据洞察', icon: Activity, view: 'insights' },
         { label: '集成中心', icon: Database, view: 'integrations' },
       ].map((item) => (
@@ -1656,7 +1658,7 @@ const ArchitectApp: React.FC = () => {
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [showInsertNodeMenu, setShowInsertNodeMenu] = React.useState<string | null>(null);
-  const [editorTab, setEditorTab] = React.useState<'design' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
+  const [editorTab, setEditorTab] = React.useState<'design' | 'page' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
   const [publishMode, setPublishMode] = React.useState<'internal' | 'public'>('public');
   const [publishLinks, setPublishLinks] = React.useState({
     page: 'http://f.architect.com/p/default_123',
@@ -2236,6 +2238,7 @@ const ArchitectApp: React.FC = () => {
               {[
                 { id: 'design', label: '设计', icon: Code },
                 { id: 'workflow', label: '流程', icon: Workflow },
+                { id: 'page', label: '页面', icon: Layout },
                 { id: 'simulate', label: '仿真', icon: Activity },
                 { id: 'publish', label: '发布', icon: Globe },
                 { id: 'data', label: '数据', icon: Database },
@@ -2252,23 +2255,6 @@ const ArchitectApp: React.FC = () => {
           </div>
 
             <div className="flex justify-end items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-surface rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary group mr-3">
-               <Briefcase className="w-3.5 h-3.5 text-outline group-hover:text-primary transition-colors" />
-               <div className="flex flex-col">
-                  <span className="text-[8px] font-bold text-outline uppercase tracking-tighter leading-none">表单上下文</span>
-                  <select 
-                    value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="bg-transparent text-xs font-extrabold focus:outline-none cursor-pointer pr-4 appearance-none hover:text-primary transition-colors h-4 leading-none"
-                  >
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id} className="text-on-surface">{p.name}</option>
-                    ))}
-                  </select>
-               </div>
-               <ChevronDown className="w-3 h-3 text-outline group-hover:text-primary transition-colors ml-[-4px]" />
-            </div>
-
             <button 
               onClick={() => setEditorTab('preview')}
               className={`flex items-center justify-center w-10 h-10 rounded-xl font-extrabold transition-all active:scale-95 group border ${editorTab === 'preview' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-white border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary'}`}
@@ -2289,10 +2275,11 @@ const ArchitectApp: React.FC = () => {
 
         <div className="flex flex-1 overflow-hidden">
           {/* Editor Sidebar - Components / Nodes */}
-          <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
+          {(editorTab !== 'page') && (
+            <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center">
               <span className="font-bold tracking-tight text-sm">
-                {editorTab === 'workflow' ? '流程组件' : editorTab === 'publish' ? '发布渠道' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '字段库'}
+                {editorTab === 'workflow' ? '流程组件' : editorTab === 'page' ? '页面配置' : editorTab === 'publish' ? '发布渠道' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '字段库'}
               </span>
             </div>
           
@@ -2582,12 +2569,170 @@ const ArchitectApp: React.FC = () => {
                 我们的 AI 可以自动建议验证规则和最佳执行路径。
               </p>
             </div>
-          </div>
-        </aside>
+            </div>
+          </aside>
+          )}
 
         {/* Main Canvas */}
-        <main className="flex-1 overflow-y-auto p-12 canvas-grid relative bg-surface">
-          <div className="max-w-4xl mx-auto">
+        <main className={`flex-1 overflow-y-auto relative ${editorTab === 'page' ? 'bg-[#f4f7f9] p-0' : 'p-12 canvas-grid bg-surface'}`}>
+          <div className={editorTab === 'page' ? 'w-full h-full flex' : 'max-w-4xl mx-auto'}>
+              {editorTab === 'page' && (
+                <>
+                  {/* Page Internal Sidebar */}
+                  <div className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0 pt-4">
+                    {[
+                      { id: 'common', label: '基础设置', icon: Settings },
+                      { id: 'details', label: '自定义详情页', icon: Layout },
+                      { id: 'buttons', label: '自定义按钮', icon: MousePointer2 },
+                      { id: 'notifications', label: '消息通知', icon: Bell },
+                      { id: 'print', label: '打印设置', icon: Printer },
+                      { id: 'relation', label: '关联列表', icon: TableProperties },
+                      { id: 'permissions', label: '权限设置', icon: Shield },
+                      { id: 'qrcode', label: '二维码标签', icon: QrCode },
+                    ].map((item) => (
+                      <button 
+                        key={item.id}
+                        className={`flex items-center gap-3 px-6 py-4 text-xs font-bold transition-all border-l-4 ${item.id === 'common' ? 'bg-primary/5 text-primary border-primary' : 'text-on-surface-variant hover:bg-surface border-transparent'}`}
+                      >
+                        <item.icon className="w-4 h-4" />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Settings Content */}
+                  <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                    <div className="bg-white rounded-2xl border border-outline-variant p-10 space-y-12">
+                      <section className="space-y-8">
+                        <h2 className="text-xl font-bold tracking-tight">常用设置</h2>
+                        
+                        {/* Data Title */}
+                        <div className="space-y-4">
+                           <div className="flex items-center gap-2">
+                              <span className="text-xs font-extrabold text-on-surface/80">数据标题</span>
+                              <Info className="w-3 h-3 text-outline" />
+                           </div>
+                           <div className="flex gap-6">
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                 <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                                    <div className="w-2 h-2 rounded-full bg-primary" />
+                                 </div>
+                                 <span className="text-xs font-bold">默认标题</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                 <div className="w-4 h-4 rounded-full border-2 border-outline-variant flex items-center justify-center" />
+                                 <span className="text-xs font-bold text-on-surface-variant">自定义</span>
+                              </label>
+                           </div>
+                           <div className="p-4 bg-surface rounded-xl border border-outline-variant inline-flex flex-col gap-2 min-w-[400px]">
+                              <div className="flex gap-2">
+                                 <span className="px-2 py-0.5 bg-white border border-outline-variant rounded text-[10px] font-bold">发起人</span>
+                                 <span className="px-2 py-0.5 bg-white border border-outline-variant rounded text-[10px] font-bold">发起的</span>
+                                 <span className="px-2 py-0.5 bg-white border border-outline-variant rounded text-[10px] font-bold">页面名称</span>
+                              </div>
+                              <span className="text-[10px] text-outline">示例：宜搭发起的费用报销</span>
+                           </div>
+                        </div>
+
+                        {/* Page Operations */}
+                        <div className="space-y-4 pt-4">
+                           <div className="flex items-center gap-2">
+                              <span className="text-xs font-extrabold text-on-surface/80">页面操作</span>
+                           </div>
+                           <div className="flex items-center gap-6">
+                              <div className="flex items-center gap-6">
+                                <label className="flex items-center gap-2">
+                                  <div className="w-4 h-4 rounded border border-outline-variant" />
+                                  <span className="text-xs font-bold text-on-surface-variant">复制流程</span>
+                                </label>
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-surface rounded-lg border border-outline-variant min-w-[120px] justify-between">
+                                  <span className="text-[11px] font-bold">发起时的数据</span>
+                                  <ChevronDown className="w-3 h-3 text-outline" />
+                                </div>
+                                <Info className="w-3 h-3 text-outline" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
+                                  <Check className="w-3 h-3 text-white" />
+                                </div>
+                                <span className="text-xs font-bold">提交时预览流程</span>
+                                <Info className="w-3 h-3 text-outline" />
+                              </div>
+                           </div>
+                        </div>
+
+                        {/* Consultant */}
+                        <div className="space-y-4 pt-4">
+                           <div className="flex items-center gap-2">
+                              <span className="text-xs font-extrabold text-on-surface/80">设置咨询人员</span>
+                              <Info className="w-3 h-3 text-outline" />
+                           </div>
+                           <div className="flex items-center gap-3">
+                             <div className="flex-1 max-w-sm h-10 border border-outline-variant rounded-xl flex items-center px-4 bg-surface">
+                                <span className="text-xs text-outline italic">请选择</span>
+                                <div className="flex-1" />
+                                <Users className="w-4 h-4 text-outline" />
+                             </div>
+                             <label className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded border border-outline-variant" />
+                                <span className="text-xs font-bold text-on-surface-variant">咨询人员为空时默认显示应用管理员</span>
+                             </label>
+                           </div>
+                        </div>
+
+                        {/* Redirection */}
+                        <div className="space-y-4 pt-4">
+                           <div className="flex items-center gap-2">
+                              <span className="text-xs font-extrabold text-on-surface/80">页面提交后跳转的页面</span>
+                              <Info className="w-3 h-3 text-outline" />
+                           </div>
+                           <div className="flex gap-8">
+                             <label className="flex items-center gap-2">
+                               <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                                  <div className="w-2 h-2 rounded-full bg-primary" />
+                               </div>
+                               <span className="text-xs font-bold">默认页面</span>
+                               <Info className="w-3 h-3 text-outline" />
+                             </label>
+                             <label className="flex items-center gap-2">
+                               <div className="w-4 h-4 rounded-full border-2 border-outline-variant" />
+                               <span className="text-xs font-bold text-on-surface-variant">应用内页面</span>
+                             </label>
+                             <label className="flex items-center gap-2">
+                               <div className="w-4 h-4 rounded-full border-2 border-outline-variant" />
+                               <span className="text-xs font-bold text-on-surface-variant">外部链接</span>
+                             </label>
+                           </div>
+                        </div>
+                      </section>
+
+                      <section className="space-y-8 pt-12 border-t border-outline-variant/50">
+                        <h2 className="text-xl font-bold tracking-tight">数据管理页</h2>
+                        <div className="space-y-6">
+                           <div className="space-y-4">
+                              <span className="text-xs font-extrabold text-on-surface/80">操作列设置</span>
+                              <button className="flex items-center gap-2 text-primary text-xs font-bold hover:opacity-80 transition-all">
+                                 <Plus className="w-4 h-4" />
+                                 新增操作
+                              </button>
+                           </div>
+                           <div className="space-y-4 pt-4">
+                              <span className="text-xs font-extrabold text-on-surface/80">导入全局设置</span>
+                              <label className="flex items-center gap-3 p-4 bg-surface rounded-2xl border border-outline-variant border-dashed">
+                                 <div className="w-4 h-4 rounded border border-outline-variant" />
+                                 <div className="flex flex-col">
+                                    <span className="text-xs font-bold">自动触发动作</span>
+                                    <span className="text-[10px] text-outline font-medium">开启后导入数据将自动触发表单提交、校验、公式计算等业务能力</span>
+                                 </div>
+                              </label>
+                           </div>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {editorTab === 'design' && (
                 <div className="max-w-4xl mx-auto space-y-4 pb-20">
                   <Reorder.Group axis="y" values={formFields} onReorder={setFormFields} className="flex flex-wrap gap-4">
@@ -3413,7 +3558,7 @@ const ArchitectApp: React.FC = () => {
         </main>
 
         {/* Right Sidebar - Properties */}
-        {(editorTab !== 'publish' && editorTab !== 'data') && (
+        {(editorTab !== 'publish' && editorTab !== 'data' && editorTab !== 'simulate' && editorTab !== 'page') && (
           <aside className="w-80 bg-white border-l border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center gap-2">
               <Settings className="w-4 h-4 text-outline" />
@@ -3896,7 +4041,7 @@ const ArchitectApp: React.FC = () => {
                onClick={() => setIsSchemaVisible(true)}
                className="w-full bg-on-surface text-white py-3 rounded-xl text-xs font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
              >
-               <Code className="w-3 h-3" /> 导出流水线逻辑
+               <Code className="w-3 h-3" /> 导出设计
              </button>
           </div>
         </aside>
