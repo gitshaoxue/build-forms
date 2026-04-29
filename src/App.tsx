@@ -67,6 +67,8 @@ import {
   Layout,
   Sliders,
   Printer,
+  Monitor,
+  Smartphone,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -2042,6 +2044,7 @@ const ArchitectApp: React.FC = () => {
   const [simulationData, setSimulationData] = React.useState<Record<string, any>>({ amount: 6000 });
   const [isSchemaVisible, setIsSchemaVisible] = React.useState(false);
 
+  const [previewDevice, setPreviewDevice] = React.useState<'pc' | 'app'>('pc');
   const [submissions, setSubmissions] = React.useState<Submission[]>([
     {
       id: 'SUB-20240320-01',
@@ -2635,7 +2638,7 @@ const ArchitectApp: React.FC = () => {
 
         <div className="flex flex-1 overflow-hidden">
           {/* Editor Sidebar - Components / Nodes */}
-          {(editorTab !== 'page') && (
+          {(editorTab !== 'page' && editorTab !== 'preview') && (
             <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center">
               <span className="font-bold tracking-tight text-sm">
@@ -2934,7 +2937,7 @@ const ArchitectApp: React.FC = () => {
           )}
 
         {/* Main Canvas */}
-        <main className={`flex-1 overflow-y-auto relative ${editorTab === 'page' ? 'bg-[#f4f7f9] p-0' : 'p-12 canvas-grid bg-surface'}`}>
+        <main className={`flex-1 overflow-y-auto relative ${editorTab === 'page' ? 'bg-[#f4f7f9] p-0' : editorTab === 'preview' ? 'bg-[#f1f3f5] p-8' : 'p-12 canvas-grid bg-surface'}`}>
           {editorTab === 'workflow' && (
             <button 
               onClick={() => setIsGlobalSettingsOpen(true)}
@@ -2944,7 +2947,7 @@ const ArchitectApp: React.FC = () => {
               全局设置
             </button>
           )}
-          <div className={editorTab === 'page' ? 'w-full h-full flex' : 'max-w-4xl mx-auto'}>
+          <div className={editorTab === 'page' ? 'w-full h-full flex' : editorTab === 'preview' ? 'w-full h-full' : 'max-w-4xl mx-auto'}>
               {editorTab === 'page' && (
                 <>
                   {/* Page Internal Sidebar */}
@@ -3850,84 +3853,115 @@ const ArchitectApp: React.FC = () => {
               )}
 
               {editorTab === 'preview' && (
-                <div className="max-w-2xl mx-auto">
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="sleek-card p-12 shadow-2xl bg-white border-2 border-outline-variant"
-                  >
-                    <div className="flex justify-between items-start mb-8">
-                      <div>
-                        <h2 className="text-3xl font-extrabold tracking-tighter">
-                          {selectedFormId ? savedForms.find(f => f.id === selectedFormId)?.name : '预览表单'}
-                        </h2>
-                        <p className="text-sm text-on-surface-variant font-medium">预览您的设计成果</p>
-                      </div>
-                      <div className="p-3 bg-surface rounded-2xl flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-green-500" />
-                        <span className="text-[10px] font-bold tracking-widest uppercase">校验通过</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-8">
-                      {formFields.map((field) => (
-                        <div 
-                          key={field.id} 
-                          className="space-y-2 shrink-0"
-                          style={{
-                            width: field.width === '1/2' ? 'calc((100% - 1rem) / 2)' : 
-                                   field.width === '1/3' ? 'calc((100% - 2rem) / 3)' :
-                                   field.width === '1/4' ? 'calc((100% - 3rem) / 4)' : '100%'
-                          }}
-                        >
-                          <label className="text-sm font-bold block select-none">
-                            {field.label} {field.required && <span className="text-error">*</span>}
-                          </label>
-                          {field.type === 'textarea' ? (
-                            <textarea 
-                              placeholder={field.placeholder} 
-                              className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-h-[120px]"
-                            />
-                          ) : field.type === 'select' ? (
-                            <div className="relative">
-                              <select className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none">
-                                {field.options?.map(opt => <option key={opt}>{opt}</option>)}
-                              </select>
-                              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-outline rotate-90 pointer-events-none" />
-                            </div>
-                          ) : (
-                            <input 
-                              type={field.type} 
-                              placeholder={field.placeholder} 
-                              className="w-full bg-surface border border-outline-variant rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                            />
-                          )}
-                        </div>
-                      ))}
-                      <div className="p-6 bg-surface-container-high rounded-2xl border border-outline-variant">
-                         <div className="flex items-center gap-2 mb-3">
-                           <Workflow className="w-4 h-4 text-primary" />
-                           <span className="text-xs font-bold">Process Logic Applied</span>
-                         </div>
-                         <div className="text-[10px] font-medium text-on-surface-variant flex gap-2">
-                            {workflowNodes.map((n, i) => (
-                              <span key={n.id} className="flex items-center gap-1">
-                                {n.label} {i < workflowNodes.length - 1 && <ChevronRight className="w-3 h-3 opacity-30" />}
-                              </span>
-                            ))}
-                         </div>
-                      </div>
-                      <button className="w-full bg-primary text-white py-4 rounded-xl text-sm font-bold shadow-xl shadow-primary/20 hover:scale-[1.01] transition-all">
-                        发起工作流申请
+                <div className="w-full flex flex-col items-center">
+                  <div className="w-full max-w-5xl mb-6 flex justify-end">
+                    <div className="bg-white border border-outline-variant p-1 rounded-2xl flex items-center shadow-sm">
+                      <button 
+                        onClick={() => setPreviewDevice('pc')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                          previewDevice === 'pc' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface hover:bg-surface'
+                        }`}
+                      >
+                        <Monitor className="w-3.5 h-3.5" />
+                        PC预览
+                      </button>
+                      <button 
+                        onClick={() => setPreviewDevice('app')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                          previewDevice === 'app' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface hover:bg-surface'
+                        }`}
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        APP预览
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
+
+                  <div className={`transition-all duration-500 overflow-hidden ${previewDevice === 'pc' ? 'w-full max-w-4xl' : 'w-[375px] h-[667px] ring-8 ring-on-surface rounded-[3rem] shadow-2xl relative'}`}>
+                    {previewDevice === 'app' && (
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-on-surface rounded-b-2xl z-20"></div>
+                    )}
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`sleek-card min-h-full bg-white border-2 border-outline-variant shadow-2xl overflow-y-auto ${previewDevice === 'app' ? 'p-6 pt-12 custom-scrollbar' : 'p-12'}`}
+                    >
+                      <div className="flex justify-between items-start mb-8">
+                        <div>
+                          <h2 className={`${previewDevice === 'app' ? 'text-xl' : 'text-3xl'} font-extrabold tracking-tighter`}>
+                            {selectedFormId ? savedForms.find(f => f.id === selectedFormId)?.name : '预览表单'}
+                          </h2>
+                          <p className="text-[10px] text-on-surface-variant font-black uppercase tracking-widest mt-1 opacity-60">设计遥测预览模式</p>
+                        </div>
+                        <div className={`p-2 bg-green-50 rounded-xl flex items-center gap-1.5 border border-green-100 ${previewDevice === 'app' ? 'hidden' : ''}`}>
+                          <Activity className="w-3.5 h-3.5 text-green-500" />
+                          <span className="text-[9px] font-black tracking-[0.1em] text-green-600 uppercase">SYNCHRONIZED</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-6">
+                        {formFields.map((field) => (
+                          <div 
+                            key={field.id} 
+                            className="space-y-2 shrink-0 transition-all duration-300"
+                            style={{
+                              width: previewDevice === 'app' ? '100%' : (
+                                     field.width === '1/2' ? 'calc((100% - 1rem) / 2)' : 
+                                     field.width === '1/3' ? 'calc((100% - 2rem) / 3)' :
+                                     field.width === '1/4' ? 'calc((100% - 3rem) / 4)' : '100%'
+                              )
+                            }}
+                          >
+                            <label className="text-[11px] font-black text-on-surface/80 uppercase tracking-wider block select-none">
+                              {field.label} {field.required && <span className="text-error ml-0.5">*</span>}
+                            </label>
+                            {field.type === 'textarea' ? (
+                              <textarea 
+                                placeholder={field.placeholder} 
+                                className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-h-[120px]"
+                              />
+                            ) : field.type === 'select' ? (
+                              <div className="relative">
+                                <select className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3.5 pr-10 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer">
+                                  {field.options?.map(opt => <option key={opt}>{opt}</option>)}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline pointer-events-none" />
+                              </div>
+                            ) : (
+                              <input 
+                                type={field.type} 
+                                placeholder={field.placeholder} 
+                                className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                              />
+                            )}
+                          </div>
+                        ))}
+                        <div className="w-full p-6 bg-surface-container-high rounded-2xl border border-outline-variant mt-4">
+                           <div className="flex items-center gap-2 mb-3">
+                             <Workflow className="w-4 h-4 text-primary" />
+                             <span className="text-[10px] font-black uppercase tracking-widest text-primary">流程逻辑编排</span>
+                           </div>
+                           <div className="text-[10px] font-bold text-on-surface-variant flex flex-wrap gap-2">
+                              {workflowNodes.map((n, i) => (
+                                <span key={n.id} className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-outline-variant/60">
+                                  {n.label} {i < workflowNodes.length - 1 && <ChevronRight className="w-3 h-3 opacity-30" />}
+                                </span>
+                              ))}
+                           </div>
+                        </div>
+                        <button className="w-full bg-on-surface text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-black/10 hover:translate-y-[-2px] transition-all active:scale-[0.98]">
+                          发起工作流申请
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
                 </div>
               )}
             </div>
         </main>
 
         {/* Right Sidebar - Properties */}
-        {(editorTab !== 'publish' && editorTab !== 'data' && editorTab !== 'simulate' && editorTab !== 'page') && (
+        {(editorTab !== 'publish' && editorTab !== 'data' && editorTab !== 'simulate' && editorTab !== 'page' && editorTab !== 'preview') && (
           <aside className="w-80 bg-white border-l border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center gap-2">
               <Settings className="w-4 h-4 text-outline" />
