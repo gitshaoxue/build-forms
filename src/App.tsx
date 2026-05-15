@@ -9,6 +9,7 @@ import {
   Layers, 
   MousePointer2,
   FileSearch,
+  Network,
   Users,
   LayoutGrid,
   Menu,
@@ -69,6 +70,20 @@ import {
   Printer,
   Monitor,
   Smartphone,
+  Hash,
+  ListChecks,
+  ToggleLeft,
+  FileText,
+  Upload,
+  FileUp,
+  Table,
+  PenTool,
+  MapPin,
+  Barcode,
+  Columns,
+  Square,
+  Box,
+  Image as LucideImage,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -77,21 +92,31 @@ type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'workflow' | '
 interface FormField {
   id: string;
   type: 
-    | 'text' | 'number' | 'textarea' | 'select' | 'checkbox' | 'date'
-    | 'cascade' | 'relateQuery' | 'subform'
-    | 'userSelect' | 'orgSelect' | 'roleSelect'
-    | 'creator' | 'createdAt' | 'modifier' | 'modifiedAt' | 'deleter' | 'deletedAt';
+    | 'text' | 'textarea' | 'number' | 'date' | 'time' | 'datetimeRange' 
+    | 'select' | 'multiSelect' | 'radio' | 'checkbox' | 'switch' 
+    | 'descriptionText' | 'upload' | 'download'
+    | 'orgSelect' | 'userSelect' | 'roleSelect'
+    | 'cascade' | 'relateQuery' | 'subform' | 'tableGrid' | 'signature' | 'location' | 'barcode' | 'qrcode' | 'progress' | 'richtext'
+    | 'creator' | 'createdAt' | 'modifier' | 'modifiedAt'
+    | 'grid' | 'tabs' | 'card' | 'group';
   label: string;
   placeholder?: string;
   required: boolean;
-  options?: string[]; // for select
+  readOnly: boolean;
+  visible: boolean;
+  hidden?: boolean;
+  options?: string[]; // for select, radio, checkbox
   width?: '1/1' | '1/2' | '1/3' | '1/4';
   code?: string;
   maxLength?: number;
   min?: number;
   max?: number;
-  visible: boolean;
-  readOnly: boolean;
+  defaultValue?: any;
+  rules?: string;
+  description?: string;
+  terminals?: ('pc' | 'mobile')[];
+  sortOrder?: number;
+  componentType?: string;
   formula?: string;
 }
 
@@ -302,7 +327,6 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
       {[
         { label: '仪表盘', icon: LayoutGrid, view: 'dashboard' },
         { label: '应用管理', icon: FormInput, view: 'projects' },
-        { label: '组织人员', icon: Users, view: 'team' },
         { label: '数据洞察', icon: Activity, view: 'insights' },
         { label: '系统设置', icon: Database, view: 'integrations' },
       ].map((item) => (
@@ -1414,27 +1438,39 @@ const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, wor
   </div>
 );
 
-const IntegrationsView = ({ showNotification }: IntegrationsViewProps) => (
+const IntegrationsView = ({ showNotification, setView }: IntegrationsViewProps & { setView: (v: ViewType) => void }) => (
   <div className="p-8 space-y-8 max-w-7xl">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {[
-        { name: 'Slack', desc: '在您的频道中接收即时提醒', connected: true },
-        { name: 'Zapier', desc: '连接 5,000+ 其它应用程序', connected: false },
-        { name: 'Google Sheets', desc: '自动导出回复数据', connected: true },
-        { name: 'Salesforce', desc: '将潜在客户同步至您的 CRM', connected: false },
-        { name: 'Segment', desc: '将事件流式传输到您的数据平台', connected: false },
-        { name: 'Webhooks', desc: '自定义 HTTP 事件触发器', connected: true },
+        { name: '组织管理', desc: '维护公司组织架构和部门信息', icon: Building2, type: 'internal', target: 'team' },
+        { name: '用户管理', desc: '新增、编辑和管理平台用户信息', icon: UserCog, type: 'internal', target: 'team' },
+        { name: '角色管理', desc: '定义角色权限和功能访问控制', icon: ShieldCheck, type: 'internal', target: 'team' },
+        { name: 'Slack', desc: '在您的频道中接收即时提醒', icon: Mail, connected: true },
+        { name: 'Zapier', desc: '连接 5,000+ 其它应用程序', icon: Zap, connected: false },
+        { name: 'Google Sheets', desc: '自动导出回复数据', icon: FileSpreadsheet, connected: true },
+        { name: 'Salesforce', desc: '将潜在客户同步至您的 CRM', icon: Briefcase, connected: false },
+        { name: 'Webhooks', desc: '自定义 HTTP 事件触发器', icon: Globe, connected: true },
       ].map((app) => (
-        <div key={app.name} className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all text-on-surface">
+        <div 
+          key={app.name} 
+          onClick={() => {
+            if (app.type === 'internal') {
+              setView(app.target as ViewType);
+            }
+          }}
+          className={`sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all text-on-surface ${app.type === 'internal' ? 'cursor-pointer hover:shadow-xl' : ''}`}
+        >
           <div className="flex justify-between items-start">
-            <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center text-on-surface-variant border border-outline-variant font-bold text-lg">
-              {app.name[0]}
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center border font-bold text-lg ${app.type === 'internal' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-surface text-on-surface-variant border border-outline-variant'}`}>
+              <app.icon className="w-5 h-5" />
             </div>
-            {app.connected ? (
+            {app.type === 'internal' ? (
+              <span className="bg-primary/5 text-primary text-[8px] font-black px-2 py-0.5 rounded tracking-widest uppercase">系统组件</span>
+            ) : app.connected ? (
               <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase">已连接</span>
             ) : (
               <button 
-                onClick={() => showNotification(`正在连接 ${app.name}...`)}
+                onClick={(e) => { e.stopPropagation(); showNotification(`正在连接 ${app.name}...`); }}
                 className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest"
               >连接</button>
             )}
@@ -1473,16 +1509,27 @@ const OrgTreeItem = ({
   const hasChildren = node.children && node.children.length > 0;
 
   return (
-    <div className="select-none">
+    <div className="select-none relative">
+      {level > 0 && (
+        <div 
+          className="absolute left-0 top-0 w-px bg-outline-variant/30 h-full" 
+          style={{ left: `${(level - 1) * 16 + 10}px` }}
+        />
+      )}
       <div 
-        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-all duration-200 group ${
-          selectedDeptId === node.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'hover:bg-surface-container-low text-on-surface-variant'
+        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-all duration-200 group relative ${
+          selectedDeptId === node.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'hover:bg-primary/5 text-on-surface-variant'
         }`}
-        style={{ marginLeft: `${level * 12}px` }}
+        style={{ marginLeft: `${level * 16}px` }}
         onClick={() => onSelect(node.id)}
       >
+        {level > 0 && (
+          <div 
+            className="absolute -left-4 top-1/2 w-4 h-px bg-outline-variant/30"
+          />
+        )}
         <div 
-          className={`w-5 h-5 flex items-center justify-center transition-transform ${selectedDeptId === node.id ? 'text-white' : 'text-outline/40'}`}
+          className={`w-5 h-5 flex items-center justify-center transition-transform z-10 ${selectedDeptId === node.id ? 'text-white' : 'text-outline/40'}`}
           onClick={(e) => {
             e.stopPropagation();
             setIsExpanded(!isExpanded);
@@ -1497,7 +1544,7 @@ const OrgTreeItem = ({
         
         <div className="flex-1 flex items-center gap-2 overflow-hidden">
           <Building2 className={`w-3.5 h-3.5 shrink-0 ${selectedDeptId === node.id ? 'text-white/70' : 'opacity-40'}`} />
-          <span className={`text-xs font-black tracking-tight truncate ${selectedDeptId === node.id ? 'text-white' : 'text-on-surface'}`}>{node.name}</span>
+          <span className={`text-xs font-bold tracking-tight truncate ${selectedDeptId === node.id ? 'text-white' : 'text-on-surface'}`}>{node.name}</span>
         </div>
 
         <div className={`flex items-center gap-0.5 transition-all duration-200 ${selectedDeptId === node.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -1508,7 +1555,7 @@ const OrgTreeItem = ({
       </div>
 
       {hasChildren && isExpanded && (
-        <div className="mt-1">
+        <div className="mt-0.5">
           {node.children!.map(child => (
             <OrgTreeItem 
               key={child.id} 
@@ -1537,6 +1584,7 @@ const TeamView = ({
   onUpdateDept,
   onDeleteDept
 }: TeamViewProps) => {
+  const [activeTab, setActiveTab] = React.useState<'org' | 'users' | 'roles'>('users');
   const [selectedDeptId, setSelectedDeptId] = React.useState<string | null>(orgData[0]?.id || null);
   const [isMemberModalOpen, setIsMemberModalOpen] = React.useState(false);
   const [isDeptModalOpen, setIsDeptModalOpen] = React.useState(false);
@@ -1568,12 +1616,6 @@ const TeamView = ({
   };
 
   const filteredMembers = teamMembers.filter(m => {
-    // Dept filter (from tree selection)
-    if (selectedDeptId && m.deptId !== selectedDeptId) {
-      // Logic for showing sub-dept members could be added here if needed, but for now exact match
-      // return false;
-    }
-    
     const matchesDept = !selectedDeptId || m.deptId === selectedDeptId;
     const matchesName = m.name.toLowerCase().includes(filterName.toLowerCase()) || m.id.includes(filterName);
     const matchesRole = filterRole === 'All' || m.role === filterRole;
@@ -1581,8 +1623,6 @@ const TeamView = ({
 
     return matchesDept && matchesName && matchesRole && matchesStatus;
   });
-
-  const currentDeptName = selectedDeptId ? getDeptNameById(selectedDeptId, orgData) : '所有成员';
 
   const resetMemberForm = () => {
     setMemberName('');
@@ -1628,209 +1668,265 @@ const TeamView = ({
   };
 
   return (
-    <div className="flex h-full bg-surface-container-lowest">
-      {/* Org Tree Sidebar */}
-      <div className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0">
-        <div className="p-8 border-b border-outline-variant flex items-center justify-between bg-surface-container-low/30">
-          <div className="flex items-center gap-3">
-             <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
-                <Building2 className="w-4 h-4" />
-             </div>
-            <h3 className="font-black tracking-tighter text-lg">组织人员</h3>
-          </div>
-          <button 
-            onClick={() => { setDeptParentId(null); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
-            className="w-8 h-8 flex items-center justify-center hover:bg-primary hover:text-white rounded-xl text-outline-variant transition-all border border-transparent hover:border-primary/20"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-6">
+    <div className="flex h-full bg-white select-none">
+      {/* Side Tabs Navigation */}
+      <div className="w-20 border-r border-outline-variant bg-surface-container-lowest flex flex-col items-center py-8 gap-6 shrink-0 shadow-[1px_0_0_rgba(0,0,0,0.02)]">
+         {[
+           { id: 'org', icon: Network, label: '组织' },
+           { id: 'users', icon: Users, label: '用户' },
+           { id: 'roles', icon: ShieldCheck, label: '角色' },
+         ].map(tab => (
            <button 
-             onClick={() => setSelectedDeptId(null)}
-             className={`w-full text-left px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${!selectedDeptId ? 'bg-on-surface text-white shadow-xl shadow-black/10' : 'hover:bg-surface-container-low text-on-surface-variant border border-outline-variant/40'}`}
+             key={tab.id}
+             onClick={() => setActiveTab(tab.id as any)}
+             className={`flex flex-col items-center gap-1 group relative transition-all ${activeTab === tab.id ? 'text-primary' : 'text-outline hover:text-on-surface'}`}
            >
-             🏢 全公司所有成员
+             <div className={`p-3 rounded-2xl transition-all duration-300 ${activeTab === tab.id ? 'bg-primary/10 shadow-xl shadow-primary/10 border border-primary/20 scale-110' : 'hover:bg-surface border border-transparent'}`}>
+                <tab.icon className="w-5 h-5" />
+             </div>
+             <span className="text-[9px] font-black uppercase tracking-[0.15em]">{tab.label}</span>
+             {activeTab === tab.id && <motion.div layoutId="activeTabIndicator" className="absolute -left-[2.5rem] top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full shadow-[2px_0_12px_rgba(var(--primary),0.4)]" />}
            </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-12 custom-scrollbar space-y-1">
-          {orgData.map(node => (
-            <OrgTreeItem 
-              key={node.id} 
-              node={node} 
-              selectedDeptId={selectedDeptId} 
-              onSelect={setSelectedDeptId} 
-              onAdd={(pid) => { setDeptParentId(pid); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
-              onEdit={(node) => { setDeptParentId(null); setEditingDept(node); setDeptName(node.name); setIsDeptModalOpen(true); }}
-              onDelete={onDeleteDept}
-            />
-          ))}
-        </div>
+         ))}
       </div>
 
-      {/* Member List Main Area */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        {/* Top Header & Filters */}
-        <div className="p-8 border-b border-outline-variant space-y-8 bg-surface/10">
-          <div className="flex justify-between items-center">
-            <div className="space-y-1">
-              <h2 className="text-3xl font-extrabold tracking-tighter text-on-surface flex items-center gap-3">
-                {currentDeptName}
-              </h2>
-              <p className="text-sm text-on-surface-variant font-medium">配置人员基本信息、角色分组及行业化数据权限</p>
-            </div>
-            <button 
-              onClick={() => { resetMemberForm(); setIsMemberModalOpen(true); }}
-              className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm transition-all hover:shadow-xl shadow-primary/20"
-            >
-              <UserPlus className="w-4 h-4" /> 新增成员
-            </button>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Main Workspace based on activeTab */}
+        {activeTab === 'org' ? (
+          <div className="flex-1 flex bg-surface-container-lowest">
+             <div className="w-80 bg-white border-r border-outline-variant flex flex-col p-8 space-y-8 animate-in slide-in-from-left duration-500 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10">
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-on-surface text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-black/20">
+                         <span className="font-black text-xs">SK</span>
+                      </div>
+                      <h3 className="font-black tracking-tight text-lg">seakoi</h3>
+                   </div>
+                   <button 
+                     onClick={() => { setDeptParentId(null); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
+                     className="p-2.5 hover:bg-primary/10 text-primary rounded-xl transition-all border border-transparent hover:border-primary/20 shadow-sm"
+                   >
+                     <Plus className="w-5 h-5" />
+                   </button>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar pr-2">
+                   {orgData.map(node => (
+                     <OrgTreeItem 
+                       key={node.id} 
+                       node={node} 
+                       selectedDeptId={selectedDeptId} 
+                       onSelect={setSelectedDeptId} 
+                       onAdd={(pid) => { setDeptParentId(pid); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
+                       onEdit={(node) => { setDeptParentId(null); setEditingDept(node); setDeptName(node.name); setIsDeptModalOpen(true); }}
+                       onDelete={onDeleteDept}
+                     />
+                   ))}
+                </div>
+             </div>
+             <div className="flex-1 p-12 flex flex-col items-center justify-center text-center space-y-8 bg-[radial-gradient(circle_at_center,rgba(var(--primary),0.02)_0%,transparent_70%)]">
+                <div className="relative">
+                   <div className="absolute inset-0 bg-primary/20 blur-[60px] rounded-full animate-pulse"></div>
+                   <div className="w-40 h-40 bg-white rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] flex items-center justify-center border border-outline-variant/30 relative z-10">
+                      <Building2 className="w-16 h-16 text-primary opacity-20" />
+                   </div>
+                </div>
+                <div>
+                   <h2 className="text-3xl font-black tracking-tight text-on-surface">{selectedDeptId ? getDeptNameById(selectedDeptId, orgData) : '选择组织节点'}</h2>
+                   <p className="text-sm text-on-surface-variant font-bold uppercase tracking-widest mt-3 opacity-60">
+                     {selectedDeptId ? '部门资产与权限沙盒' : '请在左侧目录中选择管理对象'}
+                   </p>
+                </div>
+                <div className="flex gap-4">
+                   <button className="px-10 py-4 bg-white border-2 border-outline-variant/50 rounded-2xl text-xs font-black uppercase tracking-widest hover:border-primary hover:text-primary transition-all shadow-lg shadow-black/5 active:scale-95">部门属性</button>
+                   <button className="px-10 py-4 bg-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all">添加下级</button>
+                </div>
+             </div>
           </div>
+        ) : activeTab === 'users' ? (
+          <div className="flex-1 flex flex-col bg-white overflow-hidden animate-in fade-in duration-700">
+             <div className="p-12 border-b border-outline-variant space-y-10 bg-surface-container-lowest/30">
+               <div className="flex justify-between items-center">
+                 <div className="space-y-1">
+                   <h2 className="text-5xl font-black tracking-tighter text-on-surface">用户管理</h2>
+                   <p className="text-sm text-on-surface-variant font-black uppercase tracking-[0.2em] opacity-40">Identity & Access Governance</p>
+                 </div>
+                 <button 
+                   onClick={() => { resetMemberForm(); setIsMemberModalOpen(true); }}
+                   className="flex items-center gap-3 px-10 py-5 bg-on-surface text-white rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:-translate-y-1.5 active:scale-95"
+                 >
+                   <UserPlus className="w-5 h-5 font-black" /> 新增成员
+                 </button>
+               </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <div className="col-span-1 md:col-span-2 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
-              <input 
-                type="text" 
-                placeholder="搜索姓名或工号 ID..."
-                value={filterName}
-                onChange={(e) => setFilterName(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-              />
-            </div>
-            <div>
-              <select 
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:outline-none font-bold"
-              >
-                <option value="All">所有角色</option>
-                <option value="Admin">管理员</option>
-                <option value="Editor">编辑者</option>
-                <option value="Manager">经理</option>
-                <option value="Viewer">查看者</option>
-              </select>
-            </div>
-            <div>
-              <select 
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full bg-white border border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:outline-none font-bold"
-              >
-                <option value="All">所有状态</option>
-                <option value="Active">活跃</option>
-                <option value="Inactive">待激活</option>
-                <option value="Pending">待激活</option>
-              </select>
-            </div>
-            <div className="flex gap-2">
-               <button 
-                 onClick={() => { setFilterName(''); setFilterRole('All'); setFilterStatus('All'); }}
-                 className="px-4 py-2 text-primary text-xs font-bold hover:bg-primary/10 rounded-xl transition-all"
-               >
-                 重置
-               </button>
-            </div>
+               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                 <div className="col-span-1 md:col-span-2 relative group">
+                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-outline group-focus-within:text-primary transition-colors" />
+                   <input 
+                     type="text" 
+                     placeholder="搜索姓名、工号、邮箱..."
+                     value={filterName}
+                     onChange={(e) => setFilterName(e.target.value)}
+                     className="w-full bg-surface border-2 border-transparent focus:border-primary focus:bg-white rounded-[1.5rem] pl-14 pr-6 py-4.5 text-xs focus:outline-none transition-all font-black placeholder:text-outline/40 shadow-inner"
+                   />
+                 </div>
+                 <div className="relative group">
+                   <select 
+                     value={filterRole}
+                     onChange={(e) => setFilterRole(e.target.value)}
+                     className="w-full bg-white border-2 border-outline-variant/30 hover:border-primary rounded-[1.5rem] px-6 py-4.5 text-xs focus:outline-none font-black appearance-none cursor-pointer transition-all shadow-sm"
+                   >
+                     <option value="All">所有角色</option>
+                     <option value="Admin">管理员</option>
+                     <option value="Editor">编辑者</option>
+                     <option value="Manager">经理</option>
+                     <option value="Viewer">查看者</option>
+                   </select>
+                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-outline pointer-events-none group-hover:text-primary transition-colors" />
+                 </div>
+                 <div className="relative group">
+                   <select 
+                     value={filterStatus}
+                     onChange={(e) => setFilterStatus(e.target.value)}
+                     className="w-full bg-white border-2 border-outline-variant/30 hover:border-primary rounded-[1.5rem] px-6 py-4.5 text-xs focus:outline-none font-black appearance-none cursor-pointer transition-all shadow-sm"
+                   >
+                     <option value="All">所有状态</option>
+                     <option value="Active">活跃中</option>
+                     <option value="Inactive">离线</option>
+                   </select>
+                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-outline pointer-events-none group-hover:text-primary transition-colors" />
+                 </div>
+                 <button 
+                   onClick={() => { setFilterName(''); setFilterRole('All'); setFilterStatus('All'); }}
+                   className="aspect-square flex items-center justify-center text-outline hover:text-white hover:bg-primary transition-all rounded-[1.2rem] border-2 border-outline-variant/30 shadow-sm"
+                 >
+                   <RefreshCw className="w-5 h-5" />
+                 </button>
+               </div>
+             </div>
+
+             <div className="flex-1 overflow-auto custom-scrollbar p-12">
+                <table className="w-full text-left border-separate border-spacing-y-4">
+                   <thead>
+                      <tr className="text-[10px] font-black text-outline uppercase tracking-[0.25em] opacity-60">
+                         <th className="px-8 py-4">UID</th>
+                         <th className="px-8 py-4">实体信息</th>
+                         <th className="px-8 py-4">组织架构</th>
+                         <th className="px-8 py-4">权限策略</th>
+                         <th className="px-8 py-4">健康状态</th>
+                         <th className="px-8 py-4 text-right">管控</th>
+                      </tr>
+                   </thead>
+                   <tbody>
+                      {filteredMembers.map((user) => (
+                        <tr key={user.id} className="group transition-all">
+                           <td className="px-8 py-6 text-[10px] font-black text-outline-variant font-mono bg-surface-container-lowest border-y border-l border-outline-variant/30 rounded-l-[1.5rem] group-hover:bg-primary/5 transition-all">{user.id}</td>
+                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
+                              <div className="flex items-center gap-5">
+                                  <div className="relative shrink-0">
+                                    <div className="absolute -inset-1.5 bg-primary/10 rounded-[1.2rem] opacity-0 group-hover:opacity-100 transition-opacity blur-lg"></div>
+                                    <img 
+                                      src={`https://picsum.photos/seed/user-${user.id}/100/100`} 
+                                      className="w-12 h-12 rounded-[1.1rem] border-2 border-white shadow-xl relative z-10 group-hover:rotate-6 transition-all" 
+                                      referrerPolicy="no-referrer"
+                                      alt="Avatar"
+                                    />
+                                    {user.status === 'Active' && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full z-20 shadow-lg"></div>}
+                                  </div>
+                                  <div className="flex flex-col">
+                                     <span className="font-black text-sm text-on-surface tracking-tight group-hover:text-primary transition-colors">{user.name}</span>
+                                     <span className="text-[10px] font-bold text-outline-variant uppercase font-mono tracking-tight">{user.email}</span>
+                                  </div>
+                              </div>
+                           </td>
+                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
+                              <div className="flex items-center gap-2.5 px-4 py-2 bg-on-surface/5 rounded-2xl border border-on-surface/5 w-fit shadow-inner">
+                                 <Building2 className="w-3.5 h-3.5 text-on-surface/40" />
+                                 <span className="text-[10px] font-black tracking-tight text-on-surface/70">{getDeptNameById(user.deptId, orgData)}</span>
+                              </div>
+                           </td>
+                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
+                              <div className={`text-[10px] font-black px-4 py-1.5 rounded-full border-2 tracking-[0.05em] uppercase shadow-sm ${
+                                 user.role === 'Admin' ? 'bg-primary/5 text-primary border-primary/20' : 
+                                 user.role === 'Manager' ? 'bg-secondary/5 text-secondary border-secondary/20' : 
+                                 'bg-on-surface/5 text-on-surface-variant border-outline-variant/40'
+                              }`}>
+                                {user.role === 'Admin' ? 'Superuser' : user.role === 'Manager' ? 'Head' : user.role === 'Editor' ? 'Designer' : 'Guest'}
+                              </div>
+                           </td>
+                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
+                              <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${user.status === 'Active' ? 'text-green-600' : 'text-outline/30'}`}>
+                                {user.status === 'Active' ? 'Verified' : 'Offline'}
+                              </span>
+                           </td>
+                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-r border-outline-variant/30 group-hover:bg-primary/5 rounded-r-[1.5rem] transition-all text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                 <button 
+                                   onClick={() => {
+                                     setEditingMember(user);
+                                     setMemberName(user.name);
+                                     setMemberRole(user.role);
+                                     setMemberDept(user.deptId);
+                                     setMemberEmail(user.email);
+                                     setIsMemberModalOpen(true);
+                                   }}
+                                   className="p-2.5 hover:bg-white text-on-surface-variant hover:text-primary rounded-xl transition-all shadow-sm border border-transparent hover:border-primary/20 scale-90 group-hover:scale-100 opacity-0 group-hover:opacity-100"
+                                 >
+                                    <Edit className="w-4 h-4" />
+                                 </button>
+                                 <button 
+                                   onClick={() => onDeleteMember(user.id)}
+                                   className="p-2.5 hover:bg-white text-outline-variant hover:text-error rounded-xl transition-all shadow-sm border border-transparent hover:border-error/20 scale-90 group-hover:scale-100 opacity-0 group-hover:opacity-100"
+                                 >
+                                    <Trash2 className="w-4 h-4" />
+                                 </button>
+                              </div>
+                           </td>
+                        </tr>
+                      ))}
+                   </tbody>
+                </table>
+             </div>
           </div>
-        </div>
-
-        {/* Data List Table */}
-        <div className="flex-1 overflow-auto custom-scrollbar p-8">
-           <table className="w-full text-left border-separate border-spacing-y-2">
-              <thead>
-                 <tr className="text-[10px] font-bold text-outline uppercase tracking-widest">
-                    <th className="px-4 py-3">ID</th>
-                    <th className="px-4 py-3">成员姓名</th>
-                    <th className="px-4 py-3">所属部门</th>
-                    <th className="px-4 py-3">角色</th>
-                    <th className="px-4 py-3">电子邮箱</th>
-                    <th className="px-4 py-3">状态</th>
-                    <th className="px-4 py-3">创建时间</th>
-                    <th className="px-4 py-3 text-right">操作</th>
-                 </tr>
-              </thead>
-              <tbody>
-                 {filteredMembers.map((user) => (
-                   <tr key={user.id} className="group hover:bg-surface-container-low transition-all">
-                      <td className="px-4 py-4 text-[10px] font-bold text-outline-variant font-mono bg-surface-container-lowest first:rounded-l-2xl">{user.id}</td>
-                      <td className="px-4 py-4 bg-surface-container-lowest">
-                         <div className="flex items-center gap-3">
-                             <img 
-                               src={`https://picsum.photos/seed/user-${user.id}/100/100`} 
-                               className="w-8 h-8 rounded-lg border border-outline-variant" 
-                               referrerPolicy="no-referrer"
-                               alt="Avatar"
-                             />
-                             <span className="font-bold text-sm text-on-surface">{user.name}</span>
-                         </div>
-                      </td>
-                      <td className="px-4 py-4 bg-surface-container-lowest">
-                         <span className="text-xs font-medium text-on-surface-variant flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 opacity-50" />
-                            {getDeptNameById(user.deptId, orgData)}
-                         </span>
-                      </td>
-                      <td className="px-4 py-4 bg-surface-container-lowest">
-                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
-                            user.role === 'Admin' ? 'bg-primary/10 text-primary' : 
-                            user.role === 'Manager' ? 'bg-secondary/10 text-secondary' : 
-                            'bg-surface-container text-on-surface-variant'
-                         }`}>
-                           {user.role}
-                         </span>
-                      </td>
-                      <td className="px-4 py-4 bg-surface-container-lowest text-xs font-medium text-on-surface-variant tabular-nums">
-                         {user.email}
-                      </td>
-                      <td className="px-4 py-4 bg-surface-container-lowest">
-                         <div className="flex items-center gap-1.5">
-                            <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-outline-variant'}`}></div>
-                            <span className="text-[10px] font-bold text-outline uppercase">{user.status === 'Active' ? '活跃' : '离线'}</span>
-                         </div>
-                      </td>
-                      <td className="px-4 py-4 bg-surface-container-lowest text-xs font-medium text-on-surface-variant tabular-nums">
-                         {user.createdAt}
-                      </td>
-                      <td className="px-4 py-4 bg-surface-container-lowest last:rounded-r-2xl text-right">
-                         <div className="flex items-center justify-end gap-1">
-                            <button 
-                              onClick={() => {
-                                setEditingMember(user);
-                                setMemberName(user.name);
-                                setMemberRole(user.role);
-                                setMemberDept(user.deptId);
-                                setMemberEmail(user.email);
-                                setIsMemberModalOpen(true);
-                              }}
-                              className="p-1.5 hover:bg-white rounded-lg text-outline-variant hover:text-primary transition-all"
-                            >
-                               <Edit className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => onDeleteMember(user.id)}
-                              className="p-1.5 hover:bg-white rounded-lg text-outline-variant hover:text-error transition-all"
-                            >
-                               <Trash2 className="w-4 h-4" />
-                            </button>
-                         </div>
-                      </td>
-                   </tr>
-                 ))}
-              </tbody>
-           </table>
-
-           {filteredMembers.length === 0 && (
-            <div className="py-20 flex flex-col items-center justify-center opacity-50 space-y-4">
-               <div className="p-6 bg-surface-container rounded-full grayscale">
-                  <Users className="w-12 h-12 text-outline-variant" />
-               </div>
-               <div className="text-center">
-                  <p className="text-sm font-bold text-outline">未找到符合条件的成员</p>
-                  <p className="text-[10px] text-outline-variant font-medium mt-1 uppercase tracking-widest">请尝试调整筛选条件或重置</p>
-               </div>
-            </div>
-           )}
-        </div>
+        ) : (
+          <div className="flex-1 flex flex-col bg-surface-container-lowest/50 p-16 space-y-16 animate-in zoom-in duration-500 overflow-y-auto custom-scrollbar">
+             <div className="space-y-3">
+                <h2 className="text-6xl font-black tracking-tighter text-on-surface">角色系统</h2>
+                <p className="text-sm font-black text-outline-variant uppercase tracking-[0.3em] opacity-40">RBAC Strategy & Permission Matrices</p>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                {[
+                  { name: '超级管理员', count: 1, color: 'border-primary', desc: '拥有系统全局所有权限，包括应用管理、人员管理、系统级配置等最高权限。', longLabel: 'CORE_ADMIN' },
+                  { name: '业务经理', count: 3, color: 'border-secondary', desc: '负责特定业务线的流程管理、数据审核、部门级人员指派与业务监控。', longLabel: 'BUS_MANAGER' },
+                  { name: '内容编辑', count: 8, color: 'border-green-500', desc: '主要负责表单设计、页面配置与发布预览，不具备系统级权限。', longLabel: 'CONTENT_CREATOR' },
+                  { name: '普通访客', count: 124, color: 'border-outline-variant', desc: '仅拥有表单填写与查看本人提交数据的权限，无法进入控制台进行配置。', longLabel: 'END_USER' },
+                ].map((role) => (
+                  <div key={role.name} className={`bg-white p-10 rounded-[3rem] border-2 ${role.color} shadow-2xl shadow-black/5 hover:-translate-y-3 transition-all flex flex-col gap-8 group relative overflow-hidden`}>
+                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-150 transition-transform duration-700">
+                        <ShieldCheck className="w-32 h-32" />
+                     </div>
+                     <div className="flex justify-between items-start relative z-10">
+                        <div className="w-14 h-14 bg-surface rounded-[1.2rem] flex items-center justify-center shadow-inner">
+                           <ShieldCheck className="w-7 h-7 text-on-surface/60" />
+                        </div>
+                        <span className="text-[9px] font-black bg-on-surface text-white px-4 py-1.5 rounded-full uppercase tracking-[0.25em] shadow-lg">{role.count} NODES</span>
+                     </div>
+                     <div className="relative z-10">
+                        <div className="text-[9px] font-black tracking-widest text-primary mb-1">{role.longLabel}</div>
+                        <h4 className="font-black text-2xl text-on-surface leading-none">{role.name}</h4>
+                        <p className="text-xs text-on-surface-variant font-bold leading-relaxed mt-4 opacity-70">{role.desc}</p>
+                     </div>
+                     <button className="w-full py-4 bg-on-surface/5 hover:bg-on-surface hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-on-surface/5 hover:shadow-2xl relative z-10">策略细则</button>
+                  </div>
+                ))}
+                <button className="rounded-[3rem] border-4 border-dashed border-outline-variant/30 flex flex-col items-center justify-center p-12 gap-6 hover:border-primary hover:bg-primary/5 transition-all text-outline/40 hover:text-primary shadow-inner">
+                   <div className="w-20 h-20 bg-white shadow-xl rounded-[2rem] flex items-center justify-center border border-outline-variant/30">
+                      <Plus className="w-8 h-8" />
+                   </div>
+                   <span className="font-black uppercase tracking-[0.2em] text-[10px]">Create Custom Policy</span>
+                </button>
+             </div>
+          </div>
+        )}
       </div>
 
       {/* Member Modal */}
@@ -2453,14 +2549,17 @@ const ArchitectApp: React.FC = () => {
     const newField: FormField = {
       id: Math.random().toString(36).substr(2, 9),
       type,
-      label: customLabel || `新建 ${type} 字段`,
+      label: customLabel || `新建字段`,
       required: false,
-      placeholder: ['text', 'textarea'].includes(type) ? '请输入内容...' : undefined,
-      options: type === 'select' ? ['选项 1', '选项 2'] : undefined,
+      readOnly: false,
+      visible: true,
+      placeholder: ['text', 'textarea', 'number', 'select', 'multiSelect', 'date', 'time', 'datetimeRange', 'cascade', 'relateQuery'].includes(type) ? '请输入...' : undefined,
+      options: ['select', 'multiSelect', 'radio', 'checkbox'].includes(type) ? ['选项 1', '选项 2'] : undefined,
       width: '1/1',
       code: `field_${Math.random().toString(36).substr(2, 5)}`,
-      visible: true,
-      readOnly: false,
+      terminals: ['pc', 'mobile'],
+      sortOrder: formFields.length + 1,
+      componentType: type,
     };
     setFormFields([...formFields, newField]);
     setSelectedFieldId(newField.id);
@@ -2644,7 +2743,7 @@ const ArchitectApp: React.FC = () => {
             <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center">
               <span className="font-bold tracking-tight text-sm">
-                {editorTab === 'workflow' ? '流程组件' : editorTab === 'page' ? '页面配置' : editorTab === 'publish' ? '发布渠道' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '字段库'}
+                {editorTab === 'workflow' ? '流程组件' : editorTab === 'page' ? '页面配置' : editorTab === 'publish' ? '发布渠道' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '组件库'}
               </span>
             </div>
           
@@ -2832,24 +2931,45 @@ const ArchitectApp: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-8">
+              <div className="space-y-8 pb-10">
+                <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10 mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShieldCheck className="w-4 h-4 text-primary" />
+                    <span className="text-[10px] font-bold tracking-tight">设计提示</span>
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant leading-relaxed font-medium">
+                    拖拽或点击组件添加到画布，可在右侧配置属性。
+                  </p>
+                </div>
+
                 <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">基础字段</h3>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">基础组件</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { type: 'text', icon: Type, label: '文本' },
-                      { type: 'textarea', icon: LayoutGrid, label: '多行' },
-                      { type: 'number', icon: Activity, label: '数字' },
-                      { type: 'date', icon: Calendar, label: '日期' },
-                      { type: 'select', icon: Menu, label: '下拉' },
-                      { type: 'checkbox', icon: CheckSquare, label: '选择' },
+                      { type: 'text', icon: Type, label: '单行文本' },
+                      { type: 'textarea', icon: LayoutGrid, label: '多行文本' },
+                      { type: 'number', icon: Hash, label: '数字' },
+                      { type: 'date', icon: Calendar, label: '日期选择' },
+                      { type: 'time', icon: Clock, label: '时间选择' },
+                      { type: 'datetimeRange', icon: Calendar, label: '日期时间范围' },
+                      { type: 'select', icon: Menu, label: '下拉选择' },
+                      { type: 'multiSelect', icon: ListChecks, label: '多选下拉' },
+                      { type: 'radio', icon: CircleDot, label: '单选按钮' },
+                      { type: 'checkbox', icon: CheckSquare, label: '多选按钮' },
+                      { type: 'switch', icon: ToggleLeft, label: '开关' },
+                      { type: 'descriptionText', icon: FileText, label: '描述文本' },
+                      { type: 'upload', icon: Upload, label: '文件上传' },
+                      { type: 'download', icon: FileDown, label: '文件下载' },
+                      { type: 'orgSelect', icon: Building2, label: '组织选择器' },
+                      { type: 'userSelect', icon: Users, label: '人员选择器' },
+                      { type: 'roleSelect', icon: UserCog, label: '角色选择器' },
                     ].map((item) => (
                       <button
                         key={item.type}
                         onClick={() => addField(item.type as FormField['type'], item.label)}
                         className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
                       >
-                        <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary transition-colors" />
+                        <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
                         <span className="text-[10px] font-bold">{item.label}</span>
                       </button>
                     ))}
@@ -2857,59 +2977,40 @@ const ArchitectApp: React.FC = () => {
                 </div>
 
                 <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">高级字段</h3>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">高级组件</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { type: 'cascade', icon: ListFilter, label: '级联选择' },
-                      { type: 'relateQuery', icon: Link2, label: '关联查询' },
+                      { type: 'relateQuery', icon: Search, label: '关联查询' },
                       { type: 'subform', icon: TableProperties, label: '子表单' },
+                      { type: 'tableGrid', icon: Table, label: '表格编辑' },
+                      { type: 'signature', icon: PenTool, label: '手写签名' },
+                      { type: 'location', icon: MapPin, label: '地理位置' },
+                      { type: 'barcode', icon: Barcode, label: '条码扫描' },
+                      { type: 'qrcode', icon: QrCode, label: '二维码' },
+                      { type: 'progress', icon: Activity, label: '进度展示' },
+                      { type: 'richtext', icon: FileText, label: '富文本' },
                     ].map((item) => (
                       <button
                         key={item.type}
                         onClick={() => addField(item.type as FormField['type'], item.label)}
                         className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                           <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
-                        </div>
-                        <span className="text-[10px]">{item.label}</span>
+                         <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
+                         <span className="text-[10px]">{item.label}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">业务字段</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { type: 'userSelect', icon: Users, label: '人员选择' },
-                      { type: 'orgSelect', icon: Building2, label: '组织选择' },
-                      { type: 'roleSelect', icon: UserCog, label: '角色选择' },
-                    ].map((item) => (
-                      <button
-                        key={item.type}
-                        onClick={() => addField(item.type as FormField['type'], item.label)}
-                        className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-primary/5 group-hover:bg-primary/20 transition-colors flex items-center justify-center">
-                           <item.icon className="w-4 h-4 text-primary" />
-                        </div>
-                        <span className="text-[10px]">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">系统字段</h3>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">系统组件</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { type: 'creator', icon: UserPlus, label: '创建人' },
                       { type: 'createdAt', icon: Clock, label: '创建时间' },
                       { type: 'modifier', icon: UserCheck, label: '修改人' },
                       { type: 'modifiedAt', icon: History, label: '修改时间' },
-                      { type: 'deleter', icon: UserMinus, label: '删除人' },
-                      { type: 'deletedAt', icon: Clock3, label: '删除时间' },
                     ].map((item) => (
                       <button
                         key={item.type}
@@ -2918,6 +3019,27 @@ const ArchitectApp: React.FC = () => {
                       >
                         <item.icon className="w-3.5 h-3.5 text-outline group-hover:text-on-surface transition-colors" />
                         <span className="text-[9px] font-bold">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">布局组件</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { type: 'grid', icon: Layout, label: '栅格布局' },
+                      { type: 'tabs', icon: Columns, label: '标签页布局' },
+                      { type: 'card', icon: Square, label: '卡片布局' },
+                      { type: 'group', icon: Box, label: '分组容器' },
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => addField(item.type as FormField['type'], item.label)}
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
+                      >
+                        <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
+                        <span className="text-[10px] font-bold">{item.label}</span>
                       </button>
                     ))}
                   </div>
@@ -3506,6 +3628,10 @@ const ArchitectApp: React.FC = () => {
                           </div>
                         </div>
                       </section>
+
+                      <div className="flex justify-end p-4">
+                         <button onClick={() => showNotification('访问限制已生效')} className="px-12 py-4 bg-primary text-white rounded-2xl font-extrabold shadow-xl shadow-primary/20 hover:scale-105 transition-all">确认并发布</button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-6">
@@ -3558,81 +3684,6 @@ const ArchitectApp: React.FC = () => {
                                <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">具体人员</label>
                                <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
                                   <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
-                               </div>
-                            </div>
-                         </div>
-                      </section>
-
-                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
-                         <div className="flex items-center justify-between border-b border-outline-variant pb-4">
-                            <h3 className="font-bold flex items-center gap-2 cursor-default"><Database className="w-5 h-5 text-primary" /> 数据权限控制</h3>
-                            <button className="text-[10px] font-bold text-outline hover:text-primary transition-colors cursor-help">
-                              <Info className="w-3 h-3" />
-                            </button>
-                         </div>
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* 按所属组织 */}
-                            <div className="space-y-4">
-                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">按所属组织</label>
-                               <div className="grid grid-cols-1 gap-2">
-                                  {[
-                                     { id: 'myself', label: '本人', desc: '仅可见本人数据' },
-                                     { id: 'subordinates', label: '本人及下属', desc: '可见本人及下属数据' },
-                                     { id: 'dept', label: '本组织', desc: '可见本部门数据' },
-                                     { id: 'dept_sub', label: '本组织及下级组织', desc: '可见本部门及子部门数据' },
-                                     { id: 'all', label: '全部', desc: '全局可见' },
-                                  ].map(scope => (
-                                     <button 
-                                        key={scope.id}
-                                        onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, scope: scope.id as any, mode: 'belonging' }})}
-                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${internalAccess.data.mode === 'belonging' && internalAccess.data.scope === scope.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
-                                     >
-                                        <div className="text-left">
-                                           <div className={`text-[11px] font-bold ${internalAccess.data.mode === 'belonging' && internalAccess.data.scope === scope.id ? 'text-primary' : ''}`}>{scope.label}</div>
-                                           <div className="text-[9px] text-on-surface-variant line-clamp-1">{scope.desc}</div>
-                                        </div>
-                                        {internalAccess.data.mode === 'belonging' && internalAccess.data.scope === scope.id && <Check className="w-3 h-3 text-primary" />}
-                                     </button>
-                                  ))}
-                               </div>
-                            </div>
-
-                            {/* 按负责组织 */}
-                            <div className="space-y-4">
-                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">按负责组织</label>
-                               <button 
-                                  onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, mode: 'responsible' }})}
-                                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${internalAccess.data.mode === 'responsible' ? 'border-primary bg-primary/5 shadow-sm' : 'border-outline-variant hover:border-outline bg-surface/30'}`}
-                               >
-                                  <div className="text-left">
-                                     <div className={`text-[11px] font-bold ${internalAccess.data.mode === 'responsible' ? 'text-primary' : ''}`}>负责组织</div>
-                                     <div className="text-[9px] text-on-surface-variant">可见管辖范围内组织数据</div>
-                                  </div>
-                                  {internalAccess.data.mode === 'responsible' && <Check className="w-3 h-3 text-primary" />}
-                               </button>
-                               <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant mt-2 font-medium">
-                                  <p className="text-[9px] text-on-surface-variant leading-relaxed">
-                                    授权后，被授权人可以查看其作为“负责人”身份所关联的所有组织及其下级数据。
-                                  </p>
-                               </div>
-                            </div>
-
-                            {/* 自定义 */}
-                            <div className="space-y-4">
-                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">自定义权限</label>
-                               <div className={`p-4 rounded-xl border border-dashed transition-all ${internalAccess.data.mode === 'custom' ? 'border-primary bg-primary/5' : 'border-outline-variant'}`}>
-                                  <div className="flex flex-col items-center text-center gap-2 mb-4">
-                                     <div className="p-2 bg-surface rounded-lg">
-                                        <ListFilter className="w-4 h-4 text-outline" />
-                                     </div>
-                                     <p className="text-[9px] text-on-surface-variant font-medium">根据特定标签配置规则</p>
-                                  </div>
-                                  <button 
-                                    onClick={() => setInternalAccess({...internalAccess, data: { ...internalAccess.data, mode: 'custom' }})}
-                                    className={`w-full py-2 rounded-lg text-[10px] font-bold transition-all ${internalAccess.data.mode === 'custom' ? 'bg-primary text-white' : 'bg-on-surface text-white hover:opacity-90'}`}
-                                  >
-                                    启用自定义维度
-                                  </button>
                                </div>
                             </div>
                          </div>
@@ -3856,30 +3907,30 @@ const ArchitectApp: React.FC = () => {
 
               {editorTab === 'preview' && (
                 <div className="w-full flex flex-col items-center">
-                  <div className="w-full max-w-5xl mb-6 flex justify-end">
-                    <div className="bg-white border border-outline-variant p-1 rounded-2xl flex items-center shadow-sm">
+                  <div className="w-full mb-6 flex justify-end">
+                    <div className="bg-white border border-outline-variant p-1 rounded-2xl flex items-center shadow-md">
                       <button 
                         onClick={() => setPreviewDevice('pc')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`p-3 rounded-xl transition-all ${
                           previewDevice === 'pc' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface hover:bg-surface'
                         }`}
+                        title="PC 预览"
                       >
-                        <Monitor className="w-3.5 h-3.5" />
-                        PC预览
+                        <Monitor className="w-5 h-5" />
                       </button>
                       <button 
                         onClick={() => setPreviewDevice('app')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`p-3 rounded-xl transition-all ${
                           previewDevice === 'app' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface hover:bg-surface'
                         }`}
+                        title="App 预览"
                       >
-                        <Smartphone className="w-3.5 h-3.5" />
-                        APP预览
+                        <Smartphone className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
 
-                  <div className={`transition-all duration-500 overflow-hidden ${previewDevice === 'pc' ? 'w-full max-w-4xl' : 'w-[375px] h-[667px] ring-8 ring-on-surface rounded-[3rem] shadow-2xl relative'}`}>
+                  <div className={`transition-all duration-500 overflow-hidden ${previewDevice === 'pc' ? 'w-full' : 'w-[375px] h-[667px] ring-8 ring-on-surface rounded-[3rem] shadow-2xl relative'}`}>
                     {previewDevice === 'app' && (
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-on-surface rounded-b-2xl z-20"></div>
                     )}
@@ -4227,16 +4278,59 @@ const ArchitectApp: React.FC = () => {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 10 }}
-                      className="space-y-6"
+                      className="space-y-6 pb-10"
                     >
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段名称</label>
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段标题</label>
                         <input 
                           type="text" 
                           value={selectedField.label}
                           onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
-                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
                         />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段标识</label>
+                          <input 
+                            type="text" 
+                            value={selectedField.code || ''}
+                            onChange={(e) => updateField(selectedField.id, { code: e.target.value })}
+                            placeholder="例如：customer_name"
+                            className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">组件类型</label>
+                          <input 
+                            readOnly
+                            type="text" 
+                            value={selectedField.type}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold text-outline"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段 ID</label>
+                          <input 
+                            readOnly
+                            type="text" 
+                            value={selectedField.id}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-[10px] font-mono text-outline"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">排序序号</label>
+                          <input 
+                            type="number" 
+                            value={selectedField.sortOrder || ''}
+                            onChange={(e) => updateField(selectedField.id, { sortOrder: parseInt(e.target.value) })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold"
+                          />
+                        </div>
                       </div>
 
                       {selectedField.placeholder !== undefined && (
@@ -4251,109 +4345,124 @@ const ArchitectApp: React.FC = () => {
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
-                        <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">必填字段</span>
-                        <button 
-                          onClick={() => updateField(selectedField.id, { required: !selectedField.required })}
-                          className={`w-10 h-6 rounded-full relative transition-all ${selectedField.required ? 'bg-primary' : 'bg-outline-variant'}`}
-                        >
-                          <motion.div 
-                            animate={{ left: selectedField.required ? '1.25rem' : '0.25rem' }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
-                          />
-                        </button>
-                      </div>
-
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段编码</label>
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">默认值</label>
                         <input 
                           type="text" 
-                          value={selectedField.code || ''}
-                          onChange={(e) => updateField(selectedField.id, { code: e.target.value })}
-                          placeholder="例如：customer_name"
-                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                          value={selectedField.defaultValue || ''}
+                          onChange={(e) => updateField(selectedField.id, { defaultValue: e.target.value })}
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
                         />
                       </div>
 
-                      {['text', 'number', 'textarea'].includes(selectedField.type) && (
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段长度</label>
-                          <input 
-                            type="number" 
-                            value={selectedField.maxLength || ''}
-                            onChange={(e) => updateField(selectedField.id, { maxLength: e.target.value === '' ? undefined : parseInt(e.target.value) })}
-                            className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                          />
-                        </div>
-                      )}
-
-                      {selectedField.type === 'number' && (
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">表单设置</label>
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest">最小值</label>
-                            <input 
-                              type="number" 
-                              value={selectedField.min ?? ''}
-                              onChange={(e) => updateField(selectedField.id, { min: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-                              className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                            />
+                          <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
+                            <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">是否必填</span>
+                            <button 
+                              onClick={() => updateField(selectedField.id, { required: !selectedField.required })}
+                              className={`w-10 h-6 rounded-full relative transition-all ${selectedField.required ? 'bg-primary' : 'bg-outline-variant'}`}
+                            >
+                              <motion.div 
+                                animate={{ left: selectedField.required ? '1.25rem' : '0.25rem' }}
+                                className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                              />
+                            </button>
                           </div>
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest">最大值</label>
-                            <input 
-                              type="number" 
-                              value={selectedField.max ?? ''}
-                              onChange={(e) => updateField(selectedField.id, { max: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-                              className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                            />
+                          <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
+                            <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">是否只读</span>
+                            <button 
+                              onClick={() => updateField(selectedField.id, { readOnly: !selectedField.readOnly })}
+                              className={`w-10 h-6 rounded-full relative transition-all ${selectedField.readOnly ? 'bg-primary' : 'bg-outline-variant'}`}
+                            >
+                              <motion.div 
+                                animate={{ left: selectedField.readOnly ? '1.25rem' : '0.25rem' }}
+                                className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                              />
+                            </button>
                           </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
-                          <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">是否显示</span>
-                          <button 
-                            onClick={() => updateField(selectedField.id, { visible: !selectedField.visible })}
-                            className={`w-8 h-5 rounded-full relative transition-all ${selectedField.visible ? 'bg-primary' : 'bg-outline-variant'}`}
-                          >
-                            <motion.div 
-                              animate={{ left: selectedField.visible ? '1rem' : '0.2rem' }}
-                              className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
-                            />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
-                          <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">字段只读</span>
-                          <button 
-                            onClick={() => updateField(selectedField.id, { readOnly: !selectedField.readOnly })}
-                            className={`w-8 h-5 rounded-full relative transition-all ${selectedField.readOnly ? 'bg-primary' : 'bg-outline-variant'}`}
-                          >
-                            <motion.div 
-                              animate={{ left: selectedField.readOnly ? '1rem' : '0.2rem' }}
-                              className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
-                            />
-                          </button>
+                          <div className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant group hover:bg-white transition-all">
+                            <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">是否隐藏</span>
+                            <button 
+                              onClick={() => updateField(selectedField.id, { hidden: !selectedField.hidden })}
+                              className={`w-10 h-6 rounded-full relative transition-all ${selectedField.hidden ? 'bg-primary' : 'bg-outline-variant'}`}
+                            >
+                              <motion.div 
+                                animate={{ left: selectedField.hidden ? '1.25rem' : '0.25rem' }}
+                                className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                              />
+                            </button>
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">计算公式</label>
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">帮助说明</label>
                         <textarea 
-                          value={selectedField.formula || ''}
-                          onChange={(e) => updateField(selectedField.id, { formula: e.target.value })}
-                          placeholder="例如：field_total = field_price * field_qty"
-                          className="w-full bg-on-surface text-green-400 border border-outline-variant rounded-xl px-4 py-3 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[80px]"
+                          value={selectedField.description || ''}
+                          onChange={(e) => updateField(selectedField.id, { description: e.target.value })}
+                          placeholder="显示在组件下方的提示信息"
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[80px]"
                         />
                       </div>
 
-                      {selectedField.type === 'select' && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段宽度</label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {(['1/1', '1/2', '1/3', '1/4'] as const).map((w) => (
+                            <button
+                              key={w}
+                              onClick={() => updateField(selectedField.id, { width: w })}
+                              className={`py-2 rounded-lg border text-[10px] font-bold transition-all ${selectedField.width === w ? 'border-primary bg-primary/5 text-primary shadow-sm' : 'border-outline-variant bg-surface hover:border-outline'}`}
+                            >
+                              {w}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">校验规则 (Regex)</label>
+                        <input 
+                          type="text" 
+                          value={selectedField.rules || ''}
+                          onChange={(e) => updateField(selectedField.id, { rules: e.target.value })}
+                          placeholder="例如：/^[a-z]+$/"
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">显示终端</label>
+                        <div className="flex gap-4">
+                          {[
+                            { id: 'pc', label: 'PC 端', icon: Monitor },
+                            { id: 'mobile', label: '移动端', icon: Smartphone },
+                          ].map(t => (
+                            <button
+                              key={t.id}
+                              onClick={() => {
+                                const current = selectedField.terminals || ['pc', 'mobile'];
+                                const next = current.includes(t.id as any) ? current.filter(x => x !== t.id) : [...current, t.id as any];
+                                updateField(selectedField.id, { terminals: next });
+                              }}
+                              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-[10px] font-bold transition-all ${selectedField.terminals?.includes(t.id as any) ? 'bg-primary/5 border-primary text-primary shadow-sm' : 'bg-surface border-outline-variant text-outline'}`}
+                            >
+                              <t.icon className="w-3.5 h-3.5" />
+                              <span>{t.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {['select', 'multiSelect', 'radio', 'checkbox'].includes(selectedField.type) && (
                         <div className="space-y-4 pt-4 border-t border-outline-variant">
                           <div className="flex items-center justify-between">
                             <label className="text-[10px] font-bold text-outline uppercase tracking-widest">选项列表</label>
                             <button 
                               onClick={() => {
-                                const newOpts = [...(selectedField.options || []), `Option ${(selectedField.options?.length || 0) + 1}`];
+                                const newOpts = [...(selectedField.options || []), `选项 ${(selectedField.options?.length || 0) + 1}`];
                                 updateField(selectedField.id, { options: newOpts });
                               }}
                               className="p-1 hover:bg-surface rounded-md text-primary"
@@ -4387,6 +4496,16 @@ const ArchitectApp: React.FC = () => {
                           </div>
                         </div>
                       )}
+
+                      <div className="space-y-2 pt-6 border-t border-outline-variant">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">计算公式</label>
+                        <textarea 
+                          value={selectedField.formula || ''}
+                          onChange={(e) => updateField(selectedField.id, { formula: e.target.value })}
+                          placeholder="例如：field_total = field_price * field_qty"
+                          className="w-full bg-on-surface text-green-400 border border-outline-variant rounded-xl px-4 py-3 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[80px]"
+                        />
+                      </div>
                     </motion.div>
                   ) : (
                     <motion.div 
@@ -4639,8 +4758,8 @@ const ArchitectApp: React.FC = () => {
   }
   if (view === 'integrations') {
     return (
-      <ConsoleLayout viewToken="integrations" title="系统集成" subtitle="" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}>
-        <IntegrationsView showNotification={showNotification} />
+      <ConsoleLayout viewToken="integrations" title="系统设置" subtitle="" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}>
+        <IntegrationsView showNotification={showNotification} setView={setView} />
       </ConsoleLayout>
     );
   }
