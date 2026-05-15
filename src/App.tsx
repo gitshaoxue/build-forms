@@ -4408,21 +4408,6 @@ const ArchitectApp: React.FC = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">字段宽度</label>
-                        <div className="grid grid-cols-4 gap-2">
-                          {(['1/1', '1/2', '1/3', '1/4'] as const).map((w) => (
-                            <button
-                              key={w}
-                              onClick={() => updateField(selectedField.id, { width: w })}
-                              className={`py-2 rounded-lg border text-[10px] font-bold transition-all ${selectedField.width === w ? 'border-primary bg-primary/5 text-primary shadow-sm' : 'border-outline-variant bg-surface hover:border-outline'}`}
-                            >
-                              {w}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
                         <label className="text-[10px] font-bold text-outline uppercase tracking-widest">校验规则 (Regex)</label>
                         <input 
                           type="text" 
