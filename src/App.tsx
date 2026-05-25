@@ -195,6 +195,8 @@ interface Project {
   createdBy?: string;
   createdAt?: string;
   category?: '行政' | '人事' | '财务' | '市场' | '工厂' | '问卷调查' | '绩效' | '协同办公' | '其他';
+  description?: string;
+  icon?: string;
 }
 
 type FormType = 'normal' | 'workflow' | 'report' | 'dashboard';
@@ -219,10 +221,10 @@ interface Submission {
 }
 
 const mockProjects: Project[] = [
-  { id: '1', name: '入职架构', updatedAt: '2小时前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 2, status: 'Draft', responses: 0, createdBy: '张经理', createdAt: '2026-05-15', category: '人事' },
-  { id: '2', name: 'Q3 客户反馈', updatedAt: '1天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24, status: 'Published', responses: 1240, createdBy: '李专员', createdAt: '2026-05-10', category: '问卷调查' },
-  { id: '3', name: '企业潜在客户', updatedAt: '3天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24 * 3, status: 'Published', responses: 852, createdBy: '肖主管', createdAt: '2026-05-08', category: '市场' },
-  { id: '4', name: 'Alpha 候选名单', updatedAt: '5天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24 * 5, status: 'Archived', responses: 3200, createdBy: '张经理', createdAt: '2026-04-20', category: '人事' },
+  { id: '1', name: '入职架构', updatedAt: '2小时前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 2, status: 'Draft', responses: 0, createdBy: '张经理', createdAt: '2026-05-15', category: '人事', icon: 'Users', description: '新员工入职流程全套审批与数字化组织架构录入。' },
+  { id: '2', name: 'Q3 客户反馈', updatedAt: '1天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24, status: 'Published', responses: 1240, createdBy: '李专员', createdAt: '2026-05-10', category: '问卷调查', icon: 'MessageSquare', description: '面向全网核心用户的季度产品满意度调研和产品缺陷回流分析。' },
+  { id: '3', name: '企业潜在客户', updatedAt: '3天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24 * 3, status: 'Published', responses: 852, createdBy: '肖主管', createdAt: '2026-05-08', category: '市场', icon: 'BarChart3', description: '用于多渠道线索搜集、客户建档及销售一站式跟进管理系统。' },
+  { id: '4', name: 'Alpha 候选名单', updatedAt: '5天前', lastAccessedAt: Date.now() - 1000 * 60 * 60 * 24 * 5, status: 'Archived', responses: 3200, createdBy: '张经理', createdAt: '2026-04-20', category: '人事', icon: 'Briefcase', description: '年度核心管理干部晋升遴选及候选人综合素质评测。' },
 ];
 
 const mockSavedForms: SavedForm[] = [
@@ -259,7 +261,7 @@ interface ProjectsViewProps {
   setNewProjectName: (name: string) => void;
   setTempProjectName: (name: string) => void;
   setEditingProjectTitle: (editing: boolean) => void;
-  createOrUpdateProject: (name?: any, category?: string) => void;
+  createOrUpdateProject: (name?: any, category?: string, description?: string, icon?: string) => void;
   deleteProject: (id: string, name: string) => void;
   deleteForm: (id: string, name: string) => void;
   updateProjectName: (id: string, name: string) => void;
@@ -358,33 +360,33 @@ const APP_CENTER_DATA: AppCenterItem[] = [
   { id: '1', name: '假勤', icon: Calendar, color: 'bg-orange-500', category: '最近使用' },
   { id: '2', name: '审批', icon: ShieldCheck, color: 'bg-orange-600', category: '最近使用' },
   { id: '3', name: '周报', icon: Calendar, color: 'bg-teal-500', category: '最近使用' },
-  { id: '4', name: '飞书人事', icon: Zap, color: 'bg-blue-400', category: '最近使用' },
+  { id: '4', name: '人事', icon: Zap, color: 'bg-blue-400', category: '最近使用' },
   { id: '5', name: '工单', icon: FormInput, color: 'bg-blue-600', category: '最近使用' },
   { id: '6', name: '物品领用', icon: Briefcase, color: 'bg-orange-400', category: '最近使用' },
   { id: '7', name: '招聘需求', icon: Users, color: 'bg-blue-500', category: '最近使用' },
 
   { id: '8', name: '帅虾', icon: Users, color: 'bg-green-500', isBot: true, category: '最近使用' },
-  { id: '9', name: '飞书 aily 开发后台', icon: Activity, color: 'bg-blue-500', category: '最近使用' },
+  { id: '9', name: 'aily 开发后台', icon: Activity, color: 'bg-blue-500', category: '最近使用' },
   { id: '10', name: 'MCP文档授权', icon: Box, color: 'bg-blue-600', isBot: true, category: '项目管理' },
   { id: '11', name: '工作配方', icon: PenTool, color: 'bg-blue-500', category: '项目管理' },
-  { id: '12', name: '飞书智能顾问', icon: UserCog, color: 'bg-teal-500', isBot: true, category: '项目管理' },
-  { id: '13', name: '飞书行', icon: Smartphone, color: 'bg-blue-500', category: '最近使用' },
-  { id: '14', name: '飞书 aPaaS', icon: Layers, color: 'bg-blue-400', category: '最近使用' },
+  { id: '12', name: '智能顾问', icon: UserCog, color: 'bg-teal-500', isBot: true, category: '项目管理' },
+  { id: '13', name: '行', icon: Smartphone, color: 'bg-blue-500', category: '最近使用' },
+  { id: '14', name: 'aPaaS', icon: Layers, color: 'bg-blue-400', category: '最近使用' },
   { id: '15', name: '豆包', icon: MessageCircle, color: 'bg-blue-500', category: '敏捷研发' },
 
   { id: '16', name: '业务小程序', icon: Smartphone, color: 'bg-purple-500', category: '敏捷研发' },
-  { id: '17', name: '飞书捷径', icon: Zap, color: 'bg-teal-400', category: '敏捷研发' },
+  { id: '17', name: '捷径', icon: Zap, color: 'bg-teal-400', category: '敏捷研发' },
   { id: '18', name: 'TodoNow', icon: CheckSquare, color: 'bg-red-500', category: '待办工具' },
   { id: '19', name: '多维表格', icon: Layout, color: 'bg-purple-400', category: '问卷调研' },
   { id: '20', name: '审批', icon: ShieldCheck, color: 'bg-orange-500', category: '最近使用' },
   { id: '21', name: '工单', icon: FormInput, color: 'bg-blue-500', category: '客户服务' },
   { id: '22', name: '假勤', icon: Calendar, color: 'bg-orange-500', category: '最近使用' },
-  { id: '23', name: '飞书问卷', icon: QrCode, color: 'bg-blue-500', category: '客户管理' },
+  { id: '23', name: '问卷', icon: QrCode, color: 'bg-blue-500', category: '客户管理' },
   
-  { id: '24', name: '飞书提醒', icon: Bell, color: 'bg-blue-400', category: '综合人事' },
+  { id: '24', name: '提醒', icon: Bell, color: 'bg-blue-400', category: '综合人事' },
   { id: '25', name: '汇报', icon: Mail, color: 'bg-blue-500', category: '企业文化' },
-  { id: '26', name: '飞书机器人助手', icon: MessageSquare, color: 'bg-green-500', category: '培培训学习' },
-  { id: '27', name: '飞书帮助中心', icon: Info, color: 'bg-green-600', category: '财务工具' },
+  { id: '26', name: '机器人助手', icon: MessageSquare, color: 'bg-green-500', category: '培培训学习' },
+  { id: '27', name: '帮助中心', icon: Info, color: 'bg-green-600', category: '财务工具' },
   { id: '28', name: '公告', icon: Radio, color: 'bg-orange-500', category: '法务工具' },
   { id: '29', name: '签到', icon: MapPin, color: 'bg-teal-500', isBot: true, category: '电子合同' },
   { id: '30', name: '日报', icon: FileText, color: 'bg-orange-400', category: '综合行政' },
@@ -393,15 +395,15 @@ const APP_CENTER_DATA: AppCenterItem[] = [
   { id: '32', name: '月报', icon: Calendar, color: 'bg-blue-500', category: '最近使用' },
   { id: '33', name: '订阅号', icon: Star, color: 'bg-blue-600', category: '最近使用' },
   { id: '34', name: '服务台', icon: Headphones, color: 'bg-blue-500', category: '最近使用' },
-  { id: '35', name: '飞书人事', icon: Zap, color: 'bg-blue-400', category: '最近使用' },
-  { id: '36', name: '飞书直播', icon: Play, color: 'bg-blue-500', category: '最近使用' },
-  { id: '37', name: '飞书合同', icon: FileBox, color: 'bg-blue-500', category: '最近使用' },
-  { id: '38', name: '飞书妙记', icon: Mic, color: 'bg-purple-500', category: '最近使用' },
+  { id: '35', name: '人事', icon: Zap, color: 'bg-blue-400', category: '最近使用' },
+  { id: '36', name: '直播', icon: Play, color: 'bg-blue-500', category: '最近使用' },
+  { id: '37', name: '合同', icon: FileBox, color: 'bg-blue-500', category: '最近使用' },
+  { id: '38', name: '妙记', icon: Mic, color: 'bg-purple-500', category: '最近使用' },
   { id: '39', name: '词典', icon: BookOpen, color: 'bg-blue-600', category: '最近使用' },
 
   { id: '40', name: '智能门禁', icon: Lock, color: 'bg-blue-500', category: '最近使用' },
-  { id: '41', name: '飞书项目', icon: Link, color: 'bg-blue-600', category: '最近使用' },
-  { id: '42', name: '飞书People', icon: Users, color: 'bg-blue-400', category: '最近使用' },
+  { id: '41', name: '项目', icon: Link, color: 'bg-blue-600', category: '最近使用' },
+  { id: '42', name: 'People', icon: Users, color: 'bg-blue-400', category: '最近使用' },
   { id: '43', name: '物品领用', icon: Briefcase, color: 'bg-orange-500', category: '最近使用' },
   { id: '44', name: '用章用印申请', icon: Shield, color: 'bg-blue-500', category: '最近使用' },
   { id: '45', name: '招聘需求', icon: Users, color: 'bg-blue-500', category: '最近使用' },
@@ -910,6 +912,48 @@ const ConfirmDialog = ({ confirmModal, setConfirmModal }: { confirmModal: Confir
   </AnimatePresence>
 );
 
+const iconMap: Record<string, React.ComponentType<any>> = {
+  Briefcase,
+  Users,
+  Zap,
+  Building2,
+  CreditCard,
+  BarChart3,
+  CheckSquare,
+  Globe,
+  Compass,
+  FileText,
+  Layout,
+  MessageSquare,
+  Heart,
+  ShoppingBag,
+  Users2,
+  Database,
+  Workflow,
+  FormInput
+};
+
+const selectableIcons = [
+  { key: 'Briefcase', label: '主要业务', desc: '用于通用业务场景及核心功能归口' },
+  { key: 'Users', label: '人事管理', desc: '用于考勤、招聘及入离转调事项' },
+  { key: 'Zap', label: '效率工具', desc: '用于自动化、快捷审批及捷径流' },
+  { key: 'Building2', label: '企业行政', desc: '用于资产领用、用车印章等行政辅助' },
+  { key: 'CreditCard', label: '财务报销', desc: '用于发票对账、项目预算、借款审批' },
+  { key: 'BarChart3', label: '数据大屏', desc: '用于多维度图表、指标分析及监控' },
+  { key: 'CheckSquare', label: '任务协作', desc: '用于敏捷待办、项目看板及进度追踪' },
+  { key: 'Globe', label: '外部平台', desc: '用于跨组织协同、公开网址及门户' },
+  { key: 'Compass', label: '新手指南', desc: '用于问卷调研、日常签到等应用' },
+  { key: 'FileText', label: '知识文档', desc: '用于汇报材料、规范要求及文章发布' },
+  { key: 'Layout', label: '通用布局', desc: '用于看板展示、模块卡片导航' },
+  { key: 'MessageSquare', label: '反馈渠道', desc: '用于提诉求、意见箱、用户答疑' },
+  { key: 'Heart', label: '员工关怀', desc: '用于福利、团建、投票及文化建设' },
+  { key: 'ShoppingBag', label: '供应链采购', desc: '用于采购、仓储、领料及入库流程' },
+  { key: 'Users2', label: '外部协同', desc: '用于客户管理、伙伴比价及供应商库' },
+  { key: 'Database', label: '业务台账', desc: '用于结构化数据及底层记录表格' },
+  { key: 'Workflow', label: '审批工作流', desc: '用于多级主管并行或串行会签' },
+  { key: 'FormInput', label: '数据收集', desc: '用于标准属性采集、表单填报' }
+];
+
 const ProjectsView = ({
   projects,
   setProjects,
@@ -946,6 +990,29 @@ const ProjectsView = ({
   const [projectCategoryFilter, setProjectCategoryFilter] = React.useState<string>('all');
   const [newProjectCategory, setNewProjectCategory] = React.useState<string>('其他');
   const [showTemplatesPage, setShowTemplatesPage] = React.useState(false);
+
+  // Local state for Create / Edit Modal Fields details
+  const [modalName, setModalName] = React.useState('');
+  const [modalCategory, setModalCategory] = React.useState('其他');
+  const [modalDesc, setModalDesc] = React.useState('');
+  const [modalIcon, setModalIcon] = React.useState('Briefcase');
+  const [isIconSelectorOpen, setIsIconSelectorOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isProjectModalOpen) {
+      if (projectToEdit) {
+        setModalName(projectToEdit.name || '');
+        setModalCategory(projectToEdit.category || '其他');
+        setModalDesc(projectToEdit.description || '');
+        setModalIcon(projectToEdit.icon || 'Briefcase');
+      } else {
+        setModalName('');
+        setModalCategory('其他');
+        setModalDesc('');
+        setModalIcon('Briefcase');
+      }
+    }
+  }, [isProjectModalOpen, projectToEdit]);
   
   const selectedProject = projects.find(p => p.id === projectDetailsId);
   const rawProjectForms = savedForms.filter(f => f.projectId === projectDetailsId);
@@ -1031,6 +1098,16 @@ const ProjectsView = ({
                   <button 
                     onClick={() => {
                       const newProjId = `p-tpl-${Date.now()}`;
+                      const tplIcons: Record<string, string> = {
+                        t1: 'Users',
+                        t2: 'Building2',
+                        t3: 'CreditCard',
+                        t4: 'BarChart3',
+                        t5: 'Database',
+                        t6: 'Zap',
+                        t7: 'MessageSquare',
+                        t8: 'Heart',
+                      };
                       const newTplProject: Project = {
                         id: newProjId,
                         name: tpl.title,
@@ -1040,7 +1117,9 @@ const ProjectsView = ({
                         responses: 0,
                         createdBy: '系统预置',
                         createdAt: new Date().toISOString().split('T')[0],
-                        category: tpl.category as any
+                        category: tpl.category as any,
+                        description: tpl.desc,
+                        icon: tplIcons[tpl.id] || 'Briefcase'
                       };
                       setProjects(prev => [newTplProject, ...prev]);
                       showNotification(`模版 “${tpl.title}” 快速部署成功！`);
@@ -1139,103 +1218,118 @@ const ProjectsView = ({
 
           {/* Cards List Display Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans">
-            {displayedProjects.map((project, idx) => (
-              <motion.div 
-                key={project.id} 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="group relative bg-white border border-outline-variant hover:border-primary/40 rounded-[2.5rem] p-8 flex flex-col gap-6 transition-all hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] hover:-translate-y-2 cursor-pointer"
-                onClick={() => setProjectDetailsId(project.id)}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="w-16 h-16 bg-surface-container-low rounded-3xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-sm border border-outline-variant/60">
-                    <Briefcase className="w-8 h-8" />
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 duration-300" onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setProjectToEdit(project);
-                        setNewProjectName(project.name);
-                        setNewProjectCategory(project.category || '其他');
-                        setIsProjectModalOpen(true);
-                      }}
-                      className="p-3 bg-white border border-outline-variant hover:border-primary hover:text-primary rounded-xl transition-all shadow-sm"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteProject(project.id, project.name);
-                      }}
-                      className="p-3 bg-white border border-outline-variant hover:border-error hover:text-error rounded-xl transition-all shadow-sm"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="font-black text-2xl tracking-tighter group-hover:text-primary transition-colors mb-2 text-on-surface">{project.name}</h3>
-                  <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/5 px-2.5 py-1 rounded-full border border-primary/20 inline-block mb-4">
-                    {project.category || '其他'}
-                  </span>
-
-                  {/* Replaced submission rate text. Cards render creators, creation timestamp and dynamic status indicator pill badges */}
-                  {activeTab === 'recent' ? (
-                    <div className="grid grid-cols-1 gap-2.5 border-t border-dashed border-outline-variant pt-4 mt-2">
-                      <div className="flex items-center justify-between text-xs font-medium text-on-surface">
-                        <span className="text-outline">创建人：</span>
-                        <span className="font-bold text-on-surface">{project.createdBy || '系统管理员'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-medium text-on-surface">
-                        <span className="text-outline">创建时间：</span>
-                        <span className="font-bold text-on-surface">{project.createdAt || '2026-05-01'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-medium pt-1 text-on-surface">
-                        <span className="text-outline">应用状态：</span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          project.status === 'Published' ? 'bg-green-50 text-green-600 border border-green-200' :
-                          project.status === 'Draft' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
-                          'bg-gray-100 text-gray-600 border border-gray-200'
-                        }`}>
-                          {project.status === 'Published' ? '已发布' : project.status === 'Draft' ? '草稿' : '已归档'}
-                        </span>
-                      </div>
+            {displayedProjects.map((project, idx) => {
+              const IconComponent = iconMap[project.icon || ''] || Briefcase;
+              return (
+                <motion.div 
+                  key={project.id} 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="group relative bg-white border border-outline-variant hover:border-primary/40 rounded-[2.5rem] p-8 flex flex-col gap-6 transition-all hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] hover:-translate-y-2 cursor-pointer"
+                  onClick={() => setProjectDetailsId(project.id)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="w-16 h-16 bg-surface-container-low rounded-3xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-sm border border-outline-variant/60">
+                      <IconComponent className="w-8 h-8" />
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2.5 border-t border-dashed border-outline-variant pt-4 mt-2">
-                      <div className="flex items-center justify-between text-xs font-medium text-on-surface">
-                        <span className="text-outline">创建时间：</span>
-                        <span className="font-bold text-on-surface">{project.createdAt || '2026-05-01'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-medium pt-1 text-on-surface">
-                        <span className="text-outline">应用状态：</span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          project.status === 'Published' ? 'bg-green-50 text-green-600 border border-green-200' :
-                          project.status === 'Draft' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
-                          'bg-gray-100 text-gray-600 border border-gray-200'
-                        }`}>
-                          {project.status === 'Published' ? '已发布' : project.status === 'Draft' ? '草稿' : '已归档'}
-                        </span>
-                      </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 duration-300" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProjectToEdit(project);
+                          setNewProjectName(project.name);
+                          setNewProjectCategory(project.category || '其他');
+                          setIsProjectModalOpen(true);
+                        }}
+                        className="p-3 bg-white border border-outline-variant hover:border-primary hover:text-primary rounded-xl transition-all shadow-sm"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteProject(project.id, project.name);
+                        }}
+                        className="p-3 bg-white border border-outline-variant hover:border-error hover:text-error rounded-xl transition-all shadow-sm"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                <div className="mt-auto pt-6 border-t border-outline-variant flex items-center justify-between group/footer">
-                  <div className="flex flex-col">
-                     <span className="text-[9px] font-black text-outline-variant uppercase tracking-widest mb-0.5">最后访问</span>
-                     <span className="text-[10px] font-black text-on-surface uppercase tracking-widest">{project.updatedAt}</span>
+                  <div>
+                    <h3 className="font-black text-2xl tracking-tighter group-hover:text-primary transition-colors mb-2 text-on-surface line-clamp-1">{project.name}</h3>
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/5 px-2.5 py-1 rounded-full border border-primary/20 inline-block">
+                        {project.category || '其他'}
+                      </span>
+                    </div>
+
+                    {project.description ? (
+                      <p className="text-xs text-on-surface-variant leading-relaxed mb-4 line-clamp-2 min-h-[2rem]">
+                        {project.description}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-outline/60 leading-relaxed mb-4 italic min-h-[2rem]">
+                        暂无应用描述
+                      </p>
+                    )}
+
+                    {/* Replaced submission rate text. Cards render creators, creation timestamp and dynamic status indicator pill badges */}
+                    {activeTab === 'recent' ? (
+                      <div className="grid grid-cols-1 gap-2.5 border-t border-dashed border-outline-variant pt-4 mt-2">
+                        <div className="flex items-center justify-between text-xs font-medium text-on-surface">
+                          <span className="text-outline">创建人：</span>
+                          <span className="font-bold text-on-surface">{project.createdBy || '系统管理员'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-medium text-on-surface">
+                          <span className="text-outline">创建时间：</span>
+                          <span className="font-bold text-on-surface">{project.createdAt || '2026-05-01'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-medium pt-1 text-on-surface">
+                          <span className="text-outline">应用状态：</span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            project.status === 'Published' ? 'bg-green-50 text-green-600 border border-green-200' :
+                            project.status === 'Draft' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
+                            'bg-gray-100 text-gray-600 border border-gray-200'
+                          }`}>
+                            {project.status === 'Published' ? '已发布' : project.status === 'Draft' ? '草稿' : '已归档'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2.5 border-t border-dashed border-outline-variant pt-4 mt-2">
+                        <div className="flex items-center justify-between text-xs font-medium text-on-surface">
+                          <span className="text-outline">创建时间：</span>
+                          <span className="font-bold text-on-surface">{project.createdAt || '2026-05-01'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-medium pt-1 text-on-surface">
+                          <span className="text-outline">应用状态：</span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            project.status === 'Published' ? 'bg-green-50 text-green-600 border border-green-200' :
+                            project.status === 'Draft' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
+                            'bg-gray-100 text-gray-600 border border-gray-200'
+                          }`}>
+                            {project.status === 'Published' ? '已发布' : project.status === 'Draft' ? '草稿' : '已归档'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-surface-container group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center">
-                     <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+
+                  <div className="mt-auto pt-6 border-t border-outline-variant flex items-center justify-between group/footer">
+                    <div className="flex flex-col">
+                       <span className="text-[9px] font-black text-outline-variant uppercase tracking-widest mb-0.5">最后访问</span>
+                       <span className="text-[10px] font-black text-on-surface uppercase tracking-widest">{project.updatedAt}</span>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-surface-container group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center">
+                       <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
 
             {displayedProjects.length === 0 && (
               <div className="col-span-full py-32 flex flex-col items-center justify-center border-4 border-dashed border-outline-variant/40 rounded-[3rem] opacity-70 space-y-6 bg-surface/20">
@@ -1266,30 +1360,67 @@ const ProjectsView = ({
                   initial={{ scale: 0.9, opacity: 0, y: 20 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                  className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-8 space-y-6"
+                  className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-8 space-y-6 max-h-[90vh] flex flex-col"
                 >
-                  <div className="space-y-2">
+                  <div className="space-y-2 shrink-0">
                     <h3 className="text-xl font-bold tracking-tight text-on-surface">{projectToEdit ? '编辑应用' : '创建新应用'}</h3>
                     <p className="text-sm text-on-surface-variant font-medium">为您的应用资产定义一个清晰的容器和分类</p>
                   </div>
-                  <div className="space-y-4 font-sans">
+
+                  <div className="space-y-4 font-sans overflow-y-auto no-scrollbar py-2 flex-1 pr-1">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest">应用名称</label>
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">应用名称 <span className="text-error font-extrabold">*</span></label>
                       <input 
                         autoFocus
                         type="text" 
-                        value={newProjectName}
-                        onChange={(e) => setNewProjectName(e.target.value)}
+                        value={modalName}
+                        onChange={(e) => setModalName(e.target.value)}
                         placeholder="例如：2024 年度调研"
                         className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium text-on-surface"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest">应用类型</label>
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">应用图标 (点击更改)</label>
+                      <div className="flex items-center gap-4">
+                        <button 
+                          type="button"
+                          onClick={() => setIsIconSelectorOpen(true)}
+                          className="w-14 h-14 bg-surface border-2 border-dashed border-outline-variant hover:border-primary rounded-2xl flex items-center justify-center text-primary hover:bg-primary/5 transition-all shadow-sm shrink-0"
+                          title="选择应用图标"
+                        >
+                          {(() => {
+                            const SelectedIcon = iconMap[modalIcon] || Briefcase;
+                            return <SelectedIcon className="w-6 h-6" />;
+                          })()}
+                        </button>
+                        <div className="flex-1 text-left">
+                          <span className="text-xs font-bold block text-on-surface">
+                            {selectableIcons.find(i => i.key === modalIcon)?.label || '主要业务'}
+                          </span>
+                          <span className="text-[10px] text-outline font-medium leading-tight block line-clamp-2">
+                            {selectableIcons.find(i => i.key === modalIcon)?.desc || '用于通用业务场景及核心功能归口'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">应用说明描述</label>
+                      <textarea 
+                        value={modalDesc}
+                        onChange={(e) => setModalDesc(e.target.value)}
+                        placeholder="请输入描述，如：此应用用于收集用户满意度反馈以及优化系统故障统计..."
+                        rows={3}
+                        className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium text-on-surface resize-none"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">应用类型</label>
                       <select 
-                        value={newProjectCategory}
-                        onChange={(e) => setNewProjectCategory(e.target.value)}
+                        value={modalCategory}
+                        onChange={(e) => setModalCategory(e.target.value)}
                         className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium text-on-surface outline-none cursor-pointer"
                       >
                         {['行政', '人事', '财务', '市场', '工厂', '问卷调查', '绩效', '协同办公', '其他'].map(cat => (
@@ -1298,7 +1429,8 @@ const ProjectsView = ({
                       </select>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-3 pt-2">
+
+                  <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant/30 shrink-0">
                     <button 
                       onClick={() => setIsProjectModalOpen(false)}
                       className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all text-on-surface"
@@ -1306,11 +1438,78 @@ const ProjectsView = ({
                       取消
                     </button>
                     <button 
-                      onClick={() => createOrUpdateProject(newProjectName, newProjectCategory)}
-                      disabled={!newProjectName.trim()}
+                      onClick={() => createOrUpdateProject(modalName, modalCategory, modalDesc, modalIcon)}
+                      disabled={!modalName.trim()}
                       className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all disabled:opacity-50 hover:text-white"
                     >
                       {projectToEdit ? '保存更改' : '确认创建'}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+          
+          <AnimatePresence>
+            {isIconSelectorOpen && (
+              <div className="fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
+                <motion.div 
+                  initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                  className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-outline-variant p-8 space-y-6 max-h-[85vh] flex flex-col"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-outline-variant/30 shrink-0">
+                    <div>
+                      <h4 className="text-lg font-black tracking-tight text-on-surface">选择应用图标</h4>
+                      <p className="text-xs text-outline font-medium mt-1">挑选一个能代表您当前业务方向的专属图标</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsIconSelectorOpen(false)}
+                      className="w-8 h-8 bg-surface-container hover:bg-surface-container-high text-outline hover:text-on-surface rounded-full flex items-center justify-center transition-all"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 overflow-y-auto no-scrollbar py-2 flex-1 pr-1">
+                    {selectableIcons.map((item) => {
+                      const IconComp = iconMap[item.key] || Briefcase;
+                      const isSelected = modalIcon === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() => {
+                            setModalIcon(item.key);
+                            setIsIconSelectorOpen(false);
+                          }}
+                          className={`p-3 rounded-2xl flex items-start gap-3 text-left transition-all border ${
+                            isSelected 
+                              ? 'bg-primary/5 border-primary shadow-sm text-primary' 
+                              : 'bg-white border-outline-variant/60 hover:bg-surface-container-low text-on-surface-variant'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-primary text-white' : 'bg-surface-container text-primary'
+                          }`}>
+                            <IconComp className="w-4 h-4" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className={`text-xs font-black block leading-none ${isSelected ? 'text-primary' : 'text-on-surface'}`}>{item.label}</span>
+                            <span className="text-[10px] text-outline font-medium leading-tight block line-clamp-2">{item.desc}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="pt-4 border-t border-outline-variant/30 flex justify-end shrink-0">
+                    <button 
+                      onClick={() => setIsIconSelectorOpen(false)}
+                      className="px-6 py-2 bg-on-surface hover:bg-on-surface-variant text-white rounded-xl text-xs font-bold transition-all hover:text-white"
+                    >
+                      关闭
                     </button>
                   </div>
                 </motion.div>
@@ -2734,13 +2933,15 @@ const ArchitectApp: React.FC = () => {
     });
   };
 
-  const createOrUpdateProject = (nameVal?: any, catVal?: string) => {
+  const createOrUpdateProject = (nameVal?: any, catVal?: string, descVal?: string, iconVal?: string) => {
     const finalName = (nameVal && typeof nameVal === 'string') ? nameVal : newProjectName;
     const finalCat = (catVal && typeof catVal === 'string') ? catVal : '其他';
+    const finalDesc = descVal || '';
+    const finalIcon = iconVal || 'Briefcase';
     if (!finalName.trim()) return;
     
     if (projectToEdit) {
-      setProjects(prev => prev.map(p => p.id === projectToEdit.id ? { ...p, name: finalName, category: finalCat as any } : p));
+      setProjects(prev => prev.map(p => p.id === projectToEdit.id ? { ...p, name: finalName, category: finalCat as any, description: finalDesc, icon: finalIcon } : p));
       showNotification(`应用“${finalName}”更新成功`);
     } else {
       const newProject: Project = {
@@ -2752,7 +2953,9 @@ const ArchitectApp: React.FC = () => {
         responses: 0,
         createdBy: '系统管理员',
         createdAt: new Date().toISOString().split('T')[0],
-        category: finalCat as any
+        category: finalCat as any,
+        description: finalDesc,
+        icon: finalIcon
       };
       setProjects(prev => [newProject, ...prev]);
       showNotification(`应用“${finalName}”创建成功`);
