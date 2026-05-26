@@ -2636,6 +2636,55 @@ const ArchitectApp: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [showInsertNodeMenu, setShowInsertNodeMenu] = React.useState<string | null>(null);
   const [editorTab, setEditorTab] = React.useState<'design' | 'page' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
+  
+  // Page Configuration state variables 
+  const [configTab, setConfigTab] = React.useState<'basic' | 'notification' | 'print'>('basic');
+  const [pageTitleType, setPageTitleType] = React.useState<'default' | 'custom'>('default');
+  const [customPageTitle, setCustomPageTitle] = React.useState('');
+  const [timeControlEnabled, setTimeControlEnabled] = React.useState(false);
+  const [timeControlStart, setTimeControlStart] = React.useState('2026-05-25');
+  const [timeControlEnd, setTimeControlEnd] = React.useState('2026-06-25');
+  const [timeControlDailyStart, setTimeControlDailyStart] = React.useState('09:00');
+  const [timeControlDailyEnd, setTimeControlDailyEnd] = React.useState('18:00');
+  const [submitAction, setSubmitAction] = React.useState<'message' | 'redirect' | 'email' | 'sms'>('message');
+  const [submitActionMessage, setSubmitActionMessage] = React.useState('提交成功，感谢您的填写！');
+  const [submitActionRedirectUrl, setSubmitActionRedirectUrl] = React.useState('https://www.example.com/thanks');
+  const [submitActionEmail, setSubmitActionEmail] = React.useState('admin@company.com');
+  const [submitActionSms, setSubmitActionSms] = React.useState('13800000000');
+  const [formLimits, setFormLimits] = React.useState<string[]>(['device_limit']);
+  const [fillingControls, setFillingControls] = React.useState<string[]>(['allow_repeat']);
+  
+  // Notification templates
+  const [notificationTemplates, setNotificationTemplates] = React.useState([
+    { id: 'station', name: '站内消息模板', enabled: true, title: '您收到一个新的表单填报任务', content: '您被指派填写《${formName}》表单。请在截止时间前，点击下方链接进行填报协作。\n\n链接：${formLink}' },
+    { id: 'sms', name: '短信消息模板', enabled: false, title: '短信通知消息', content: '【企业协作平台】提醒：您好，您有一个待提交表单《${formName}》需要处理，为不影响结算审批，请点此链接填报：${formLink}' },
+    { id: 'email', name: '邮件通知模板', enabled: true, title: '【重要】关于《${formName}》的协作填报通知', content: '尊敬的同事：\n\n系统已为您生成了表单《${formName}》的协作任务。\n您可以点击以下链接直接打开，填报相应的数据，系统将自动汇总反馈。\n\n感谢您的理解与支持！\n填报链接：${formLink}' }
+  ]);
+  const [editingNotificationTemplateId, setEditingNotificationTemplateId] = React.useState<string | null>(null);
+  const [tempNotifyTitle, setTempNotifyTitle] = React.useState('');
+  const [tempNotifyContent, setTempNotifyContent] = React.useState('');
+
+  // Print templates
+  const [printTemplates, setPrintTemplates] = React.useState([
+    { id: '1', name: '标准 A4 发起审批凭证', size: 'A4', orientation: 'vertical', isEnabled: true, content: '展示全表单信息，附带完整的流程签字以及流程记录，适配 A4 竖向尺寸。' },
+    { id: '2', name: '横置宽表数据存根联', size: 'A4', orientation: 'horizontal', isEnabled: true, content: '适配行数多、列数复杂的表格展示，以 landscape 横向纸张规格进行排布打印。' },
+    { id: '3', name: '便携式 80mm 工单标签纸', size: '80mm 卷纸', orientation: 'vertical', isEnabled: false, content: '极其紧凑的尺寸规格，仅抽取重要物料核心指标、数量和系统单据校验条形码。' }
+  ]);
+  const [isPrintModalOpen, setIsPrintModalOpen] = React.useState(false);
+  const [printModalMode, setPrintModalMode] = React.useState<'create' | 'edit'>('create');
+  const [printToEditId, setPrintToEditId] = React.useState<string | null>(null);
+  const [printName, setPrintName] = React.useState('');
+  const [printSize, setPrintSize] = React.useState('A4');
+  const [printOrientation, setPrintOrientation] = React.useState('vertical');
+  const [printContent, setPrintContent] = React.useState('');
+  
+  // Template settings modal
+  const [isTemplateDesignerOpen, setIsTemplateDesignerOpen] = React.useState(false);
+  const [activePrintSettingId, setActivePrintSettingId] = React.useState<string | null>(null);
+  const [ptFontSize, setPtFontSize] = React.useState('12px');
+  const [ptShowLogo, setPtShowLogo] = React.useState(true);
+  const [ptShowWatermark, setPtShowWatermark] = React.useState(false);
+  const [ptCustomFooter, setPtCustomFooter] = React.useState('由企业表单低代码系统生成，打印件等同有同等印章效力。');
   const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = React.useState(false);
   const [globalSettingsTab, setGlobalSettingsTab] = React.useState<'workflow' | 'permissions'>('workflow');
   const [publishMode, setPublishMode] = React.useState<'internal' | 'public'>('public');
@@ -3230,7 +3279,7 @@ const ArchitectApp: React.FC = () => {
               {[
                 { id: 'design', label: '设计', icon: Code },
                 { id: 'workflow', label: '流程', icon: Workflow },
-                { id: 'page', label: '页面', icon: Layout },
+                { id: 'page', label: '配置', icon: Sliders },
                 { id: 'simulate', label: '仿真', icon: Activity },
                 { id: 'publish', label: '发布', icon: Globe },
                 { id: 'data', label: '数据', icon: Database },
@@ -3452,315 +3501,608 @@ const ArchitectApp: React.FC = () => {
                       '确保流程节点跳转符合逻辑',
                       '确认表单样式在各种屏幕下的表现'
                     ].map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-3 p-3 bg-surface rounded-xl border border-outline-variant">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        <span className="text-[10px] font-bold">{item}</span>
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded border border-outline-variant flex items-center justify-center bg-white cursor-pointer group">
+                          <Check className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <span className="text-[11px] font-bold text-on-surface-variant">{item}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="space-y-8 pb-10">
-                <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10 mb-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ShieldCheck className="w-4 h-4 text-primary" />
-                    <span className="text-[10px] font-bold tracking-tight">设计提示</span>
-                  </div>
-                  <p className="text-[10px] text-on-surface-variant leading-relaxed font-medium">
-                    拖拽或点击组件添加到画布，可在右侧配置属性。
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">基础组件</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { type: 'text', icon: Type, label: '单行文本' },
-                      { type: 'textarea', icon: LayoutGrid, label: '多行文本' },
-                      { type: 'number', icon: Hash, label: '数字' },
-                      { type: 'date', icon: Calendar, label: '日期选择' },
-                      { type: 'time', icon: Clock, label: '时间选择' },
-                      { type: 'datetimeRange', icon: Calendar, label: '日期时间范围' },
-                      { type: 'select', icon: Menu, label: '下拉选择' },
-                      { type: 'multiSelect', icon: ListChecks, label: '多选下拉' },
-                      { type: 'radio', icon: CircleDot, label: '单选按钮' },
-                      { type: 'checkbox', icon: CheckSquare, label: '多选按钮' },
-                      { type: 'switch', icon: ToggleLeft, label: '开关' },
-                      { type: 'descriptionText', icon: FileText, label: '描述文本' },
-                      { type: 'upload', icon: Upload, label: '文件上传' },
-                      { type: 'download', icon: FileDown, label: '文件下载' },
-                      { type: 'orgSelect', icon: Building2, label: '组织选择器' },
-                      { type: 'userSelect', icon: Users, label: '人员选择器' },
-                      { type: 'roleSelect', icon: UserCog, label: '角色选择器' },
-                    ].map((item) => (
-                      <button
-                        key={item.type}
-                        onClick={() => addField(item.type as FormField['type'], item.label)}
-                        className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
-                      >
-                        <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
-                        <span className="text-[10px] font-bold">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">高级组件</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { type: 'cascade', icon: ListFilter, label: '级联选择' },
-                      { type: 'relateQuery', icon: Search, label: '关联查询' },
-                      { type: 'subform', icon: TableProperties, label: '子表单' },
-                      { type: 'tableGrid', icon: Table, label: '表格编辑' },
-                      { type: 'signature', icon: PenTool, label: '手写签名' },
-                      { type: 'location', icon: MapPin, label: '地理位置' },
-                      { type: 'barcode', icon: Barcode, label: '条码扫描' },
-                      { type: 'qrcode', icon: QrCode, label: '二维码' },
-                      { type: 'progress', icon: Activity, label: '进度展示' },
-                      { type: 'richtext', icon: FileText, label: '富文本' },
-                    ].map((item) => (
-                      <button
-                        key={item.type}
-                        onClick={() => addField(item.type as FormField['type'], item.label)}
-                        className="flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group font-bold"
-                      >
-                         <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
-                         <span className="text-[10px]">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">系统组件</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { type: 'creator', icon: UserPlus, label: '创建人' },
-                      { type: 'createdAt', icon: Clock, label: '创建时间' },
-                      { type: 'modifier', icon: UserCheck, label: '修改人' },
-                      { type: 'modifiedAt', icon: History, label: '修改时间' },
-                    ].map((item) => (
-                      <button
-                        key={item.type}
-                        onClick={() => addField(item.type as FormField['type'], item.label)}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-outline-variant border-dashed hover:border-outline hover:bg-surface transition-all group opacity-70 hover:opacity-100"
-                      >
-                        <item.icon className="w-3.5 h-3.5 text-outline group-hover:text-on-surface transition-colors" />
-                        <span className="text-[9px] font-bold">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">布局组件</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { type: 'grid', icon: Layout, label: '栅格布局' },
-                      { type: 'tabs', icon: Columns, label: '标签页布局' },
-                      { type: 'card', icon: Square, label: '卡片布局' },
-                      { type: 'group', icon: Box, label: '分组容器' },
-                    ].map((item) => (
-                      <button
-                        key={item.type}
-                        onClick={() => addField(item.type as FormField['type'], item.label)}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group"
-                      >
-                        <item.icon className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
-                        <span className="text-[10px] font-bold">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-surface-container-low rounded-2xl p-4 border border-outline-variant">
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldCheck className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-bold tracking-tight">AI 智能优化</span>
-              </div>
-              <p className="text-[10px] text-on-surface-variant leading-relaxed font-medium">
-                我们的 AI 可以自动建议验证规则和最佳执行路径。
-              </p>
-            </div>
-            </div>
-          </aside>
-          )}
-
-        {/* Main Canvas */}
-        <main className={`flex-1 overflow-y-auto relative ${editorTab === 'page' ? 'bg-[#f4f7f9] p-0' : editorTab === 'preview' ? 'bg-[#f1f3f5] p-8' : 'p-12 canvas-grid bg-surface'}`}>
-          {editorTab === 'workflow' && (
-            <button 
-              onClick={() => setIsGlobalSettingsOpen(true)}
-              className="absolute top-8 right-8 flex items-center gap-2 px-4 py-2 bg-white border border-outline-variant rounded-lg text-[11px] font-bold shadow-sm hover:shadow-md transition-all z-40 group"
-            >
-              <Sliders className="w-3.5 h-3.5 text-primary group-hover:rotate-90 transition-transform" />
-              全局设置
-            </button>
-          )}
-          <div className={editorTab === 'page' ? 'w-full h-full flex' : editorTab === 'preview' ? 'w-full h-full' : 'max-w-4xl mx-auto'}>
-              {editorTab === 'page' && (
-                <>
-                  {/* Page Internal Sidebar */}
-                  <div className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0 pt-4">
-                    {[
-                      { id: 'common', label: '基础设置', icon: Settings },
-                      { id: 'details', label: '自定义详情页', icon: Layout },
-                      { id: 'buttons', label: '自定义按钮', icon: MousePointer2 },
-                      { id: 'notifications', label: '消息通知', icon: Bell },
-                      { id: 'print', label: '打印设置', icon: Printer },
-                      { id: 'relation', label: '关联列表', icon: TableProperties },
-                      { id: 'permissions', label: '权限设置', icon: Shield },
-                      { id: 'qrcode', label: '二维码标签', icon: QrCode },
-                    ].map((item) => (
-                      <button 
-                        key={item.id}
-                        className={`flex items-center gap-3 px-6 py-4 text-xs font-bold transition-all border-l-4 ${item.id === 'common' ? 'bg-primary/5 text-primary border-primary' : 'text-on-surface-variant hover:bg-surface border-transparent'}`}
-                      >
-                        <item.icon className="w-4 h-4" />
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Settings Content */}
-                  <div className="flex-1 overflow-y-auto p-8 space-y-6">
-                    <div className="bg-white rounded-2xl border border-outline-variant p-10 space-y-12">
-                      <section className="space-y-8">
-                        <h2 className="text-xl font-bold tracking-tight">常用设置</h2>
-                        
-                        {/* Data Title */}
-                        <div className="space-y-4">
-                           <div className="flex items-center gap-2">
-                              <span className="text-xs font-extrabold text-on-surface/80">数据标题</span>
-                              <Info className="w-3 h-3 text-outline" />
-                           </div>
-                           <div className="flex gap-6">
-                              <label className="flex items-center gap-2 cursor-pointer group">
-                                 <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
-                                    <div className="w-2 h-2 rounded-full bg-primary" />
-                                 </div>
-                                 <span className="text-xs font-bold">默认标题</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer group">
-                                 <div className="w-4 h-4 rounded-full border-2 border-outline-variant flex items-center justify-center" />
-                                 <span className="text-xs font-bold text-on-surface-variant">自定义</span>
-                              </label>
-                           </div>
-                           <div className="p-4 bg-surface rounded-xl border border-outline-variant inline-flex flex-col gap-2 min-w-[400px]">
-                              <div className="flex gap-2">
-                                 <span className="px-2 py-0.5 bg-white border border-outline-variant rounded text-[10px] font-bold">发起人</span>
-                                 <span className="px-2 py-0.5 bg-white border border-outline-variant rounded text-[10px] font-bold">发起的</span>
-                                 <span className="px-2 py-0.5 bg-white border border-outline-variant rounded text-[10px] font-bold">页面名称</span>
-                              </div>
-                              <span className="text-[10px] text-outline">示例：宜搭发起的费用报销</span>
-                           </div>
-                        </div>
-
-                        {/* Page Operations */}
-                        <div className="space-y-4 pt-4">
-                           <div className="flex items-center gap-2">
-                              <span className="text-xs font-extrabold text-on-surface/80">页面操作</span>
-                           </div>
-                           <div className="flex items-center gap-6">
-                              <div className="flex items-center gap-6">
-                                <label className="flex items-center gap-2">
-                                  <div className="w-4 h-4 rounded border border-outline-variant" />
-                                  <span className="text-xs font-bold text-on-surface-variant">复制流程</span>
-                                </label>
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-surface rounded-lg border border-outline-variant min-w-[120px] justify-between">
-                                  <span className="text-[11px] font-bold">发起时的数据</span>
-                                  <ChevronDown className="w-3 h-3 text-outline" />
-                                </div>
-                                <Info className="w-3 h-3 text-outline" />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
-                                  <Check className="w-3 h-3 text-white" />
-                                </div>
-                                <span className="text-xs font-bold">提交时预览流程</span>
-                                <Info className="w-3 h-3 text-outline" />
-                              </div>
-                           </div>
-                        </div>
-
-                        {/* Consultant */}
-                        <div className="space-y-4 pt-4">
-                           <div className="flex items-center gap-2">
-                              <span className="text-xs font-extrabold text-on-surface/80">设置咨询人员</span>
-                              <Info className="w-3 h-3 text-outline" />
-                           </div>
-                           <div className="flex items-center gap-3">
-                             <div className="flex-1 max-w-sm h-10 border border-outline-variant rounded-xl flex items-center px-4 bg-surface">
-                                <span className="text-xs text-outline italic">请选择</span>
-                                <div className="flex-1" />
-                                <Users className="w-4 h-4 text-outline" />
-                             </div>
-                             <label className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded border border-outline-variant" />
-                                <span className="text-xs font-bold text-on-surface-variant">咨询人员为空时默认显示应用管理员</span>
-                             </label>
-                           </div>
-                        </div>
-
-                        {/* Redirection */}
-                        <div className="space-y-4 pt-4">
-                           <div className="flex items-center gap-2">
-                              <span className="text-xs font-extrabold text-on-surface/80">页面提交后跳转的页面</span>
-                              <Info className="w-3 h-3 text-outline" />
-                           </div>
-                           <div className="flex gap-8">
-                             <label className="flex items-center gap-2">
-                               <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
-                                  <div className="w-2 h-2 rounded-full bg-primary" />
-                               </div>
-                               <span className="text-xs font-bold">默认页面</span>
-                               <Info className="w-3 h-3 text-outline" />
-                             </label>
-                             <label className="flex items-center gap-2">
-                               <div className="w-4 h-4 rounded-full border-2 border-outline-variant" />
-                               <span className="text-xs font-bold text-on-surface-variant">应用内页面</span>
-                             </label>
-                             <label className="flex items-center gap-2">
-                               <div className="w-4 h-4 rounded-full border-2 border-outline-variant" />
-                               <span className="text-xs font-bold text-on-surface-variant">外部链接</span>
-                             </label>
-                           </div>
-                        </div>
-                      </section>
-
-                      <section className="space-y-8 pt-12 border-t border-outline-variant/50">
-                        <h2 className="text-xl font-bold tracking-tight">数据管理页</h2>
-                        <div className="space-y-6">
-                           <div className="space-y-4">
-                              <span className="text-xs font-extrabold text-on-surface/80">操作列设置</span>
-                              <button className="flex items-center gap-2 text-primary text-xs font-bold hover:opacity-80 transition-all">
-                                 <Plus className="w-4 h-4" />
-                                 新增操作
-                              </button>
-                           </div>
-                           <div className="space-y-4 pt-4">
-                              <span className="text-xs font-extrabold text-on-surface/80">导入全局设置</span>
-                              <label className="flex items-center gap-3 p-4 bg-surface rounded-2xl border border-outline-variant border-dashed">
-                                 <div className="w-4 h-4 rounded border border-outline-variant" />
-                                 <div className="flex flex-col">
-                                    <span className="text-xs font-bold">自动触发动作</span>
-                                    <span className="text-[10px] text-outline font-medium">开启后导入数据将自动触发表单提交、校验、公式计算等业务能力</span>
-                                 </div>
-                              </label>
-                           </div>
-                        </div>
-                      </section>
+              <div className="space-y-6">
+                {[
+                  {
+                    category: '基础字段',
+                    items: [
+                      { type: 'text' as const, label: '单行文本', icon: Type },
+                      { type: 'textarea' as const, label: '多行文本', icon: FileText },
+                      { type: 'number' as const, label: '数值输入', icon: Hash },
+                      { type: 'radio' as const, label: '单选按钮', icon: CircleDot },
+                      { type: 'checkbox' as const, label: '多选框', icon: CheckSquare },
+                      { type: 'switch' as const, label: '开关', icon: ToggleLeft },
+                    ]
+                  },
+                  {
+                    category: '高级字段',
+                    items: [
+                      { type: 'select' as const, label: '下拉单选', icon: ListChecks },
+                      { type: 'multiSelect' as const, label: '下拉多选', icon: ListChecks },
+                      { type: 'date' as const, label: '日期选择', icon: Calendar },
+                      { type: 'time' as const, label: '时间选择', icon: Clock },
+                      { type: 'upload' as const, label: '附件上传', icon: Upload },
+                      { type: 'signature' as const, label: '手写签名', icon: PenTool },
+                      { type: 'location' as const, label: '地理定位', icon: MapPin },
+                    ]
+                  },
+                  {
+                    category: '关联 & 布局',
+                    items: [
+                      { type: 'userSelect' as const, label: '人员选择', icon: Users },
+                      { type: 'orgSelect' as const, label: '部门选择', icon: Building2 },
+                      { type: 'barcode' as const, label: '条形码', icon: Barcode },
+                      { type: 'qrcode' as const, label: '二维码', icon: QrCode },
+                      { type: 'subform' as const, label: '子表单', icon: Table },
+                    ]
+                  }
+                ].map((cat, catIdx) => (
+                  <div key={catIdx} className="space-y-2">
+                    <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest pl-1">{cat.category}</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {cat.items.map((item) => (
+                        <button
+                          key={item.type}
+                          onClick={() => addField(item.type, item.label)}
+                          className="flex flex-col items-center justify-center p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 hover:text-primary transition-all group text-center gap-1.5 active:scale-95 bg-white/50"
+                        >
+                          <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary group-hover:scale-110 transition-all duration-300" />
+                          <span className="text-[10px] font-bold text-on-surface group-hover:text-primary transition-colors">{item.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </>
-              )}
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
 
-              {editorTab === 'design' && (
-                <div className="max-w-4xl mx-auto space-y-4 pb-20">
+      {editorTab === 'page' && (() => {
+                const limits = [
+                  { key: 'device_limit', label: '填报设备限制', desc: '限制同一设备仅限提交1次' },
+                  { key: 'ip_limit', label: 'IP地址限制', desc: '限制同一 IP 仅限提交1次' },
+                  { key: 'wechat_limit', label: '微信填报限制', desc: '仅允许在微信内置浏览器内进行填报' },
+                  { key: 'app_limit', label: 'App填报限制', desc: '仅允许在移动 App 客户端内填写' }
+                ];
+                const controls = [
+                  { key: 'allow_repeat', label: '允许重复填报', desc: '允许同一用户或端重复多次提交表单数据' },
+                  { key: 'allow_view', label: '填报后允许查看', desc: '用户在提交成功后允许在前端查看已填报的数据条目' },
+                  { key: 'anonymous', label: '匿名提交', desc: '提交数据不记录填报人账号及任何关联企业身份信息' }
+                ];
+                return (
+                  <>
+                    {/* Page Internal Sidebar */}
+                    <div className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0 pt-4">
+                      {[
+                        { id: 'basic', label: '基础配置', icon: Settings, desc: '页面标题、时间控制、限制控制' },
+                        { id: 'notification', label: '消息通知', icon: Bell, desc: '站内信、短信、邮件通知模板' },
+                        { id: 'print', label: '打印设置', icon: Printer, desc: '管理、查看和编辑打印模板' },
+                      ].map((item) => (
+                        <button 
+                          key={item.id}
+                          onClick={() => setConfigTab(item.id as any)}
+                          className={`flex flex-col gap-1 items-start text-left px-6 py-4 transition-all border-l-4 ${configTab === item.id ? 'bg-primary/5 text-primary border-primary font-black' : 'text-on-surface-variant hover:bg-surface border-transparent font-bold'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <item.icon className={`w-4 h-4 ${configTab === item.id ? 'text-primary' : 'text-outline'}`} />
+                            <span className="text-xs">{item.label}</span>
+                          </div>
+                          <span className="text-[10px] text-outline font-medium pl-6 leading-tight">{item.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Settings Content */}
+                    <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-surface-container-lowest">
+                      {configTab === 'basic' && (
+                        <div className="bg-white rounded-3xl border border-outline-variant p-8 space-y-8 shadow-sm w-full">
+                          <div>
+                            <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
+                              <Settings className="w-5 h-5 text-primary" />
+                              基础配置
+                            </h2>
+                            <p className="text-xs text-outline font-medium mt-1">定制该表单的页面展示标题、填报时间窗口，以及严格的控制策略。</p>
+                          </div>
+
+                          {/* 1. Page Title */}
+                          <div className="space-y-4 pt-4 border-t border-dashed border-outline-variant">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-on-surface">1. 页面标题</span>
+                                <span className="text-[10px] text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded font-bold">标题控制</span>
+                              </div>
+                              <Info className="w-4 h-4 text-outline" />
+                            </div>
+                            <div className="flex gap-6">
+                              <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input 
+                                  type="radio" 
+                                  name="titleType" 
+                                  checked={pageTitleType === 'default'} 
+                                  onChange={() => setPageTitleType('default')}
+                                  className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-on-surface">默认标题 (固定为当前表单名称)</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input 
+                                  type="radio" 
+                                  name="titleType" 
+                                  checked={pageTitleType === 'custom'} 
+                                  onChange={() => setPageTitleType('custom')}
+                                  className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-on-surface">自定义标题</span>
+                              </label>
+                            </div>
+
+                            {pageTitleType === 'default' ? (
+                              <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant text-xs font-bold text-outline select-none flex items-center justify-between">
+                                <span>{tempFormName || '新建表单'}</span>
+                                <span className="text-[10px] bg-outline-variant px-2 py-0.5 rounded font-black max-w-xs truncate text-on-surface-variant">固定表单名</span>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <input 
+                                  type="text"
+                                  placeholder="请输入自定义页面渲染标题，例如：第3季度差旅费用填报系统"
+                                  value={customPageTitle}
+                                  onChange={(e) => setCustomPageTitle(e.target.value)}
+                                  className="w-full max-w-xl bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium text-on-surface"
+                                />
+                                <p className="text-[10px] text-outline">用户在移动端或电脑端打开表单填报页时，将以此处自定义的文字作为顶栏大标题显示。</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 2. Time Control */}
+                          <div className="space-y-4 pt-6 border-t border-dashed border-outline-variant">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs font-black text-on-surface">2. 时间控制</span>
+                                <button 
+                                  type="button"
+                                  onClick={() => setTimeControlEnabled(!timeControlEnabled)}
+                                  className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${timeControlEnabled ? 'bg-primary' : 'bg-outline-variant'}`}
+                                >
+                                  <span className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 transform ${timeControlEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                              </div>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${timeControlEnabled ? 'bg-green-50 text-green-600 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                                {timeControlEnabled ? '已开启填报时间段限制' : '未开启限制'}
+                              </span>
+                            </div>
+
+                            {timeControlEnabled && (
+                              <div className="p-6 bg-surface border border-outline-variant rounded-2xl grid grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-3 duration-300 text-xs font-bold text-on-surface">
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black uppercase text-outline tracking-wider block">开始时间</label>
+                                  <input 
+                                    type="date" 
+                                    value={timeControlStart}
+                                    onChange={(e) => setTimeControlStart(e.target.value)}
+                                    className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black uppercase text-outline tracking-wider block">结束时间</label>
+                                  <input 
+                                    type="date" 
+                                    value={timeControlEnd}
+                                    onChange={(e) => setTimeControlEnd(e.target.value)}
+                                    className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                                  />
+                                </div>
+                                <div className="space-y-2 col-span-2">
+                                  <label className="text-[10px] font-black uppercase text-outline tracking-wider block">每日填报时间段</label>
+                                  <div className="flex items-center gap-3">
+                                    <input 
+                                      type="time" 
+                                      value={timeControlDailyStart}
+                                      onChange={(e) => setTimeControlDailyStart(e.target.value)}
+                                      className="w-32 bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs text-center cursor-pointer"
+                                    />
+                                    <span className="text-outline font-bold">至</span>
+                                    <input 
+                                      type="time" 
+                                      value={timeControlDailyEnd}
+                                      onChange={(e) => setTimeControlDailyEnd(e.target.value)}
+                                      className="w-32 bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs text-center cursor-pointer"
+                                    />
+                                    <span className="text-[10px] text-outline font-medium pl-2">在这个日常时间窗外，表单将禁止提交并展示到期说明。</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 3. Post Submission Show */}
+                          <div className="space-y-4 pt-6 border-t border-dashed border-outline-variant">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-on-surface">3. 提交后显示</span>
+                              <span className="text-[10px] text-outline font-bold">跳转及反馈方式</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                              {[
+                                { key: 'message', label: '显示感谢信息' },
+                                { key: 'redirect', label: '跳转到指定页面' },
+                                { key: 'email', label: '发邮件' },
+                                { key: 'sms', label: '发短信' }
+                              ].map((opt) => (
+                                <button
+                                  key={opt.key}
+                                  type="button"
+                                  onClick={() => setSubmitAction(opt.key as any)}
+                                  className={`p-3 rounded-xl border text-[11px] font-black transition-all flex flex-col items-center justify-center gap-1 ${
+                                    submitAction === opt.key 
+                                      ? 'bg-primary/5 border-primary text-primary shadow-sm' 
+                                      : 'bg-white border-outline-variant hover:bg-surface text-on-surface-variant'
+                                  }`}
+                                >
+                                  <span>{opt.label}</span>
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="bg-surface border border-outline-variant p-4 rounded-xl space-y-3">
+                              {submitAction === 'message' && (
+                                <div className="space-y-1.5 animate-in fade-in duration-200">
+                                  <label className="text-[10px] font-bold text-outline">感谢信息内容</label>
+                                  <textarea
+                                    value={submitActionMessage}
+                                    onChange={(e) => setSubmitActionMessage(e.target.value)}
+                                    rows={2}
+                                    className="w-full bg-white border border-outline-variant rounded-xl p-3 text-xs focus:ring-2 focus:ring-primary/20 font-medium"
+                                  />
+                                </div>
+                              )}
+                              {submitAction === 'redirect' && (
+                                <div className="space-y-1.5 animate-in fade-in duration-200">
+                                  <label className="text-[10px] font-bold text-outline">指定跳转页面 URL 链接</label>
+                                  <input
+                                    type="text"
+                                    value={submitActionRedirectUrl}
+                                    onChange={(e) => setSubmitActionRedirectUrl(e.target.value)}
+                                    className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 font-medium"
+                                  />
+                                </div>
+                              )}
+                              {submitAction === 'email' && (
+                                <div className="space-y-1.5 animate-in fade-in duration-200">
+                                  <label className="text-[10px] font-bold text-outline">接收通知邮件的邮箱账号</label>
+                                  <input
+                                    type="email"
+                                    value={submitActionEmail}
+                                    onChange={(e) => setSubmitActionEmail(e.target.value)}
+                                    className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 font-medium"
+                                    placeholder="例如: admin@company.com"
+                                  />
+                                </div>
+                              )}
+                              {submitAction === 'sms' && (
+                                <div className="space-y-1.5 animate-in fade-in duration-200">
+                                  <label className="text-[10px] font-bold text-outline">接收通知短信的手机号码</label>
+                                  <input
+                                    type="tel"
+                                    value={submitActionSms}
+                                    onChange={(e) => setSubmitActionSms(e.target.value)}
+                                    className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 font-medium"
+                                    placeholder="例如: 13800000000"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 4. Filling Limits */}
+                          <div className="space-y-4 pt-6 border-t border-dashed border-outline-variant">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-black text-on-surface">4. 填报次数限制</span>
+                              <span className="text-[10px] text-outline font-medium">采用多级安全限制手段，防止重复或刷单等风险。</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-bold text-on-surface">
+                              {limits.map((limit) => {
+                                const isChecked = formLimits.includes(limit.key);
+                                return (
+                                  <label
+                                    key={limit.key}
+                                    className={`p-4 border rounded-2xl flex items-start gap-3 cursor-pointer select-none transition-all ${
+                                      isChecked ? 'bg-primary/5 border-primary shadow-sm' : 'bg-surface border-outline-variant hover:bg-surface-container-low'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        if (isChecked) {
+                                          setFormLimits(formLimits.filter(k => k !== limit.key));
+                                        } else {
+                                          setFormLimits([...formLimits, limit.key]);
+                                        }
+                                      }}
+                                      className="w-4 h-4 text-primary rounded border-outline-variant cursor-pointer mt-0.5"
+                                    />
+                                    <div className="flex flex-col gap-1">
+                                      <span className="font-extrabold">{limit.label}</span>
+                                      <span className="text-[10px] text-outline font-medium">{limit.desc}</span>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* 5. Filling Controls */}
+                          <div className="space-y-4 pt-6 border-t border-dashed border-outline-variant">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-black text-on-surface">5. 填报控制</span>
+                              <span className="text-[10px] text-outline font-medium">针对特定协作场景，个性化控制重复提交和匿名身份。</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-bold text-on-surface">
+                              {controls.map((control) => {
+                                const isChecked = fillingControls.includes(control.key);
+                                return (
+                                  <label
+                                    key={control.key}
+                                    className={`p-4 border rounded-2xl flex items-start gap-3 cursor-pointer select-none transition-all ${
+                                      isChecked ? 'bg-primary/5 border-primary shadow-sm' : 'bg-surface border-outline-variant hover:bg-surface-container-low'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        if (isChecked) {
+                                          setFillingControls(fillingControls.filter(k => k !== control.key));
+                                        } else {
+                                          setFillingControls([...fillingControls, control.key]);
+                                        }
+                                      }}
+                                      className="w-4 h-4 text-primary rounded border-outline-variant cursor-pointer mt-0.5"
+                                    />
+                                    <div className="flex flex-col gap-1">
+                                      <span className="font-extrabold">{control.label}</span>
+                                      <span className="text-[10px] text-outline font-medium">{control.desc}</span>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {configTab === 'notification' && (
+                        <div className="bg-white rounded-3xl border border-outline-variant p-8 space-y-8 shadow-sm w-full">
+                          <div>
+                            <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
+                              <Bell className="w-5 h-5 text-primary" />
+                              消息通知
+                            </h2>
+                            <p className="text-xs text-outline font-medium mt-1">设置及启用多种形式的消息推送模板，系统在表单流转审批或填报协作时向相关角色派发提醒。</p>
+                          </div>
+
+                          <div className="space-y-4">
+                            {notificationTemplates.map((tpl) => (
+                              <div 
+                                key={tpl.id}
+                                className={`border rounded-2xl p-6 transition-all ${
+                                  tpl.enabled ? 'bg-white border-outline-variant shadow-sm' : 'bg-surface border-outline-variant/50 opacity-75'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between pb-4 border-b border-dashed border-outline-variant/60">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                      tpl.id === 'station' ? 'bg-blue-50 text-blue-600' :
+                                      tpl.id === 'sms' ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'
+                                    }`}>
+                                      {tpl.id === 'station' ? <MessageSquare className="w-5 h-5" /> :
+                                       tpl.id === 'sms' ? <Smartphone className="w-5 h-5" /> : <Mail className="w-5 h-5" />}
+                                    </div>
+                                    <div>
+                                      <h3 className="text-xs font-black text-on-surface">{tpl.name}</h3>
+                                      <p className="text-[10px] text-outline font-medium">推送触发：事件响应或人工催办时派发</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                      <button 
+                                        type="button"
+                                        onClick={() => {
+                                          setNotificationTemplates(prev => prev.map(t => t.id === tpl.id ? { ...t, enabled: !t.enabled } : t));
+                                          showNotification(`已切换“${tpl.name}”的推送状态`);
+                                        }}
+                                        className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${tpl.enabled ? 'bg-primary' : 'bg-outline-variant'}`}
+                                      >
+                                        <span className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 transform ${tpl.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                      </button>
+                                      <span className="text-xs font-bold">{tpl.enabled ? '已启用自动推送' : '未开启'}</span>
+                                    </label>
+                                    
+                                    <button
+                                      onClick={() => {
+                                        setEditingNotificationTemplateId(tpl.id);
+                                        setTempNotifyTitle(tpl.title);
+                                        setTempNotifyContent(tpl.content);
+                                      }}
+                                      className="px-3.5 py-1.5 border border-outline-variant text-[11px] font-black hover:border-primary hover:text-primary rounded-lg transition-all"
+                                    >
+                                      编辑模版
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="pt-4 grid grid-cols-1 gap-2 text-xs">
+                                  <div className="flex gap-2 font-bold text-on-surface">
+                                    <span className="text-outline shrink-0">通知主题：</span>
+                                    <span>{tpl.title}</span>
+                                  </div>
+                                  <div className="flex gap-2 font-medium text-on-surface-variant leading-relaxed font-mono">
+                                    <span className="text-outline shrink-0 font-bold">范本体现：</span>
+                                    <span className="bg-surface p-3 rounded-lg border border-outline-variant/60 w-full whitespace-pre-wrap text-[10px] text-on-surface-variant">
+                                      {tpl.content}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {configTab === 'print' && (
+                        <div className="bg-white rounded-3xl border border-outline-variant p-8 space-y-8 shadow-sm w-full">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
+                                <Printer className="w-5 h-5 text-primary" />
+                                打印设置
+                              </h2>
+                              <p className="text-xs text-outline font-medium mt-1">管理和查看预置打印格式，系统流程流转完成后可快捷、按规格渲染纸张视图以备实物归档或PDF导出。</p>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setPrintModalMode('create');
+                                setPrintToEditId(null);
+                                setPrintName('表单基本业务单据存根');
+                                setPrintSize('A4');
+                                setPrintOrientation('vertical');
+                                setPrintContent('此模板打印将全量展示该业务申请的全部非隐藏组件字段信息，以及多节点完整的流转审批历史日志与签字痕迹。');
+                                setIsPrintModalOpen(true);
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4" />
+                              新增打印模板
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {printTemplates.map((pt) => (
+                              <div 
+                                key={pt.id}
+                                className={`border rounded-2xl p-6 flex flex-col justify-between gap-6 transition-all bg-white relative overflow-hidden group ${
+                                  pt.isEnabled ? 'border-outline-variant hover:border-primary/40 shadow-sm' : 'border-outline-variant/40 bg-surface/40 opacity-70'
+                                }`}
+                              >
+                                <div className="space-y-4">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                        pt.isEnabled ? 'bg-primary/10 text-primary' : 'bg-outline-variant text-outline'
+                                      }`}>
+                                        <Printer className="w-4 h-4" />
+                                      </div>
+                                      <h3 className="text-xs font-extrabold text-on-surface line-clamp-1">{pt.name}</h3>
+                                    </div>
+
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
+                                      pt.isEnabled ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                                    }`}>
+                                      {pt.isEnabled ? '已启用' : '已停用'}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed line-clamp-2 min-h-[2.5rem]">
+                                    {pt.content || '暂无打印模板说明。'}
+                                  </p>
+
+                                  <div className="flex items-center gap-4 text-[10px] font-bold text-outline">
+                                    <span>打印尺寸：<span className="text-on-surface">{pt.size}</span></span>
+                                    <span>方向：<span className="text-on-surface">{pt.orientation === 'vertical' ? '纵向' : '横向'}</span></span>
+                                  </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-dotted border-outline-variant flex items-center justify-between bg-white z-10">
+                                  {/* Enable / Disable templates */}
+                                  <button
+                                    onClick={() => {
+                                      setPrintTemplates(prev => prev.map(p => p.id === pt.id ? { ...p, isEnabled: !p.isEnabled } : p));
+                                      showNotification(`“${pt.name}”已切换状态`);
+                                    }}
+                                    className={`text-[10px] font-bold px-2 py-1 rounded transition-all ${
+                                      pt.isEnabled ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-green-50 text-green-600 hover:bg-green-100'
+                                    }`}
+                                  >
+                                    {pt.isEnabled ? '停用' : '启用'}
+                                  </button>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      onClick={() => {
+                                        setPrintModalMode('edit');
+                                        setPrintToEditId(pt.id);
+                                        setPrintName(pt.name);
+                                        setPrintSize(pt.size);
+                                        setPrintOrientation(pt.orientation);
+                                        setPrintContent(pt.content);
+                                        setIsPrintModalOpen(true);
+                                      }}
+                                      className="p-1.5 hover:bg-surface border border-outline-variant hover:border-primary hover:text-primary rounded text-xs font-bold transition-all"
+                                      title="编辑属性"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setActivePrintSettingId(pt.id);
+                                        setIsTemplateDesignerOpen(true);
+                                      }}
+                                      className="px-2 py-1 bg-surface-container-high hover:bg-primary hover:text-white text-[10px] font-bold rounded-lg transition-all"
+                                    >
+                                      模板设置
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setPrintTemplates(prev => prev.filter(p => p.id !== pt.id));
+                                        showNotification('已成功删除模板！');
+                                      }}
+                                      className="p-1.5 hover:bg-red-50 border border-outline-variant hover:border-red-400 hover:text-red-500 rounded text-xs transition-all"
+                                      title="删除模板"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
+                            {printTemplates.length === 0 && (
+                              <div className="col-span-2 py-16 flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-2xl bg-surface/40">
+                                <Printer className="w-8 h-8 text-outline mb-2" />
+                                <span className="text-xs font-medium text-outline">暂无打印模板，点击上方按钮新增其一</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {editorTab !== 'page' && (
+                <main className="flex-1 overflow-y-auto p-12 bg-surface-container-lowest/30 custom-scrollbar relative">
+                  {editorTab === 'design' && (
+                    <div className="max-w-4xl mx-auto space-y-4 pb-20">
                   <Reorder.Group axis="y" values={formFields} onReorder={setFormFields} className="flex flex-wrap gap-4">
                     {formFields.map((field) => (
                       <Reorder.Item 
@@ -3807,6 +4149,23 @@ const ArchitectApp: React.FC = () => {
 
               {editorTab === 'workflow' && (
                 <div className="space-y-8 pb-32">
+                  <div className="flex justify-between items-center bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-outline-variant/60 shadow-sm mb-6">
+                    <div>
+                      <h3 className="text-xs font-extrabold tracking-tight">流程设计画布</h3>
+                      <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">点击编辑节点序列，配置审批及抄送规则</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setGlobalSettingsTab('workflow');
+                        setIsGlobalSettingsOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-surface border border-outline-variant hover:border-primary hover:text-primary rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-outline" />
+                      <span>全局配置</span>
+                    </button>
+                  </div>
+
                   <div className="flex flex-col items-center">
                     {workflowNodes.map((node, index) => {
                       const isBranching = node.type === 'condition';
@@ -4540,8 +4899,8 @@ const ArchitectApp: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
-        </main>
+            </main>
+          )}
 
         {/* Right Sidebar - Properties */}
         {(editorTab !== 'publish' && editorTab !== 'data' && editorTab !== 'simulate' && editorTab !== 'page' && editorTab !== 'preview') && (
@@ -5460,7 +5819,7 @@ const ArchitectApp: React.FC = () => {
               <a href="#" className="hover:text-primary transition-colors">企业方案</a>
               <a href="#" className="hover:text-primary transition-colors">价格</a>
               <button 
-                onClick={() => setView('appCenter')}
+                onClick={() => setView('dashboard')}
                 className="bg-primary text-white px-5 py-2 rounded-lg font-semibold hover:opacity-90 transition-all shadow-md shadow-primary/20"
               >
                 进入控制台
@@ -5489,7 +5848,7 @@ const ArchitectApp: React.FC = () => {
               <a href="#" className="text-lg font-medium">企业方案</a>
               <a href="#" className="text-lg font-medium">价格</a>
               <button 
-                onClick={() => setView('appCenter')}
+                onClick={() => setView('dashboard')}
                 className="w-full bg-primary text-white p-3 rounded-md"
               >
                 进入控制台
