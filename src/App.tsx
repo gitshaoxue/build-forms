@@ -1,6 +1,7 @@
 import React from 'react';
 import { 
   FormInput, 
+  Home,
   Workflow, 
   Database, 
   ShieldCheck, 
@@ -508,7 +509,6 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
     <nav className="flex-1 space-y-1 px-4">
       {[
         { label: '仪表盘', icon: Activity, view: 'dashboard' },
-        { label: '应用中心', icon: LayoutGrid, view: 'appCenter' },
         { label: '应用管理', icon: FormInput, view: 'projects' },
         { label: '数据洞察', icon: BarChart3, view: 'insights' },
         { label: '系统设置', icon: Database, view: 'integrations' },
@@ -582,6 +582,91 @@ const DashboardHeader = ({ title, subtitle, showNotification }: DashboardHeaderP
       </div>
     </div>
   </header>
+);
+
+const WorkspaceHeader = ({ title, subtitle, showNotification, setView }: { title: string, subtitle?: string, showNotification: (msg: string) => void, setView: (view: ViewType) => void }) => (
+  <header className="h-20 bg-white sticky top-0 z-10 flex items-center shrink-0 border-b border-outline-variant/60 shadow-sm">
+    <div className="max-w-[1600px] mx-auto w-full px-10 flex items-center justify-between">
+      <div className="flex items-center gap-6">
+        <div 
+          onClick={() => setView('landing')} 
+          className="flex items-center gap-2 cursor-pointer hover:opacity-85 transition-all group"
+        >
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+            <LayoutGrid className="text-white w-5 h-5" />
+          </div>
+          <span className="font-bold text-xl tracking-tighter">自定义表单</span>
+        </div>
+        <div className="w-px h-6 bg-outline-variant"></div>
+        <div>
+          <h1 className="text-lg font-bold tracking-tight text-on-surface flex items-center gap-2">
+            {title}
+            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">工作台模式</span>
+          </h1>
+          {subtitle && <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">{subtitle}</p>}
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-4">
+        {/* Highly visible Back to Home action button */}
+        <button 
+          onClick={() => setView('landing')}
+          className="flex items-center gap-2 px-4 py-2 border border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary rounded-xl text-xs font-bold transition-all shadow-sm bg-white hover:bg-primary/5 active:scale-95 cursor-pointer"
+        >
+          <Home className="w-3.5 h-3.5" />
+          <span>返回主页</span>
+        </button>
+        <div className="w-px h-6 bg-outline-variant"></div>
+        <button onClick={() => showNotification('没有新通知')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
+          <Bell className="w-5 h-5" />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
+        </button>
+        <img 
+          src="https://picsum.photos/seed/profile/100/100" 
+          className="w-8 h-8 rounded-full ring-2 ring-primary/10 cursor-pointer hover:ring-primary/30 transition-all border border-outline-variant" 
+          alt="头像"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    </div>
+  </header>
+);
+
+const WorkspaceLayout = ({ children, title, subtitle, viewToken, notifications, currentView, setView, showNotification }: ConsoleLayoutProps) => (
+  <div className="flex flex-col h-screen bg-surface overflow-hidden text-on-surface select-none">
+    <WorkspaceHeader title={title} subtitle={subtitle} showNotification={showNotification} setView={setView} />
+    <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative bg-surface-container-lowest">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={viewToken}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="flex-1 flex flex-col"
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
+      
+      <div className="fixed bottom-8 right-8 space-y-2 z-50 pointer-events-none">
+        <AnimatePresence>
+          {notifications.map(n => (
+            <motion.div
+              key={n.id}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="bg-on-surface text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm pointer-events-auto border border-outline-variant/10"
+            >
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+              {n.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </main>
+  </div>
 );
 
 const ConsoleLayout = ({ children, title, subtitle, viewToken, notifications, currentView, setView, showNotification }: ConsoleLayoutProps) => (
@@ -5583,17 +5668,17 @@ const ArchitectApp: React.FC = () => {
 
   if (view === 'appCenter') {
     return (
-      <ConsoleLayout 
+      <WorkspaceLayout 
         viewToken="appCenter" 
-        title="应用中心" 
-        subtitle="浏览并启动您组织中已发布的应用"
+        title="工作台" 
+        subtitle="浏览并启动您已发布的日常工作应用"
         currentView={view} 
         setView={setView} 
         showNotification={showNotification} 
         notifications={notifications}
       >
         <AppCenterView />
-      </ConsoleLayout>
+      </WorkspaceLayout>
     );
   }
 
@@ -5814,13 +5899,19 @@ const ArchitectApp: React.FC = () => {
               <span className="font-bold text-xl tracking-tighter">自定义表单</span>
             </div>
             
-            <div className="hidden md:flex items-center gap-8 text-sm font-medium text-on-surface-variant">
+            <div className="hidden md:flex items-center gap-4 text-sm font-medium text-on-surface-variant">
               <a href="#" className="hover:text-primary transition-colors">资源中心</a>
               <a href="#" className="hover:text-primary transition-colors">企业方案</a>
               <a href="#" className="hover:text-primary transition-colors">价格</a>
               <button 
+                onClick={() => setView('appCenter')}
+                className="bg-white text-on-surface border border-outline-variant px-5 py-2 rounded-lg font-semibold hover:bg-surface-container-low transition-all active:scale-95 shadow-sm"
+              >
+                进入工作台
+              </button>
+              <button 
                 onClick={() => setView('dashboard')}
-                className="bg-primary text-white px-5 py-2 rounded-lg font-semibold hover:opacity-90 transition-all shadow-md shadow-primary/20"
+                className="bg-primary text-white px-5 py-2 rounded-lg font-semibold hover:opacity-90 transition-all shadow-md shadow-primary/20 animate-in fade-in zoom-in-95 duration-300"
               >
                 进入控制台
               </button>
@@ -5848,8 +5939,14 @@ const ArchitectApp: React.FC = () => {
               <a href="#" className="text-lg font-medium">企业方案</a>
               <a href="#" className="text-lg font-medium">价格</a>
               <button 
+                onClick={() => setView('appCenter')}
+                className="w-full bg-white text-on-surface border border-outline-variant p-3 rounded-md font-semibold"
+              >
+                进入工作台
+              </button>
+              <button 
                 onClick={() => setView('dashboard')}
-                className="w-full bg-primary text-white p-3 rounded-md"
+                className="w-full bg-primary text-white p-3 rounded-md font-semibold"
               >
                 进入控制台
               </button>
