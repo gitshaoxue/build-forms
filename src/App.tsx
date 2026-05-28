@@ -2786,6 +2786,8 @@ const ArchitectApp: React.FC = () => {
     form: { orgs: [] as string[], roles: [] as string[], users: [] as string[] },
     data: { scope: 'myself' as 'myself' | 'dept' | 'dept_sub' | 'all' | 'subordinates' | 'managed_org', mode: 'belonging' as 'belonging' | 'responsible' | 'custom' }
   });
+  const [pageMatchMode, setPageMatchMode] = React.useState<'all' | 'any'>('all');
+  const [formMatchMode, setFormMatchMode] = React.useState<'all' | 'any'>('all');
   const [propertyTab, setPropertyTab] = React.useState<'props' | 'style'>('props');
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
   const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([
@@ -4609,11 +4611,42 @@ const ArchitectApp: React.FC = () => {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
                             <h3 className="font-bold flex items-center gap-2 cursor-default"><Building2 className="w-5 h-5 text-primary" /> 页面访问限制</h3>
                             <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">清空所选</button>
                          </div>
+
+                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/60">
+                           <span className="text-xs font-extrabold text-on-surface-variant flex items-center gap-1.5">
+                             规则组合逻辑:
+                           </span>
+                           <div className="flex flex-wrap gap-6">
+                             <label className="flex items-center gap-2 cursor-pointer select-none">
+                               <input 
+                                 type="radio" 
+                                 name="pageMatchMode" 
+                                 checked={pageMatchMode === 'all'} 
+                                 onChange={() => setPageMatchMode('all')}
+                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                               />
+                               <span className="text-xs font-bold text-on-surface">所有条件必须同时满足</span>
+                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">And</span>
+                             </label>
+                             <label className="flex items-center gap-2 cursor-pointer select-none">
+                               <input 
+                                 type="radio" 
+                                 name="pageMatchMode" 
+                                 checked={pageMatchMode === 'any'} 
+                                 onChange={() => setPageMatchMode('any')}
+                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                               />
+                               <span className="text-xs font-bold text-on-surface">任意满足其中一个条件</span>
+                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">Or</span>
+                             </label>
+                           </div>
+                         </div>
+
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-3">
                                <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
@@ -4636,11 +4669,42 @@ const ArchitectApp: React.FC = () => {
                          </div>
                       </section>
 
-                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
                             <h3 className="font-bold flex items-center gap-2 cursor-default"><FormInput className="w-5 h-5 text-primary" /> 表单填写限制</h3>
                             <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">清空所选</button>
                          </div>
+
+                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/60">
+                           <span className="text-xs font-extrabold text-on-surface-variant flex items-center gap-1.5">
+                             规则组合逻辑:
+                           </span>
+                           <div className="flex flex-wrap gap-6">
+                             <label className="flex items-center gap-2 cursor-pointer select-none">
+                               <input 
+                                 type="radio" 
+                                 name="formMatchMode" 
+                                 checked={formMatchMode === 'all'} 
+                                 onChange={() => setFormMatchMode('all')}
+                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                               />
+                               <span className="text-xs font-bold text-on-surface">所有条件必须同时满足</span>
+                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">And</span>
+                             </label>
+                             <label className="flex items-center gap-2 cursor-pointer select-none">
+                               <input 
+                                 type="radio" 
+                                 name="formMatchMode" 
+                                 checked={formMatchMode === 'any'} 
+                                 onChange={() => setFormMatchMode('any')}
+                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                               />
+                               <span className="text-xs font-bold text-on-surface">任意满足其中一个条件</span>
+                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">Or</span>
+                             </label>
+                           </div>
+                         </div>
+
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-3">
                                <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
