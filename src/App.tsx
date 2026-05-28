@@ -116,7 +116,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
-type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter';
+type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter';
 
 interface FormField {
   id: string;
@@ -510,6 +510,7 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
       {[
         { label: '仪表盘', icon: Activity, view: 'dashboard' },
         { label: '应用管理', icon: FormInput, view: 'projects' },
+        { label: '数据管理', icon: FileSpreadsheet, view: 'dataManagement' },
         { label: '数据洞察', icon: BarChart3, view: 'insights' },
         { label: '系统设置', icon: Database, view: 'integrations' },
       ].map((item) => (
@@ -2088,6 +2089,875 @@ const IntegrationsView = ({ showNotification, setView }: IntegrationsViewProps &
     </div>
   </div>
 );
+
+// ==================== 数据管理视图 (Data Management View) ====================
+
+const initialDataManagementRecords: Record<string, any[]> = {
+  'f1': [
+    { id: 'r1_1', name: '陈小明', dept: '技术研发部', date: '2026-05-20', role: '高级前端工程师', phone: '13800138000', status: '已通过' },
+    { id: 'r1_2', name: '林华', dept: '市场运营部', date: '2026-05-22', role: '策划经理', phone: '13922334455', status: '审批中' },
+    { id: 'r1_3', name: '赵静', dept: '人力资源部', date: '2026-05-25', role: '招聘专员', phone: '18688889999', status: '已拒绝' },
+    { id: 'r1_4', name: '李瑞', dept: '产品设计部', date: '2026-05-26', role: 'UI设计师', phone: '15011223344', status: '已通过' },
+    { id: 'r1_5', name: '王强', dept: '技术研发部', date: '2026-05-26', role: 'Java开发工程师', phone: '13677889900', status: '审批中' },
+  ],
+  'f2': [
+    { id: 'r2_1', evaluator: '王总工', candidate: '张海涛', score: 92, rank: '精英工程师', comment: '技术根基极其扎实，在分布式与基础机制上有独到理解，完美通过面试。', date: '2026-05-21', status: '推荐录用' },
+    { id: 'r2_2', evaluator: '李架构师', candidate: '崔大明', score: 78, rank: '高级工程师', comment: '业务理解良好，底层并发掌握一般，建议定岗T6，做后续观察。', date: '2026-05-23', status: '推荐录用' },
+    { id: 'r2_3', evaluator: '高经理', candidate: '杨柳青', score: 58, rank: '初级工程师', comment: '项目经验略显薄弱，基本语法掌握不牢固，不符合招聘标准。', date: '2026-05-24', status: '不予录用' },
+  ],
+  'f3': [
+    { id: 'r3_1', nickname: 'TechExplorer', frequency: '每天使用', score: 5, feedback: '全新版本的流程设计器十分流畅，功能比以前丰富太多，期待早日上线！', time: '2026-05-26 14:22', source: 'Web端' },
+    { id: 'r3_2', nickname: '设计师豆豆', frequency: '每周几次', score: 4, feedback: '表单支持丰富的微调，宽度自适应非常棒，编辑体验满分。', time: '2026-05-25 09:12', source: '移动端' },
+    { id: 'r3_3', nickname: '架构老张', frequency: '每天使用', score: 5, feedback: '开放式表单对我们管理异构数据很有帮助，已经做为日常业务的支柱了。', time: '2026-05-24 18:45', source: 'Web端' },
+    { id: 'r3_4', nickname: '测试小林', frequency: '每周几次', score: 3, feedback: '希望在移动端下的交互能够进一步多一点滑动或者手势操作的灵动效果。', time: '2026-05-24 10:05', source: 'iOS客户端' },
+  ],
+  'f4': [
+    { id: 'r4_1', reporter: '莉莉', satisfy: '极佳', suggestion: '希望多增加一些暗色卡片的主题配置，可以保护视力，也显得很高档。', time: '2026-05-26 15:30' },
+    { id: 'r4_2', reporter: '赵本生', satisfy: '良好', suggestion: '表单填报页在小屏手机上的自适应希望进一步强化，尤其是复杂表格。', time: '2026-05-25 11:20' },
+    { id: 'r4_3', reporter: '胡先森', satisfy: '卓越', suggestion: '完美的界面和过渡动画，使用起来很舒心，非常赞！', time: '2026-05-23 08:44' },
+  ],
+  'f5': [
+    { id: 'r5_1', company: '腾讯科技（深圳）有限公司', contact: '马先生', product: '企业旗舰白金版', budget: '10万-50万', record: '电话邀约，计划5月27日下午现场进行产品技术交流及POC演示', status: '高度意向' },
+    { id: 'r5_2', company: '北京字节跳动网络服务', contact: '张女士', product: '标准智能表单系统', budget: '1万-5万', record: '已发详细报价单，正在确认采购审批流程，反馈积极', status: '商务跟进中' },
+    { id: 'r5_3', company: '未来独角兽数字科技有限公司', contact: '孙总', product: '流程引擎专有部署', budget: '50万以上', record: '客户内部财务审核完毕，正进行合同内容合规核对', status: '签约中' },
+    { id: 'r5_4', company: '极客先锋创新中心', contact: '梁经理', product: '标准智能表单系统', budget: '1万以下', record: '免费版用户咨询，已推荐官网自主升级渠道', status: '低意向' },
+  ],
+  'f6': [
+    { id: 'r6_1', name: '常春藤候选1号', score: '优秀 (95)', recommend: '是', creator: 'HR-陈', date: '2025-12-15' },
+    { id: 'r6_2', name: '技术总监晋升2号', score: '极佳 (98)', recommend: '是', creator: 'HR-王', date: '2025-12-14' },
+  ]
+};
+
+const dataRecordsMeta: Record<string, { label: string; key: string; type?: 'text' | 'number' | 'status' }[]> = {
+  'f1': [
+    { label: '员工姓名', key: 'name', type: 'text' },
+    { label: '部门', key: 'dept', type: 'text' },
+    { label: '入职日期', key: 'date', type: 'text' },
+    { label: '岗位', key: 'role', type: 'text' },
+    { label: '联系电话', key: 'phone', type: 'text' },
+    { label: '审批状态', key: 'status', type: 'status' },
+  ],
+  'f2': [
+    { label: '评估人', key: 'evaluator', type: 'text' },
+    { label: '候选人', key: 'candidate', type: 'text' },
+    { label: '评估打分', key: 'score', type: 'number' },
+    { label: '推荐职级', key: 'rank', type: 'text' },
+    { label: '评语', key: 'comment', type: 'text' },
+    { label: '评估日期', key: 'date', type: 'text' },
+    { label: '审批状态', key: 'status', type: 'status' },
+  ],
+  'f3': [
+    { label: '用户昵称', key: 'nickname', type: 'text' },
+    { label: '使用频次', key: 'frequency', type: 'text' },
+    { label: '功能评分', key: 'score', type: 'number' },
+    { label: '建议反馈', key: 'feedback', type: 'text' },
+    { label: '提交时间', key: 'time', type: 'text' },
+    { label: '操作端', key: 'source', type: 'text' },
+  ],
+  'f4': [
+    { label: '反馈人', key: 'reporter', type: 'text' },
+    { label: '视觉满意度', key: 'satisfy', type: 'text' },
+    { label: '优化意见', key: 'suggestion', type: 'text' },
+    { label: '提交时间', key: 'time', type: 'text' },
+  ],
+  'f5': [
+    { label: '企业名称', key: 'company', type: 'text' },
+    { label: '联系人', key: 'contact', type: 'text' },
+    { label: '意向产品', key: 'product', type: 'text' },
+    { label: '预算范围', key: 'budget', type: 'text' },
+    { label: '跟进记录', key: 'record', type: 'text' },
+    { label: '跟进状态', key: 'status', type: 'status' },
+  ],
+  'f6': [
+    { label: '候选姓名', key: 'name', type: 'text' },
+    { label: '综合打分', key: 'score', type: 'text' },
+    { label: '推荐晋升', key: 'recommend', type: 'text' },
+    { label: '创建人', key: 'creator', type: 'text' },
+    { label: '创建日期', key: 'date', type: 'text' },
+  ],
+};
+
+const renderRecordStatusBadge = (status: string) => {
+  const isApproved = ['已通过', '推荐录用', '已建档', '高度意向', '是', '卓越', '极佳'].includes(status);
+  const isPending = ['审批中', '商务跟进中', '签约中', '良好'].includes(status);
+  const isRejected = ['已拒绝', '不予录用', '低意向'].includes(status);
+
+  if (isApproved) {
+    return (
+      <span className="px-2.5 py-1 text-[10px] font-black rounded-lg bg-green-100 text-green-700 tracking-wider">
+        {status}
+      </span>
+    );
+  }
+  if (isPending) {
+    return (
+      <span className="px-2.5 py-1 text-[10px] font-black rounded-lg bg-yellow-100 text-yellow-700 tracking-wider">
+        {status}
+      </span>
+    );
+  }
+  if (isRejected) {
+    return (
+      <span className="px-2.5 py-1 text-[10px] font-black rounded-lg bg-red-100 text-red-700 tracking-wider">
+        {status}
+      </span>
+    );
+  }
+  return (
+    <span className="px-2.5 py-1 text-[10px] font-black rounded-lg bg-gray-100 text-gray-700 tracking-wider">
+      {status}
+    </span>
+  );
+};
+
+const getProjectIcon = (iconName: string) => {
+  const map: Record<string, any> = {
+    'Users': Users,
+    'MessageSquare': MessageSquare,
+    'BarChart3': BarChart3,
+    'Briefcase': Briefcase,
+    'FormInput': FormInput,
+    'Layers': Layers,
+  };
+  return map[iconName] || FormInput;
+};
+
+interface DataManagementViewProps {
+  projects: Project[];
+  savedForms: SavedForm[];
+  showNotification: (text: string) => void;
+}
+
+const DataManagementView = ({ projects, savedForms, showNotification }: DataManagementViewProps) => {
+  const [selectedProjectId, setSelectedProjectId] = React.useState<string>(projects[1]?.id || projects[0]?.id || '');
+  const [selectedFormId, setSelectedFormId] = React.useState<string>('');
+  
+  // High fidelity persistent record state supporting manual addition + deletions
+  const [records, setRecords] = React.useState<Record<string, any[]>>(initialDataManagementRecords);
+  
+  // Search query
+  const [searchQuery, setSearchQuery] = React.useState<string>('');
+  // Left sidebar project search query
+  const [projectSearch, setProjectSearch] = React.useState<string>('');
+  
+  // Status filter state
+  const [statusFilter, setStatusFilter] = React.useState<string>('all');
+  
+  // View detail states
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState<boolean>(false);
+  const [selectedRecord, setSelectedRecord] = React.useState<any | null>(null);
+  
+  // Add new state
+  const [isNewRecordModalOpen, setIsNewRecordModalOpen] = React.useState<boolean>(false);
+  const [newRecordFields, setNewRecordFields] = React.useState<Record<string, string>>({});
+
+  // Auto-select first matching form when selectedProjectId changes
+  React.useEffect(() => {
+    const matchingForms = savedForms.filter(f => f.projectId === selectedProjectId);
+    if (matchingForms.length > 0) {
+      setSelectedFormId(matchingForms[0].id);
+    } else {
+      setSelectedFormId('');
+    }
+    // Reset filters
+    setSearchQuery('');
+    setStatusFilter('all');
+  }, [selectedProjectId, savedForms]);
+
+  // Total records sum computed across all sheets
+  const grandTotalSumbissions = React.useMemo(() => {
+    return (Object.values(records) as any[][]).reduce((sum, list) => sum + (list ? list.length : 0), 0);
+  }, [records]);
+
+  // Current active form details & matching columns
+  const activeForm = React.useMemo(() => {
+    return savedForms.find(f => f.id === selectedFormId);
+  }, [selectedFormId, savedForms]);
+
+  const activeColumns = React.useMemo(() => {
+    return dataRecordsMeta[selectedFormId] || [];
+  }, [selectedFormId]);
+
+  const activeFormRecords = React.useMemo(() => {
+    return records[selectedFormId] || [];
+  }, [selectedFormId, records]);
+
+  // Get unique statuses in active form records for dropdown filter
+  const uniqueStatuses = React.useMemo(() => {
+    const statuses = new Set<string>();
+    activeFormRecords.forEach(r => {
+      if (r.status) statuses.add(r.status);
+    });
+    return Array.from(statuses);
+  }, [activeFormRecords]);
+
+  // Computed display grid filtered with query & status options
+  const filteredRecords = React.useMemo(() => {
+    let result = [...activeFormRecords];
+    if (statusFilter !== 'all') {
+      result = result.filter(r => r.status === statusFilter);
+    }
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(r => {
+        return Object.values(r).some(val => 
+          val !== null && val !== undefined && String(val).toLowerCase().includes(q)
+        );
+      });
+    }
+    return result;
+  }, [activeFormRecords, statusFilter, searchQuery]);
+
+  // Sidebar search filter projects
+  const filteredProjects = React.useMemo(() => {
+    if (projectSearch.trim() === '') return projects;
+    const q = projectSearch.toLowerCase().trim();
+    return projects.filter(p => p.name.toLowerCase().includes(q));
+  }, [projects, projectSearch]);
+
+  // Handle deletion of rows
+  const handleDeleteRow = (rowId: string) => {
+    if (confirm('确认删除这一条填报数据记录？该操作不可逆。')) {
+      const updatedList = activeFormRecords.filter(r => r.id !== rowId);
+      setRecords(prev => ({
+        ...prev,
+        [selectedFormId]: updatedList
+      }));
+      showNotification('记录已成功删除');
+    }
+  };
+
+  // Export mock success
+  const handleExportData = () => {
+    showNotification(`已打包导出 ${filteredRecords.length} 条数据至 Excel 报表中`);
+  };
+
+  // Open modal to submit new dynamic test row
+  const handleOpenAddModal = () => {
+    if (activeColumns.length === 0) return;
+    const initialFields: Record<string, string> = {};
+    activeColumns.forEach(c => {
+      // Set defaults
+      if (c.key === 'status') {
+         initialFields[c.key] = '已通过';
+      } else if (c.key === 'date') {
+         initialFields[c.key] = new Date().toISOString().split('T')[0];
+      } else if (c.key === 'time') {
+         const now = new Date();
+         initialFields[c.key] = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      } else {
+         initialFields[c.key] = '';
+      }
+    });
+    setNewRecordFields(initialFields);
+    setIsNewRecordModalOpen(true);
+  };
+
+  // Save new record
+  const handleSaveNewRecord = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newId = `new_r_${Date.now()}`;
+    const entry = { id: newId, ...newRecordFields };
+    
+    // Add to records state
+    setRecords(prev => {
+      const currentList = prev[selectedFormId] || [];
+      return {
+        ...prev,
+        [selectedFormId]: [entry, ...currentList]
+      };
+    });
+
+    setIsNewRecordModalOpen(false);
+    showNotification('新增表单填报数据成功！已同步至数据中心。');
+  };
+
+  return (
+    <div className="p-8 space-y-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
+      
+      {/* Top summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="sleek-card p-6 bg-white border border-outline-variant/60 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider font-extrabold text-outline">已接入应用数</span>
+            <h4 className="text-2xl font-black tracking-tight mt-1">{projects.length}</h4>
+            <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">多业务场景全面覆盖</p>
+          </div>
+          <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+            <Layout className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="sleek-card p-6 bg-white border border-outline-variant/60 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider font-extrabold text-outline">表单工作底表</span>
+            <h4 className="text-2xl font-black tracking-tight mt-1">{savedForms.length} <span className="text-xs text-outline font-bold">个</span></h4>
+            <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">流转、普通及问卷表单</p>
+          </div>
+          <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-505">
+            <FileText className="w-5 h-5 animate-pulse text-indigo-500" />
+          </div>
+        </div>
+
+        <div className="sleek-card p-6 bg-white border border-outline-variant/60 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider font-extrabold text-outline">累计填报数据量</span>
+            <h4 className="text-2xl font-black tracking-tight mt-1">{grandTotalSumbissions} <span className="text-xs text-outline font-bold">条</span></h4>
+            <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">全企业业务报送汇聚</p>
+          </div>
+          <div className="w-12 h-12 bg-green-500/10 rounded-2xl flex items-center justify-center text-green-500">
+            <FileSpreadsheet className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="sleek-card p-6 bg-primary text-white flex items-center justify-between shadow-2xl shadow-primary/20">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider font-extrabold text-white/70">当前选定表单数据</span>
+            <h4 className="text-2xl font-black tracking-tight mt-1">{filteredRecords.length} <span className="text-xs text-white/75 font-semibold">条</span></h4>
+            <p className="text-[10px] text-white/80 font-medium mt-0.5">包含筛选/检索状态记录</p>
+          </div>
+          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white">
+            <CheckSquare className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Main interactive split pane */}
+      <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[600px]">
+        
+        {/* Left pane - selection checklist (Apps & Forms list) */}
+        <div className="w-full lg:w-80 bg-white border border-outline-variant/60 rounded-3xl p-5 shrink-0 shadow-sm space-y-6">
+          
+          <div>
+            <h3 className="text-sm font-extrabold tracking-tight text-on-surface">应用与表单目录</h3>
+            <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">选择对应应用调取关联的表单列表</p>
+          </div>
+
+          {/* Quick filter app search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline/60" />
+            <input 
+              type="text" 
+              placeholder="搜索应用..." 
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-outline-variant hover:border-outline/50 focus:border-primary/50 text-xs font-bold rounded-xl transition-all"
+            />
+          </div>
+
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+            {filteredProjects.map((p) => {
+              const IconComp = getProjectIcon(p.icon);
+              const isSelected = p.id === selectedProjectId;
+              const matchingForms = savedForms.filter(f => f.projectId === p.id);
+
+              return (
+                <div key={p.id} className="space-y-2">
+                  {/* Project card */}
+                  <div 
+                    onClick={() => setSelectedProjectId(p.id)}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${
+                      isSelected 
+                        ? 'bg-primary/5 border-primary shadow-sm' 
+                        : 'border-outline-variant/60 hover:bg-surface-container-low'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                      isSelected ? 'bg-primary text-white' : 'bg-surface text-on-surface-variant border border-outline-variant'
+                    }`}>
+                      <IconComp className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-extrabold truncate text-on-surface">{p.name}</h4>
+                      <p className="text-[9px] text-outline font-semibold mt-0.5">{matchingForms.length} 个表单</p>
+                    </div>
+                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${
+                      isSelected ? 'text-primary rotate-90' : 'text-outline/40'
+                    }`} />
+                  </div>
+
+                  {/* Interlinked form children nested list (only shown if parent is selected) */}
+                  {isSelected && (
+                    <div className="pl-4 space-y-1 border-l-2 border-primary/20 ml-7 py-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                      {matchingForms.length === 0 ? (
+                        <p className="text-[10px] text-outline font-semibold py-1">暂无相关表单</p>
+                      ) : (
+                        matchingForms.map((f) => {
+                          const isActiveForm = f.id === selectedFormId;
+                          
+                          // Label helper for form categories
+                          const formTypeLabel = f.type === 'workflow' ? '流程' : f.type === 'report' ? '报表' : f.type === 'dashboard' ? '看板' : '普通';
+                          const themeBadge = f.type === 'workflow' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700';
+
+                          return (
+                            <button
+                              key={f.id}
+                              onClick={() => setSelectedFormId(f.id)}
+                              className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between ${
+                                isActiveForm 
+                                  ? 'bg-primary/10 text-primary' 
+                                  : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                              }`}
+                            >
+                              <span className="truncate flex-1 pr-2">{f.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-black shrink-0 ${themeBadge}`}>
+                                {formTypeLabel}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {filteredProjects.length === 0 && (
+              <div className="text-center py-8 text-outline text-xs">
+                没有找到匹配的应用
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right pane - Dynamic Tabular Spreadsheet dashboard */}
+        <div className="flex-1 w-full bg-white border border-outline-variant/60 rounded-3xl shadow-sm p-6 space-y-6">
+          
+          {/* Active sheet identifier and top action headers */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-outline-variant/60">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-black tracking-widest uppercase">已发布底表</span>
+                {activeForm?.designer && <span className="text-[10px] text-outline font-semibold">创建者: {activeForm.designer}</span>}
+              </div>
+              <h2 className="text-base font-black tracking-tight text-on-surface mt-1.5 flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-primary shrink-0" />
+                {activeForm ? activeForm.name : '数据管理中台'}
+              </h2>
+              <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">
+                {activeForm ? `表单ID: ${activeForm.id} • 获取已报送填报的最新流程明细` : '请在左侧点击展开应用，选择对应的已发布表单进行数据审计'}
+              </p>
+            </div>
+
+            {activeForm && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button 
+                  onClick={handleOpenAddModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white hover:bg-opacity-90 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer animate-in fade-in zoom-in-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>添加数据</span>
+                </button>
+                <button 
+                  onClick={handleExportData}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-surface border border-outline-variant hover:border-outline text-on-surface rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-outline" />
+                  <span>导出报表</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {activeForm ? (
+            <div className="space-y-4">
+              
+              {/* Internal filters toolbar */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                
+                {/* Search query */}
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline/65" />
+                  <input 
+                    type="text" 
+                    placeholder="在当前底表中检索关键字..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-surface hover:bg-surface-container-low border border-outline-variant hover:border-outline/50 focus:border-primary/50 text-xs font-bold rounded-xl transition-all"
+                  />
+                  {searchQuery && (
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-outline hover:text-on-surface font-extrabold"
+                    >清空</button>
+                  )}
+                </div>
+
+                {/* Status Dropdown filter (only if record meta includes status) */}
+                {uniqueStatuses.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-outline font-extrabold whitespace-nowrap hidden sm:inline">状态筛选:</span>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="bg-surface border border-outline-variant text-xs font-bold rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:border-primary/50"
+                    >
+                      <option value="all">显示全部 ({activeFormRecords.length})</option>
+                      {uniqueStatuses.map(st => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                <button 
+                  onClick={() => {
+                    setSearchQuery('');
+                    setStatusFilter('all');
+                    showNotification('数据视图已重置刷新');
+                  }}
+                  className="p-2 border border-outline-variant hover:border-outline rounded-xl hover:bg-surface active:scale-95 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                  title="重置刷新"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Responsive Elegant Data Table section */}
+              <div className="border border-outline-variant/60 rounded-2xl overflow-hidden shadow-inner bg-white">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="bg-surface-container-low/60 border-b border-outline-variant">
+                        <th className="p-4 text-[10px] font-black text-outline uppercase tracking-wider pl-6 w-16">
+                          ID
+                        </th>
+                        
+                        {/* Dynamic custom columns */}
+                        {activeColumns.map((col) => (
+                          <th key={col.key} className="p-4 text-[10px] font-black text-outline uppercase tracking-wider">
+                            {col.label}
+                          </th>
+                        ))}
+
+                        <th className="p-4 text-[10px] font-black text-outline uppercase tracking-wider text-right pr-6 w-28">
+                          管理操作
+                        </th>
+                      </tr>
+                    </thead>
+                    
+                    <tbody className="divide-y divide-outline-variant/60">
+                      {filteredRecords.map((row, index) => (
+                        <tr key={row.id} className="hover:bg-primary/5 transition-colors text-xs font-bold text-on-surface group">
+                          <td className="p-4 pl-6 text-outline font-mono">
+                            {row.id.startsWith('new_r') ? 'TBD' : `#${index + 1}`}
+                          </td>
+
+                          {/* Dynamic dynamic custom row value maps */}
+                          {activeColumns.map((col) => {
+                            const value = row[col.key];
+
+                            return (
+                              <td key={col.key} className="p-4 max-w-xs truncate">
+                                {col.type === 'status' ? (
+                                  renderRecordStatusBadge(value || '')
+                                ) : col.key === 'comment' || col.key === 'record' || col.key === 'suggestion' ? (
+                                  <span className="text-on-surface-variant font-medium block max-w-xs truncate" title={value}>
+                                    {value || '-'}
+                                  </span>
+                                ) : (
+                                  <span>{value === undefined || value === null ? '-' : value}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+
+                          {/* Interactive management operations */}
+                          <td className="p-4 text-right pr-6 space-x-1 whitespace-nowrap">
+                            <button 
+                              onClick={() => {
+                                setSelectedRecord(row);
+                                setIsDetailsModalOpen(true);
+                              }}
+                              className="px-2.5 py-1 bg-surface-container-low hover:bg-primary/10 text-on-surface-variant hover:text-primary rounded-lg text-[10px] font-bold transition-all inline-flex items-center gap-1 active:scale-95"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>详情</span>
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteRow(row.id)}
+                              className="px-2.5 py-1 bg-surface-container-low hover:bg-red-50 text-on-surface-variant hover:text-red-600 rounded-lg text-[10px] font-bold transition-all inline-flex items-center gap-1 active:scale-95"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>删除</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {filteredRecords.length === 0 && (
+                        <tr>
+                          <td colSpan={activeColumns.length + 2} className="p-16 text-center text-outline font-bold">
+                            <div className="flex flex-col items-center gap-2 justify-center">
+                              <FileSearch className="w-10 h-10 text-outline/40" />
+                              <span className="text-xs">未找到任何符合筛选条件的填报数据</span>
+                              <button 
+                                onClick={() => { setSearchQuery(''); setStatusFilter('all'); }} 
+                                className="text-[10px] text-primary hover:underline font-bold mt-1"
+                              >
+                                重置过滤器
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Simulated table footer context */}
+                <div className="p-4 bg-surface-container-low/40 border-t border-outline-variant flex items-center justify-between text-[10px] text-outline font-extrabold">
+                  <span>总计 {filteredRecords.length} / {activeFormRecords.length} 项记录</span>
+                  <span className="text-primary font-bold">● 已连接分布式企业数据链中心 · 数据安全审计保障中</span>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            <div className="min-h-[450px] flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-outline-variant rounded-3xl bg-surface/30">
+              <Database className="w-16 h-16 text-outline/35 mb-4 animate-bounce" />
+              <h3 className="text-sm font-black text-on-surface">请在左侧选择对应数据表单</h3>
+              <p className="text-xs text-on-surface-variant max-w-sm mt-1 mb-6 font-medium">数据管理专为企业管理及报送审计人员提供。可集中查看、检索和导出各业务场景下由页面或流程收集的数据成果指标。</p>
+              
+              <div className="flex gap-4">
+                {projects.slice(1, 3).map(p => (
+                  <button 
+                    key={p.id}
+                    onClick={() => setSelectedProjectId(p.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white border border-outline-variant hover:border-primary rounded-xl text-xs font-bold text-on-surface-variant hover:text-primary transition-all shadow-sm"
+                  >
+                    <span>快捷选择: {p.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* Row detail sliding panel dialog overlay */}
+      <AnimatePresence>
+        {isDetailsModalOpen && selectedRecord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-end pl-10 select-none">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDetailsModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            {/* Panel */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-2xl bg-white h-screen shadow-2xl flex flex-col border-l border-outline-variant"
+            >
+              <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] bg-primary text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      底表元数据
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-outline">
+                      ID: {selectedRecord.id}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-black text-on-surface mt-1.5">
+                    表单提交结果明细详情
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setIsDetailsModalOpen(false)}
+                  className="p-1 px-2.5 text-xs text-outline font-extrabold bg-white border border-outline-variant rounded-lg hover:bg-surface transition-all cursor-pointer"
+                >
+                  关闭
+                </button>
+              </div>
+
+              {/* Panel detail Content */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                
+                <div className="space-y-4">
+                  <h4 className="text-[10px] border-b border-outline-variant text-outline font-extrabold pb-1 tracking-wider uppercase">
+                    提交字段键值映射表
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeColumns.map(col => {
+                      const value = selectedRecord[col.key];
+                      const isComment = col.key === 'comment' || col.key === 'record' || col.key === 'suggestion';
+                      return (
+                        <div key={col.key} className={`p-4 rounded-2xl border border-outline-variant/60 bg-surface/30 space-y-1 ${isComment ? 'col-span-1 md:col-span-2' : ''}`}>
+                          <span className="text-[10px] text-outline font-bold block">{col.label}</span>
+                          <div className="text-xs font-black text-on-surface">
+                            {col.type === 'status' ? (
+                              renderRecordStatusBadge(value || '')
+                            ) : (
+                              <p className="whitespace-pre-line leading-relaxed">{value === undefined || value === null ? '-' : value}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Audit trail */}
+                <div className="p-4 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl space-y-2">
+                  <h5 className="text-[11px] font-extrabold text-yellow-800 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4" />
+                    安全及真实性审计证书
+                  </h5>
+                  <p className="text-[10px] text-yellow-700/80 leading-relaxed font-bold">
+                    该条业务填报日志已由平台实时审计模块登记，记录IP, 时间戳, 安全信誉值及用户角色加密快照，满足分布式防篡改核定基准。
+                  </p>
+                </div>
+
+              </div>
+
+              <div className="p-6 border-t border-outline-variant/60 flex gap-3 bg-surface-container-low/60 justify-end">
+                <button 
+                  onClick={() => setIsDetailsModalOpen(false)}
+                  className="px-4 py-2 border border-outline-variant hover:border-outline text-on-surface rounded-xl text-xs font-bold bg-white transition-all shadow-sm cursor-pointer"
+                >
+                  确认返回
+                </button>
+                <button 
+                  onClick={() => {
+                    handleDeleteRow(selectedRecord.id);
+                    setIsDetailsModalOpen(false);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white hover:bg-opacity-95 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                >
+                  删除此条记录
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* New record wizard popup form Modal */}
+      <AnimatePresence>
+        {isNewRecordModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsNewRecordModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl border border-outline-variant shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+                <div>
+                  <h3 className="text-sm font-black text-on-surface">
+                    人工填报新数据到 [{activeForm?.name}]
+                  </h3>
+                  <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">
+                    表单属性字段录入。完成后将即时汇聚并追加至表格底部。
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsNewRecordModalOpen(false)}
+                  className="p-1 px-2.5 text-xs text-outline font-extrabold bg-white border border-outline-variant rounded-lg hover:bg-surface transition-all cursor-pointer"
+                >
+                  取消
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveNewRecord} className="flex-1 overflow-y-auto p-6 space-y-4">
+                {activeColumns.map(col => {
+                  const isComment = col.key === 'comment' || col.key === 'record' || col.key === 'suggestion';
+                  
+                  return (
+                    <div key={col.key} className="space-y-1">
+                      <label className="text-[10px] text-outline font-bold">
+                        {col.label} {col.key === 'status' ? '' : '(选填)'}
+                      </label>
+                      
+                      {col.key === 'status' ? (
+                        <select
+                          value={newRecordFields[col.key] || ''}
+                          onChange={(e) => {
+                            setNewRecordFields(prev => ({ ...prev, [col.key]: e.target.value }));
+                          }}
+                          className="w-full text-xs font-bold p-3 bg-surface border border-outline-variant hover:border-outline rounded-xl focus:border-primary focus:outline-none transition-all cursor-pointer"
+                        >
+                          <option value="已通过">已通过</option>
+                          <option value="审批中">审批中</option>
+                          <option value="已拒绝">已拒绝</option>
+                          <option value="推荐录用">推荐录用</option>
+                          <option value="不予录用">不予录用</option>
+                          <option value="高度意向">高度意向</option>
+                          <option value="商务跟进中">商务跟进中</option>
+                          <option value="签约中">签约中</option>
+                        </select>
+                      ) : isComment ? (
+                        <textarea
+                          rows={3}
+                          placeholder={`请输入${col.label}...`}
+                          value={newRecordFields[col.key] || ''}
+                          onChange={(e) => {
+                            setNewRecordFields(prev => ({ ...prev, [col.key]: e.target.value }));
+                          }}
+                          className="w-full text-xs font-bold p-3 bg-surface border border-outline-variant hover:border-outline rounded-xl focus:border-primary focus:outline-none transition-all resize-none"
+                        />
+                      ) : (
+                        <input
+                          type={col.type === 'number' ? 'number' : 'text'}
+                          placeholder={`请输入${col.label}...`}
+                          value={newRecordFields[col.key] || ''}
+                          onChange={(e) => {
+                            setNewRecordFields(prev => ({ ...prev, [col.key]: e.target.value }));
+                          }}
+                          className="w-full text-xs font-bold p-3 bg-surface border border-outline-variant hover:border-outline rounded-xl focus:border-primary focus:outline-none transition-all"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+
+                <button type="submit" className="hidden" id="submit-hidden-btn" />
+              </form>
+
+              <div className="p-6 border-t border-outline-variant/60 flex justify-end gap-3 bg-surface-container-low/60">
+                <button
+                  type="button"
+                  onClick={() => setIsNewRecordModalOpen(false)}
+                  className="px-4 py-2 bg-white border border-outline-variant text-on-surface rounded-xl text-xs font-bold transition-all hover:bg-surface active:scale-95 shadow-sm cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                     const btn = document.getElementById('submit-hidden-btn');
+                     btn?.click();
+                  }}
+                  className="px-4 py-2 bg-primary text-white font-bold rounded-xl text-xs transition-all hover:bg-opacity-95 active:scale-95 shadow-md shadow-primary/10 cursor-pointer"
+                >
+                  增加填报
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 interface OrgTreeItemProps {
   key?: string | number;
@@ -5787,6 +6657,25 @@ const ArchitectApp: React.FC = () => {
       />
       <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
     </ConsoleLayout>
+    );
+  }
+  if (view === 'dataManagement') {
+    return (
+      <ConsoleLayout 
+        viewToken="dataManagement" 
+        title="数据管理" 
+        subtitle="集中检索、管理和填报所有应用与表单底表数据" 
+        currentView={view} 
+        setView={setView} 
+        showNotification={showNotification} 
+        notifications={notifications}
+      >
+        <DataManagementView 
+          projects={projects} 
+          savedForms={savedForms} 
+          showNotification={showNotification} 
+        />
+      </ConsoleLayout>
     );
   }
   if (view === 'insights') {
