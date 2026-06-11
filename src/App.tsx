@@ -3593,7 +3593,7 @@ const ArchitectApp: React.FC = () => {
   const [editorTab, setEditorTab] = React.useState<'design' | 'page' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
   
   // Page Configuration state variables 
-  const [configTab, setConfigTab] = React.useState<'basic' | 'notification' | 'print'>('basic');
+  const [configTab, setConfigTab] = React.useState<'basic' | 'notification' | 'print' | 'button_config' | 'event_config'>('basic');
   const [pageTitleType, setPageTitleType] = React.useState<'default' | 'custom'>('default');
   const [customPageTitle, setCustomPageTitle] = React.useState('');
   const [timeControlEnabled, setTimeControlEnabled] = React.useState(false);
@@ -3625,6 +3625,42 @@ const ArchitectApp: React.FC = () => {
     { id: '2', name: '横置宽表数据存根联', size: 'A4', orientation: 'horizontal', isEnabled: true, content: '适配行数多、列数复杂的表格展示，以 landscape 横向纸张规格进行排布打印。' },
     { id: '3', name: '便携式 80mm 工单标签纸', size: '80mm 卷纸', orientation: 'vertical', isEnabled: false, content: '极其紧凑的尺寸规格，仅抽取重要物料核心指标、数量和系统单据校验条形码。' }
   ]);
+  
+  // Custom button configurations
+  const [listButtons, setListButtons] = React.useState([
+    { id: 'add', label: '新增数据', defaultLabel: '新增数据', isEnabled: true, style: 'primary', roles: 'all' },
+    { id: 'export', label: '导出 Excel', defaultLabel: '导出 Excel', isEnabled: true, style: 'outline', roles: 'admin' },
+    { id: 'import', label: '匹配导入', defaultLabel: '匹配导入', isEnabled: false, style: 'outline', roles: 'admin' },
+    { id: 'batch_delete', label: '批量删除', defaultLabel: '批量删除', isEnabled: true, style: 'danger', roles: 'admin' },
+    { id: 'edit', label: '编辑', defaultLabel: '编辑', isEnabled: true, style: 'text', roles: 'all' },
+    { id: 'view', label: '查看详情', defaultLabel: '查看详情', isEnabled: true, style: 'text', roles: 'all' },
+  ]);
+
+  const [formButtons, setFormButtons] = React.useState([
+    { id: 'submit', label: '提交数据', defaultLabel: '提交数据', isEnabled: true, style: 'primary', showConfirm: false },
+    { id: 'draft', label: '暂存草稿', defaultLabel: '暂存草稿', isEnabled: true, style: 'outline', showConfirm: false },
+    { id: 'reset', label: '重置表单', defaultLabel: '重置表单', isEnabled: true, style: 'outline', showConfirm: true },
+    { id: 'back', label: '取消并返回', defaultLabel: '取消并返回', isEnabled: true, style: 'text', showConfirm: false },
+  ]);
+
+  // Action/Event configuration rules
+  const [eventRules, setEventRules] = React.useState([
+    { id: 'evt-1', triggerType: 'onLoad', name: '表单初始化加载', isEnabled: true, actionType: 'js', script: '// 比如：进入页面时预填当前登录人及当前日期\nformData.applicant = currentUser.name;\nformData.applyDate = new Date().toISOString().split("T")[0];', desc: '在组件进入首屏渲染和数据准备准备完毕后，自动执行特定的规则。' },
+    { id: 'evt-2', triggerType: 'onFieldChange', name: '当字段“报销总金额”发生变更', isEnabled: true, actionType: 'alert', script: '// 比如：监控数值大小并做出即时安全警醒\nif (fieldValue > 5000) {\n  showNotification("⚠️ 温馨提示：大额报销（>5000元）将增加财务专属审计步骤。");\n}', desc: '当特定字段输入框的内容、下拉选择、或开关状态发生改变时执行该校验。' },
+    { id: 'evt-3', triggerType: 'onBeforeSubmit', name: '提交前格式强行核对', isEnabled: false, actionType: 'validation', script: '// 比如：强行检查手机号码合法性以及邮箱不为空\nif (!/^1[3-9]\\d{9}$/.test(formData.phone)) {\n  return "错误：请输入正确的11位中国大陆手机号码";\n}', desc: '在数据正式发送及上传给服务器之前，执行本项规则。若抛出脚本错误将阻断提交。' },
+    { id: 'evt-4', triggerType: 'onAfterSubmit', name: '成功提交回调 Webhook 网络通知', isEnabled: true, actionType: 'webhook', script: '// 比如：异步触发远程ERP系统的微服务接收\nfetch("https://api.erp.company.com/v1/workforce", {\n  method: "POST",\n  body: JSON.stringify(formData)\n});', desc: '当表单校验通过、并成功上报服务器得到200状态码后异步执行，不影响前端响应。' }
+  ]);
+
+  // Add/Edit events custom inputs helper state
+  const [isEventModalOpen, setIsEventModalOpen] = React.useState(false);
+  const [eventModalMode, setEventModalMode] = React.useState<'create' | 'edit'>('create');
+  const [eventToEditId, setEventToEditId] = React.useState<string | null>(null);
+  const [tempEventTrigger, setTempEventTrigger] = React.useState('onLoad');
+  const [tempEventName, setTempEventName] = React.useState('');
+  const [tempEventAction, setTempEventAction] = React.useState('js');
+  const [tempEventScript, setTempEventScript] = React.useState('');
+  const [tempEventDesc, setTempEventDesc] = React.useState('');
+
   const [isPrintModalOpen, setIsPrintModalOpen] = React.useState(false);
   const [printModalMode, setPrintModalMode] = React.useState<'create' | 'edit'>('create');
   const [printToEditId, setPrintToEditId] = React.useState<string | null>(null);
@@ -4273,7 +4309,7 @@ const ArchitectApp: React.FC = () => {
 
         <div className="flex flex-1 overflow-hidden">
           {/* Editor Sidebar - Components / Nodes */}
-          {(editorTab !== 'page' && editorTab !== 'preview') && (
+          {(editorTab !== 'page' && editorTab !== 'preview' && editorTab !== 'publish') && (
             <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center">
               <span className="font-bold tracking-tight text-sm">
@@ -4530,9 +4566,7 @@ const ArchitectApp: React.FC = () => {
       {editorTab === 'page' && (() => {
                 const limits = [
                   { key: 'device_limit', label: '填报设备限制', desc: '限制同一设备仅限提交1次' },
-                  { key: 'ip_limit', label: 'IP地址限制', desc: '限制同一 IP 仅限提交1次' },
-                  { key: 'wechat_limit', label: '微信填报限制', desc: '仅允许在微信内置浏览器内进行填报' },
-                  { key: 'app_limit', label: 'App填报限制', desc: '仅允许在移动 App 客户端内填写' }
+                  { key: 'ip_limit', label: 'IP地址限制', desc: '限制同一 IP 仅限提交1次' }
                 ];
                 const controls = [
                   { key: 'allow_repeat', label: '允许重复填报', desc: '允许同一用户或端重复多次提交表单数据' },
@@ -4547,6 +4581,8 @@ const ArchitectApp: React.FC = () => {
                         { id: 'basic', label: '基础配置', icon: Settings, desc: '页面标题、时间控制、限制控制' },
                         { id: 'notification', label: '消息通知', icon: Bell, desc: '站内信、短信、邮件通知模板' },
                         { id: 'print', label: '打印设置', icon: Printer, desc: '管理、查看和编辑打印模板' },
+                        { id: 'button_config', label: '按钮配置', icon: Sliders, desc: '自定义及配置列表与表单填报页按钮选项' },
+                        { id: 'event_config', label: '事件配置', icon: Zap, desc: '支持动作触发个性化逻辑与脚本扩展' },
                       ].map((item) => (
                         <button 
                           key={item.id}
@@ -4693,12 +4729,10 @@ const ArchitectApp: React.FC = () => {
                               <span className="text-[10px] text-outline font-bold">跳转及反馈方式</span>
                             </div>
                             
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 gap-3 max-w-md">
                               {[
                                 { key: 'message', label: '显示感谢信息' },
-                                { key: 'redirect', label: '跳转到指定页面' },
-                                { key: 'email', label: '发邮件' },
-                                { key: 'sms', label: '发短信' }
+                                { key: 'redirect', label: '跳转到指定页面' }
                               ].map((opt) => (
                                 <button
                                   key={opt.key}
@@ -4735,30 +4769,6 @@ const ArchitectApp: React.FC = () => {
                                     value={submitActionRedirectUrl}
                                     onChange={(e) => setSubmitActionRedirectUrl(e.target.value)}
                                     className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 font-medium"
-                                  />
-                                </div>
-                              )}
-                              {submitAction === 'email' && (
-                                <div className="space-y-1.5 animate-in fade-in duration-200">
-                                  <label className="text-[10px] font-bold text-outline">接收通知邮件的邮箱账号</label>
-                                  <input
-                                    type="email"
-                                    value={submitActionEmail}
-                                    onChange={(e) => setSubmitActionEmail(e.target.value)}
-                                    className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 font-medium"
-                                    placeholder="例如: admin@company.com"
-                                  />
-                                </div>
-                              )}
-                              {submitAction === 'sms' && (
-                                <div className="space-y-1.5 animate-in fade-in duration-200">
-                                  <label className="text-[10px] font-bold text-outline">接收通知短信的手机号码</label>
-                                  <input
-                                    type="tel"
-                                    value={submitActionSms}
-                                    onChange={(e) => setSubmitActionSms(e.target.value)}
-                                    className="w-full bg-white border border-outline-variant rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 font-medium"
-                                    placeholder="例如: 13800000000"
                                   />
                                 </div>
                               )}
@@ -5049,6 +5059,541 @@ const ArchitectApp: React.FC = () => {
                               </div>
                             )}
                           </div>
+                        </div>
+                      )}
+
+                      {configTab === 'button_config' && (
+                        <div className="bg-white rounded-3xl border border-outline-variant p-8 space-y-8 shadow-sm w-full animate-in fade-in duration-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h2 className="text-lg font-black tracking-tight flex items-center gap-2 animate-pulse">
+                                <Sliders className="w-5 h-5 text-primary" />
+                                按钮配置
+                              </h2>
+                              <p className="text-xs text-outline font-medium mt-1">自定义及配置表单对应的后台数据列表展示页，以及前端填报页面的按钮样式、展示标签和确认逻辑。</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                showNotification('按钮配置保存成功，已同步更新前端组件绑定');
+                              }}
+                              className="px-4 py-2 bg-primary text-white text-xs font-black rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer"
+                            >
+                              保存配置
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                            {/* Left: Table List buttons */}
+                            <div className="border border-outline-variant rounded-2xl p-6 space-y-6 bg-surface-container-low/10">
+                              <div className="space-y-1">
+                                <h3 className="text-sm font-extrabold text-on-surface">1. 数据管理列表页按钮</h3>
+                                <p className="text-[11px] text-outline">自定义当前表单对应的后台数据提取页中的管理按钮，支持快捷的新增、导出或批量剔除操作。</p>
+                              </div>
+
+                              <div className="space-y-4">
+                                {listButtons.map((btn, index) => (
+                                  <div key={btn.id} className="p-4 bg-white border border-outline-variant rounded-2xl space-y-3 shadow-xs hover:shadow-sm transition-all">
+                                    <div className="flex items-center justify-between">
+                                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={btn.isEnabled}
+                                          onChange={(e) => {
+                                            const updated = [...listButtons];
+                                            updated[index].isEnabled = e.target.checked;
+                                            setListButtons(updated);
+                                          }}
+                                          className="w-4 h-4 text-primary rounded border-outline-variant cursor-pointer accent-primary"
+                                        />
+                                        <span className="text-xs font-black text-on-surface">{btn.defaultLabel}</span>
+                                      </label>
+                                      <span className="text-[9px] text-outline font-mono font-bold leading-none uppercase">{btn.id}</span>
+                                    </div>
+
+                                    {btn.isEnabled && (
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in duration-150">
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-black tracking-wider text-outline uppercase block">按钮文案</label>
+                                          <input
+                                            type="text"
+                                            value={btn.label}
+                                            onChange={(e) => {
+                                              const updated = [...listButtons];
+                                              updated[index].label = e.target.value;
+                                              setListButtons(updated);
+                                            }}
+                                            className="w-full bg-surface border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-black tracking-wider text-outline uppercase block">呈现样式</label>
+                                          <select
+                                            value={btn.style}
+                                            onChange={(e) => {
+                                              const updated = [...listButtons];
+                                              updated[index].style = e.target.value;
+                                              setListButtons(updated);
+                                            }}
+                                            className="w-full bg-surface border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface cursor-pointer focus:outline-none"
+                                          >
+                                            <option value="primary">主按钮 (实色)</option>
+                                            <option value="outline">次按钮 (线框)</option>
+                                            <option value="danger">危险按钮 (红色)</option>
+                                            <option value="text">链接按钮 (无框)</option>
+                                          </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-black tracking-wider text-outline uppercase block">适用范围</label>
+                                          <select
+                                            value={btn.roles}
+                                            onChange={(e) => {
+                                              const updated = [...listButtons];
+                                              updated[index].roles = e.target.value;
+                                              setListButtons(updated);
+                                            }}
+                                            className="w-full bg-surface border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface cursor-pointer focus:outline-none"
+                                          >
+                                            <option value="all">全体成员可见</option>
+                                            <option value="admin">仅管理员可见</option>
+                                            <option value="creator">仅填报创建人可见</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Desktop List preview */}
+                              <div className="bg-surface p-4 rounded-xl border border-outline-variant space-y-3 font-sans">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-black text-outline uppercase tracking-wider">列表页工具栏可视化预览</span>
+                                  <div className="flex gap-1.5 flex-wrap">
+                                    {listButtons.filter(b => b.isEnabled && ['add', 'export', 'import', 'batch_delete'].includes(b.id)).map(b => (
+                                      <span key={b.id} className={`px-2.5 py-0.5 text-[9px] rounded font-black border transition-all ${
+                                        b.style === 'primary' ? 'bg-primary text-white border-primary' :
+                                        b.style === 'danger' ? 'bg-error text-white border-error' :
+                                        b.style === 'outline' ? 'bg-white border-outline-variant text-on-surface-variant' : 'text-primary bg-primary/5 border-transparent'
+                                      }`}>
+                                        {b.label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <table className="w-full text-[9px] border-collapse bg-white rounded-lg overflow-hidden border border-outline-variant/60">
+                                  <thead>
+                                    <tr className="border-b border-outline-variant text-outline bg-surface-container-lowest/80 text-left font-black">
+                                      <th className="p-2">单据编号</th>
+                                      <th className="p-2 font-bold">主题</th>
+                                      <th className="p-2">填报人</th>
+                                      <th className="p-2 text-right">操作</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr className="border-b border-outline-variant/50 text-on-surface-variant font-bold">
+                                      <td className="p-2 font-mono">REQ-2026-003</td>
+                                      <td className="p-2 truncate font-black text-on-surface">5月差旅费用报销申请</td>
+                                      <td className="p-2">张三 (技术专家)</td>
+                                      <td className="p-2 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                          {listButtons.filter(b => b.isEnabled && ['edit', 'view'].includes(b.id)).map(b => (
+                                            <span key={b.id} className={`text-[9px] font-black cursor-pointer hover:underline ${
+                                              b.style === 'danger' ? 'text-error' : b.style === 'primary' ? 'text-primary' : 'text-on-surface-variant'
+                                            }`}>
+                                              {b.label}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+
+                            {/* Right: Submission/Filling page buttons */}
+                            <div className="border border-outline-variant rounded-2xl p-6 space-y-6 bg-surface-container-low/10">
+                              <div className="space-y-1">
+                                <h3 className="text-sm font-extrabold text-on-surface">2. 填报页面操控按钮</h3>
+                                <p className="text-[11px] text-outline">自定义当前表单填写页中的底部操作按钮，如重置、暂存或提交时是否进行防误触等规则设立。</p>
+                              </div>
+
+                              <div className="space-y-4">
+                                {formButtons.map((btn, index) => (
+                                  <div key={btn.id} className="p-4 bg-white border border-outline-variant rounded-2xl space-y-3 shadow-xs hover:shadow-sm transition-all">
+                                    <div className="flex items-center justify-between">
+                                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={btn.isEnabled}
+                                          onChange={(e) => {
+                                            const updated = [...formButtons];
+                                            updated[index].isEnabled = e.target.checked;
+                                            setFormButtons(updated);
+                                          }}
+                                          className="w-4 h-4 text-primary rounded border-outline-variant cursor-pointer accent-primary"
+                                        />
+                                        <span className="text-xs font-black text-on-surface">{btn.defaultLabel}</span>
+                                      </label>
+                                      <span className="text-[9px] text-outline font-mono font-bold leading-none uppercase">{btn.id}</span>
+                                    </div>
+
+                                    {btn.isEnabled && (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-150">
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-black tracking-wider text-outline uppercase block">按钮文案</label>
+                                          <input
+                                            type="text"
+                                            value={btn.label}
+                                            onChange={(e) => {
+                                              const updated = [...formButtons];
+                                              updated[index].label = e.target.value;
+                                              setFormButtons(updated);
+                                            }}
+                                            className="w-full bg-surface border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-black tracking-wider text-outline uppercase block">呈现样式</label>
+                                          <select
+                                            value={btn.style}
+                                            onChange={(e) => {
+                                              const updated = [...formButtons];
+                                              updated[index].style = e.target.value;
+                                              setFormButtons(updated);
+                                            }}
+                                            className="w-full bg-surface border border-outline-variant rounded-lg px-2 py-1 text-xs font-bold text-on-surface cursor-pointer focus:outline-none"
+                                          >
+                                            <option value="primary">重要主按钮</option>
+                                            <option value="outline">次重要线框按钮</option>
+                                            <option value="text">链接弱化按钮</option>
+                                          </select>
+                                        </div>
+                                        <div className="col-span-2 flex items-center justify-between p-2 bg-surface rounded-lg border border-outline-variant/60">
+                                          <div className="flex flex-col">
+                                            <span className="text-[10px] font-bold text-on-surface-variant">二阶段确认校验</span>
+                                            <span className="text-[9px] text-outline leading-tight">用户点击该按钮前，弹出二次确认模态对话框，防误触。</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const updated = [...formButtons];
+                                              updated[index].showConfirm = !btn.showConfirm;
+                                              setFormButtons(updated);
+                                            }}
+                                            className={`w-8 h-4 flex items-center rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${btn.showConfirm ? 'bg-primary' : 'bg-outline-variant'}`}
+                                          >
+                                            <span className={`w-3 h-3 rounded-full bg-white shadow transition-transform duration-300 transform ${btn.showConfirm ? 'translate-x-4' : 'translate-x-0'}`} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Form footer preview */}
+                              <div className="bg-surface p-4 rounded-xl border border-outline-variant space-y-3 text-xs">
+                                <span className="text-[10px] font-black text-outline uppercase tracking-wider block">填写页面底部工具栏可视化预览</span>
+                                <div className="flex items-center justify-end gap-x-2 p-3 bg-white border border-outline-variant rounded-xl shadow-xs">
+                                  {formButtons.filter(b => b.isEnabled).map(b => (
+                                    <button key={b.id} type="button" className={`px-4 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
+                                      b.style === 'primary' ? 'bg-primary text-white border-primary shadow-xs' :
+                                      b.style === 'outline' ? 'bg-white border-outline-variant text-on-surface-variant hover:bg-surface' :
+                                      'text-outline hover:text-primary px-2 border-transparent'
+                                    }`}>
+                                      {b.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {configTab === 'event_config' && (
+                        <div className="bg-white rounded-3xl border border-outline-variant p-8 space-y-8 shadow-sm w-full animate-in fade-in duration-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h2 className="text-lg font-black tracking-tight flex items-center gap-2 animate-pulse">
+                                <Zap className="w-5 h-5 text-primary" />
+                                事件配置
+                              </h2>
+                              <p className="text-xs text-outline font-medium mt-1">定置表单组件生命周期的各阶段事件中，所调用的扩展业务处理器或 JS/正则表达式校验拦截及 Webhook 异步网络钩子通知。</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEventModalMode('create');
+                                setTempEventName('');
+                                setTempEventTrigger('onLoad');
+                                setTempEventAction('js');
+                                setTempEventScript('// 在此处编写自定义脚本。\n// 例如：\nconsole.log("事件触发: " + eventName);\nshowNotification("动作完成！");');
+                                setTempEventDesc('');
+                                setIsEventModalOpen(true);
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4" />
+                              新建事件规则
+                            </button>
+                          </div>
+
+                          {/* Stats rail */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface p-4 rounded-2xl border border-outline-variant">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">事件沙箱引擎</span>
+                              <span className="text-xs font-black text-on-surface">V8 Secure JS Sandbox</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">运行平均延迟</span>
+                              <span className="text-xs font-black text-green-600 font-mono">1.8 ms</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">钩子数据格式</span>
+                              <span className="text-xs font-black text-on-surface font-mono">JSON Payloads</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">已映射事件</span>
+                              <span className="text-xs font-black text-primary font-mono">{eventRules.length} 个动态处理器</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            {eventRules.map((rule) => (
+                              <div key={rule.id} className={`border rounded-2xl p-6 transition-all bg-white relative overflow-hidden flex flex-col justify-between gap-4 border-outline-variant shadow-xs ${rule.isEnabled ? '' : 'opacity-70 bg-surface/50'}`}>
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-dashed border-outline-variant">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                      rule.triggerType === 'onLoad' ? 'bg-blue-50 text-blue-600' :
+                                      rule.triggerType === 'onFieldChange' ? 'bg-amber-50 text-amber-600' :
+                                      rule.triggerType === 'onBeforeSubmit' ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-600'
+                                    }`}>
+                                      <Zap className="w-4 h-4" />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-2">
+                                        <h3 className="text-xs font-extrabold text-on-surface">{rule.name}</h3>
+                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 ${
+                                          rule.triggerType === 'onLoad' ? 'bg-blue-100 text-blue-800' :
+                                          rule.triggerType === 'onFieldChange' ? 'bg-amber-100 text-amber-800' :
+                                          rule.triggerType === 'onBeforeSubmit' ? 'bg-rose-100 text-rose-800' : 'bg-purple-100 text-purple-800'
+                                        }`}>
+                                          {rule.triggerType === 'onLoad' ? '初始化加载加载' :
+                                           rule.triggerType === 'onFieldChange' ? '字段变动触发' :
+                                           rule.triggerType === 'onBeforeSubmit' ? '提交数据前校验' : '上报成功后回调'}
+                                        </span>
+                                      </div>
+                                      <p className="text-[10px] text-outline font-medium">{rule.desc}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-4 shrink-0">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEventRules(prev => prev.map(r => r.id === rule.id ? { ...r, isEnabled: !r.isEnabled } : r));
+                                          showNotification(`已${!rule.isEnabled ? '启用' : '禁用'}事件“${rule.name}”`);
+                                        }}
+                                        className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${rule.isEnabled ? 'bg-primary' : 'bg-outline-variant'}`}
+                                      >
+                                        <span className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 transform ${rule.isEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                      </button>
+                                      <span className="text-xs font-black">{rule.isEnabled ? '已启动' : '未开启'}</span>
+                                    </label>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-sans">
+                                  <div className="md:col-span-2 space-y-1">
+                                    <div className="text-[10px] font-bold text-outline">注入脚本/事件载荷细节:</div>
+                                    <pre className="bg-surface border border-outline-variant rounded-xl p-4 font-mono text-[10px] text-on-surface-variant overflow-x-auto max-h-36 whitespace-pre-wrap leading-relaxed">
+                                      {rule.script}
+                                    </pre>
+                                  </div>
+                                  <div className="flex flex-col justify-between p-4 bg-outline-variant/10 rounded-xl border border-outline-variant/40">
+                                    <div className="space-y-2">
+                                      <div className="text-[10px] font-bold text-outline">联动执行类型</div>
+                                      <div className="text-xs font-extrabold text-on-surface select-none">
+                                        {rule.actionType === 'js' && '🧪 自定义 JavaScript 沙箱脚本'}
+                                        {rule.actionType === 'alert' && '📢 控制台实时安全消息警醒'}
+                                        {rule.actionType === 'validation' && '🔒 阻断式格式规范校验'}
+                                        {rule.actionType === 'webhook' && '🌐 远程 Cloud Webhook 接口推送'}
+                                      </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-4">
+                                      <button
+                                        onClick={() => {
+                                          setEventModalMode('edit');
+                                          setEventToEditId(rule.id);
+                                          setTempEventName(rule.name);
+                                          setTempEventTrigger(rule.triggerType);
+                                          setTempEventAction(rule.actionType);
+                                          setTempEventScript(rule.script);
+                                          setTempEventDesc(rule.desc);
+                                          setIsEventModalOpen(true);
+                                        }}
+                                        className="p-1.5 px-3 text-[10px] font-black border border-outline-variant rounded-lg hover:border-primary hover:text-primary transition-all bg-white shadow-xs"
+                                      >
+                                        配置细节
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEventRules(prev => prev.filter(r => r.id !== rule.id));
+                                          showNotification('已成功删除该事件处理器规则！');
+                                        }}
+                                        className="p-1 px-2 text-outline hover:text-error hover:bg-error/5 rounded-lg border border-transparent transition-all"
+                                        title="删除"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
+                            {eventRules.length === 0 && (
+                              <div className="py-16 flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-2xl bg-surface/40">
+                                <Zap className="w-8 h-8 text-outline mb-2 animate-pulse" />
+                                <span className="text-xs font-bold text-outline">目前表单没有配置任何扩展事件钩子，请点击右上角新建其一。</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Event Rules Create/Edit Modal */}
+                          {isEventModalOpen && (
+                            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs font-sans">
+                              <div className="bg-white rounded-3xl border border-outline-variant w-full max-w-xl shadow-2xl p-6 space-y-6 animate-in zoom-in duration-200">
+                                <div className="flex items-center justify-between pb-4 border-b border-outline-variant">
+                                  <h3 className="font-extrabold text-on-surface flex items-center gap-2">
+                                    <Zap className="w-4 h-4 text-primary animate-bounce" />
+                                    {eventModalMode === 'create' ? '新建事件规则扩展' : '编辑事件规则细节'}
+                                  </h3>
+                                  <button
+                                    onClick={() => setIsEventModalOpen(false)}
+                                    className="p-1.5 text-outline hover:text-on-surface-variant hover:bg-surface rounded-lg transition-all"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                  <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-outline uppercase tracking-wider block">规则名称 (Rule Name)</label>
+                                    <input
+                                      type="text"
+                                      placeholder="请输入可辨识的规则名称，例：智能匹配与汇率自动填充"
+                                      value={tempEventName}
+                                      onChange={(e) => setTempEventName(e.target.value)}
+                                      className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs font-bold text-on-surface focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                                    />
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-black text-outline uppercase tracking-wider block">触发时机 (Trigger Timing)</label>
+                                      <select
+                                        value={tempEventTrigger}
+                                        onChange={(e) => setTempEventTrigger(e.target.value)}
+                                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 cursor-pointer focus:outline-none"
+                                      >
+                                        <option value="onLoad">表单进入加载完 (onLoad)</option>
+                                        <option value="onFieldChange">组件字段内容更动 (onFieldChange)</option>
+                                        <option value="onBeforeSubmit">数据发送向服务器前 (onBeforeSubmit)</option>
+                                        <option value="onAfterSubmit">提交成功并保存后 (onAfterSubmit)</option>
+                                      </select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-black text-outline uppercase tracking-wider block">响应机制 (Action Type)</label>
+                                      <select
+                                        value={tempEventAction}
+                                        onChange={(e) => setTempEventAction(e.target.value)}
+                                        className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 cursor-pointer focus:outline-none"
+                                      >
+                                        <option value="js">🧪 自定义 JavaScript 沙箱代码</option>
+                                        <option value="alert">📢 即时安全警告提示气泡</option>
+                                        <option value="validation">🔒 阻断式格式合法性核对</option>
+                                        <option value="webhook">🌐 派发 Webhook 远程推送联动</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-outline uppercase tracking-wider block">事件功能简介</label>
+                                    <input
+                                      type="text"
+                                      placeholder="简述该规则在业务协作场景里发挥的作用，例：主要监控限额拦截"
+                                      value={tempEventDesc}
+                                      onChange={(e) => setTempEventDesc(e.target.value)}
+                                      className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs font-medium text-on-surface focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-outline uppercase tracking-wider block">注入脚本/事件属性细节 (Code sandbox)</label>
+                                    <textarea
+                                      rows={5}
+                                      placeholder={
+                                        tempEventAction === 'js' ? '// 编写代码控制：\nif (formData.name === "") {\n  showNotification("错误：姓名不可为空");\n}' :
+                                        tempEventAction === 'alert' ? '触发消息警告文字...' :
+                                        tempEventAction === 'validation' ? '填写正则表达式格式校验内容...' : '派发 Webhook 远程目标 IP:'
+                                      }
+                                      value={tempEventScript}
+                                      onChange={(e) => setTempEventScript(e.target.value)}
+                                      className="w-full bg-surface border border-outline-variant rounded-xl p-3 font-mono text-[10px] focus:ring-1 focus:ring-primary/20 focus:outline-none text-on-surface-variant leading-relaxed"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant bg-white">
+                                  <button
+                                    onClick={() => setIsEventModalOpen(false)}
+                                    className="px-4 py-2 border border-outline-variant rounded-xl hover:bg-surface text-xs font-black transition-all"
+                                  >
+                                    取消
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (!tempEventName.trim()) {
+                                        showNotification('请先填写规则名称');
+                                        return;
+                                      }
+                                      if (eventModalMode === 'create') {
+                                        const newRule = {
+                                          id: 'evt-' + Date.now(),
+                                          name: tempEventName,
+                                          triggerType: tempEventTrigger,
+                                          actionType: tempEventAction,
+                                          script: tempEventScript || '// 编写处理器以扩展规则功能',
+                                          desc: tempEventDesc || '自定义表单校验逻辑',
+                                          isEnabled: true,
+                                        };
+                                        setEventRules([...eventRules, newRule]);
+                                        showNotification(`已成功新增事件“${tempEventName}”！`);
+                                      } else {
+                                        setEventRules(prev => prev.map(r => r.id === eventToEditId ? {
+                                          ...r,
+                                          name: tempEventName,
+                                          triggerType: tempEventTrigger,
+                                          actionType: tempEventAction,
+                                          script: tempEventScript,
+                                          desc: tempEventDesc || r.desc
+                                        } : r));
+                                        showNotification(`已成功保存事件“${tempEventName}”更改！`);
+                                      }
+                                      setIsEventModalOpen(false);
+                                    }}
+                                    className="px-5 py-2 bg-primary text-white text-xs font-black rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer"
+                                  >
+                                    确定
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -5378,14 +5923,45 @@ const ArchitectApp: React.FC = () => {
 
               {editorTab === 'publish' && (
                 <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="max-w-4xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                   initial={{ opacity: 0, y: 20 }}
+                   animate={{ opacity: 1, y: 0 }}
+                   className="w-full space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500"
                 >
-                  <header className="mb-8">
+                  <header className="mb-4">
                     <h2 className="text-2xl font-extrabold tracking-tight">发布设置：{publishMode === 'public' ? '公开发布' : '内部发布'}</h2>
                     <p className="text-sm text-on-surface-variant font-medium">配置表单的访问方式、生成的链接以及访问权限</p>
                   </header>
+
+                  {/* Mode Selector Option Component to guarantee single selection explicitly */}
+                  <div className="bg-white p-6 rounded-3xl border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-extrabold text-on-surface flex items-center gap-1.5">
+                        <CheckSquare className="w-4 h-4 text-primary" />
+                        选择发布模式（公开发布与内部发布二选一）
+                      </h3>
+                      <p className="text-[10px] text-on-surface-variant font-medium">公开发布和内部发布两种方式只能选择其中的一种开启生效</p>
+                    </div>
+                    <div className="flex bg-surface rounded-2xl p-1 border border-outline-variant shrink-0 select-none">
+                      <button
+                        type="button"
+                        onClick={() => setPublishMode('public')}
+                        className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${publishMode === 'public' ? 'bg-primary text-white shadow-md' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'}`}
+                      >
+                        <Globe className="w-3.5 h-3.5" />
+                        <span>公开发布</span>
+                        {publishMode === 'public' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPublishMode('internal')}
+                        className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${publishMode === 'internal' ? 'bg-primary text-white shadow-md' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'}`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>内部发布</span>
+                        {publishMode === 'internal' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </button>
+                    </div>
+                  </div>
 
                   {publishMode === 'public' ? (
                     <div className="space-y-6">
@@ -5395,7 +5971,7 @@ const ArchitectApp: React.FC = () => {
                              <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
                                <LayoutGrid className="w-4 h-4 text-primary" />
                              </div>
-                             页面访问链接
+                             数据管理页访问链接
                           </h3>
                           <div className="space-y-6">
                             <div className="space-y-2">
@@ -5483,117 +6059,165 @@ const ArchitectApp: React.FC = () => {
                     <div className="space-y-6">
                       <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
-                            <h3 className="font-bold flex items-center gap-2 cursor-default"><Building2 className="w-5 h-5 text-primary" /> 页面访问限制</h3>
+                            <h3 className="font-bold flex items-center gap-2 cursor-default"><Building2 className="w-5 h-5 text-primary" /> 数据管理页面权限</h3>
                             <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">清空所选</button>
                          </div>
 
-                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/60">
-                           <span className="text-xs font-extrabold text-on-surface-variant flex items-center gap-1.5">
-                             规则组合逻辑:
-                           </span>
-                           <div className="flex flex-wrap gap-6">
-                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                               <input 
-                                 type="radio" 
-                                 name="pageMatchMode" 
-                                 checked={pageMatchMode === 'all'} 
-                                 onChange={() => setPageMatchMode('all')}
-                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
-                               />
-                               <span className="text-xs font-bold text-on-surface">所有条件必须同时满足</span>
-                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">And</span>
-                             </label>
-                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                               <input 
-                                 type="radio" 
-                                 name="pageMatchMode" 
-                                 checked={pageMatchMode === 'any'} 
-                                 onChange={() => setPageMatchMode('any')}
-                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
-                               />
-                               <span className="text-xs font-bold text-on-surface">任意满足其中一个条件</span>
-                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">Or</span>
-                             </label>
-                           </div>
-                         </div>
+                         <div className="flex flex-col gap-6">
+                           {/* 规则组合逻辑 */}
+                           <div className="border border-outline-variant rounded-2xl p-6 bg-surface-container-low/20 space-y-6">
+                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-outline-variant/60">
+                               <div className="space-y-1">
+                                 <h4 className="text-xs font-extrabold text-on-surface flex items-center gap-1.5 cursor-default">
+                                   规则组合逻辑
+                                 </h4>
+                                 <p className="text-[10px] text-outline">组合逻辑仅适用于“组织范围”和“指定角色”</p>
+                               </div>
 
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-3">
-                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
-                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                  <Building2 className="w-4 h-4 text-outline" /> <span>选择部门 / 组织</span>
+                               <div className="flex bg-white px-3 py-2 rounded-xl border border-outline-variant flex-wrap items-center gap-3">
+                                 <span className="text-[10px] font-extrabold text-on-surface-variant">条件逻辑:</span>
+                                 <div className="flex gap-4">
+                                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                     <input 
+                                       type="radio" 
+                                       name="pageMatchMode" 
+                                       checked={pageMatchMode === 'all'} 
+                                       onChange={() => setPageMatchMode('all')}
+                                       className="w-3.5 h-3.5 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                                     />
+                                     <span className="text-[11px] font-extrabold text-on-surface">所有条件必须同时满足</span>
+                                     <span className="text-[9px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-mono font-bold">AND</span>
+                                   </label>
+                                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                     <input 
+                                       type="radio" 
+                                       name="pageMatchMode" 
+                                       checked={pageMatchMode === 'any'} 
+                                       onChange={() => setPageMatchMode('any')}
+                                       className="w-3.5 h-3.5 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                                     />
+                                     <span className="text-[11px] font-extrabold text-on-surface">任意满足其中一个条件</span>
+                                     <span className="text-[9px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-mono font-bold">OR</span>
+                                   </label>
+                                 </div>
                                </div>
-                            </div>
-                            <div className="space-y-3">
-                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">指定角色</label>
-                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                  <UserCog className="w-4 h-4 text-outline" /> <span>选择权限角色</span>
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                   <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
+                                   <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                      <Building2 className="w-4 h-4 text-outline" /> <span>选择部门 / 组织</span>
+                                   </div>
+                                </div>
+                                <div className="space-y-3">
+                                   <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">指定角色</label>
+                                   <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                      <UserCog className="w-4 h-4 text-outline" /> <span>选择权限角色</span>
+                                   </div>
+                                </div>
+                             </div>
+                           </div>
+
+                           {/* 具体人员 追加项 */}
+                           <div className="border border-outline-variant bg-surface-container-low/20 rounded-2xl p-6 flex flex-col justify-between space-y-6">
+                             <div className="space-y-1">
+                               <div className="flex items-center justify-between gap-2">
+                                 <h4 className="text-xs font-extrabold text-on-surface">具体人员</h4>
+                                 <span className="text-[9px] font-extrabold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">追加项</span>
                                </div>
-                            </div>
-                            <div className="space-y-3">
-                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">具体人员</label>
-                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                  <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
-                               </div>
-                            </div>
+                               <p className="text-[10px] text-outline leading-tight">作为特准追加项，不受组织和角色的规则组合逻辑限制，可直接赋予选定的人员访问权限。</p>
+                             </div>
+
+                             <div className="space-y-3">
+                                <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">直接指定具体人</label>
+                                <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                   <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
+                                </div>
+                             </div>
+                           </div>
                          </div>
                       </section>
 
                       <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
-                            <h3 className="font-bold flex items-center gap-2 cursor-default"><FormInput className="w-5 h-5 text-primary" /> 表单填写限制</h3>
+                            <h3 className="font-bold flex items-center gap-2 cursor-default"><FormInput className="w-5 h-5 text-primary" /> 表单填写页面权限</h3>
                             <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">清空所选</button>
                          </div>
 
-                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/60">
-                           <span className="text-xs font-extrabold text-on-surface-variant flex items-center gap-1.5">
-                             规则组合逻辑:
-                           </span>
-                           <div className="flex flex-wrap gap-6">
-                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                               <input 
-                                 type="radio" 
-                                 name="formMatchMode" 
-                                 checked={formMatchMode === 'all'} 
-                                 onChange={() => setFormMatchMode('all')}
-                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
-                               />
-                               <span className="text-xs font-bold text-on-surface">所有条件必须同时满足</span>
-                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">And</span>
-                             </label>
-                             <label className="flex items-center gap-2 cursor-pointer select-none">
-                               <input 
-                                 type="radio" 
-                                 name="formMatchMode" 
-                                 checked={formMatchMode === 'any'} 
-                                 onChange={() => setFormMatchMode('any')}
-                                 className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
-                               />
-                               <span className="text-xs font-bold text-on-surface">任意满足其中一个条件</span>
-                               <span className="text-[10px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-bold">Or</span>
-                             </label>
-                           </div>
-                         </div>
+                         <div className="flex flex-col gap-6">
+                           {/* 规则组合逻辑 */}
+                           <div className="border border-outline-variant rounded-2xl p-6 bg-surface-container-low/20 space-y-6">
+                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-outline-variant/60">
+                               <div className="space-y-1">
+                                 <h4 className="text-xs font-extrabold text-on-surface flex items-center gap-1.5 cursor-default">
+                                   规则组合逻辑
+                                 </h4>
+                                 <p className="text-[10px] text-outline">组合逻辑仅适用于“组织范围”和“指定角色”</p>
+                               </div>
 
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-3">
-                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
-                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                  <Building2 className="w-4 h-4 text-outline" /> <span>选择部门 / 组织</span>
+                               <div className="flex bg-white px-3 py-2 rounded-xl border border-outline-variant flex-wrap items-center gap-3">
+                                 <span className="text-[10px] font-extrabold text-on-surface-variant">条件逻辑:</span>
+                                 <div className="flex gap-4">
+                                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                     <input 
+                                       type="radio" 
+                                       name="formMatchMode" 
+                                       checked={formMatchMode === 'all'} 
+                                       onChange={() => setFormMatchMode('all')}
+                                       className="w-3.5 h-3.5 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                                     />
+                                     <span className="text-[11px] font-extrabold text-on-surface">所有条件必须同时满足</span>
+                                     <span className="text-[9px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-mono font-bold">AND</span>
+                                   </label>
+                                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                     <input 
+                                       type="radio" 
+                                       name="formMatchMode" 
+                                       checked={formMatchMode === 'any'} 
+                                       onChange={() => setFormMatchMode('any')}
+                                       className="w-3.5 h-3.5 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
+                                     />
+                                     <span className="text-[11px] font-extrabold text-on-surface">任意满足其中一个条件</span>
+                                     <span className="text-[9px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-mono font-bold">OR</span>
+                                   </label>
+                                 </div>
                                </div>
-                            </div>
-                            <div className="space-y-3">
-                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">指定角色</label>
-                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                  <UserCog className="w-4 h-4 text-outline" /> <span>选择权限角色</span>
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                   <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
+                                   <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                      <Building2 className="w-4 h-4 text-outline" /> <span>选择部门 / 组织</span>
+                                   </div>
+                                </div>
+                                <div className="space-y-3">
+                                   <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">指定角色</label>
+                                   <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                      <UserCog className="w-4 h-4 text-outline" /> <span>选择权限角色</span>
+                                   </div>
+                                </div>
+                             </div>
+                           </div>
+
+                           {/* 具体人员 追加项 */}
+                           <div className="border border-outline-variant bg-surface-container-low/20 rounded-2xl p-6 flex flex-col justify-between space-y-6">
+                             <div className="space-y-1">
+                               <div className="flex items-center justify-between gap-2">
+                                 <h4 className="text-xs font-extrabold text-on-surface">具体人员</h4>
+                                 <span className="text-[9px] font-extrabold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">追加项</span>
                                </div>
-                            </div>
-                            <div className="space-y-3">
-                               <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">具体人员</label>
-                               <div className="flex items-center gap-2 p-3 bg-surface border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                  <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
-                               </div>
-                            </div>
+                               <p className="text-[10px] text-outline leading-tight">作为特准追加项，不受组织和角色的规则组合逻辑限制，可直接赋予选定的人员访问权限。</p>
+                             </div>
+
+                             <div className="space-y-3">
+                                <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">直接指定具体人</label>
+                                <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
+                                   <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
+                                </div>
+                             </div>
+                           </div>
                          </div>
                       </section>
 
