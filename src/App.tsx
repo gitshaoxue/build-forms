@@ -272,6 +272,8 @@ interface ProjectsViewProps {
   setConfirmModal: React.Dispatch<React.SetStateAction<ConfirmModalState>>;
   showNotification: (text: string) => void;
   setView: (v: ViewType) => void;
+  formFieldsMap?: Record<string, FormField[]>;
+  setFormFieldsMap?: React.Dispatch<React.SetStateAction<Record<string, FormField[]>>>;
 }
 
 interface SidebarProps {
@@ -294,6 +296,7 @@ interface ConsoleLayoutProps {
   currentView: ViewType;
   setView: (view: ViewType) => void;
   showNotification: (text: string) => void;
+  hideHeader?: boolean;
 }
 
 interface WorkflowViewProps {
@@ -336,6 +339,7 @@ interface TeamViewProps {
   onAddDept: (parentId: string | null, name: string) => void;
   onUpdateDept: (id: string, name: string) => void;
   onDeleteDept: (id: string) => void;
+  showNotification?: (text: string) => void;
 }
 
 interface IntegrationsViewProps {
@@ -670,14 +674,15 @@ const WorkspaceLayout = ({ children, title, subtitle, viewToken, notifications, 
   </div>
 );
 
-const ConsoleLayout = ({ children, title, subtitle, viewToken, notifications, currentView, setView, showNotification }: ConsoleLayoutProps) => (
+const ConsoleLayout = ({ children, title, subtitle, viewToken, notifications, currentView, setView, showNotification, hideHeader }: ConsoleLayoutProps) => (
   <div className="flex h-screen bg-surface overflow-hidden text-on-surface select-none">
     <Sidebar currentView={currentView} setView={setView} />
-    <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative">
-      <DashboardHeader title={title} subtitle={subtitle} showNotification={showNotification} />
+    <main className={`flex-1 flex flex-col min-w-0 relative ${hideHeader ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      {!hideHeader && <DashboardHeader title={title} subtitle={subtitle} showNotification={showNotification} />}
       <AnimatePresence mode="wait">
         <motion.div
           key={viewToken}
+          className={hideHeader ? "h-full w-full flex flex-col overflow-hidden" : ""}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
@@ -1063,13 +1068,22 @@ const ProjectsView = ({
   setSelectedProjectId,
   openEditor,
   showNotification,
-  setView
+  setView,
+  formFieldsMap = {},
+  setFormFieldsMap
 }: ProjectsViewProps) => {
   const [activeTab, setActiveTab] = React.useState<'recent' | 'mine' | 'all'>('recent');
   const [showNewFormDropdown, setShowNewFormDropdown] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [typeFilter, setTypeFilter] = React.useState<'all' | 'normal' | 'workflow' | 'report' | 'dashboard'>('all');
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'Published' | 'Draft'>('all');
+
+  // App Details Page layout states
+  const [activeFormId, setActiveFormId] = React.useState<string | null>(null);
+  const [isUnpublishedExpanded, setIsUnpublishedExpanded] = React.useState(true);
+  const [isPublishedExpanded, setIsPublishedExpanded] = React.useState(true);
+  const [formSearchQuery, setFormSearchQuery] = React.useState('');
+  const [previewDevice, setPreviewDevice] = React.useState<'desktop' | 'mobile'>('desktop');
 
   // Search states for project listings
   const [projectSearchQuery, setProjectSearchQuery] = React.useState('');
@@ -1099,6 +1113,21 @@ const ProjectsView = ({
       }
     }
   }, [isProjectModalOpen, projectToEdit]);
+
+  React.useEffect(() => {
+    if (projectDetailsId) {
+      const pForms = savedForms.filter(f => f.projectId === projectDetailsId);
+      if (pForms.length > 0) {
+        if (!activeFormId || !pForms.some(f => f.id === activeFormId)) {
+          setActiveFormId(pForms[0].id);
+        }
+      } else {
+        setActiveFormId(null);
+      }
+    } else {
+      setActiveFormId(null);
+    }
+  }, [projectDetailsId, savedForms]);
   
   const selectedProject = projects.find(p => p.id === projectDetailsId);
   const rawProjectForms = savedForms.filter(f => f.projectId === projectDetailsId);
@@ -1224,10 +1253,8 @@ const ProjectsView = ({
     );
   }
 
-  return (
+  return !projectDetailsId ? (
     <div className="p-8 space-y-8 max-w-7xl">
-      {!projectDetailsId ? (
-        <>
           {/* Top Bar Actions: Template Center Left to Create Project */}
           <div className="flex flex-col sm:flex-row items-center justify-end gap-4 mb-4">
             <button 
@@ -1602,232 +1629,407 @@ const ProjectsView = ({
               </div>
             )}
           </AnimatePresence>
-        </>
-      ) : (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          {/* Header Navigation Section */}
-          <div className="flex flex-col gap-1">
-            <button 
-              onClick={() => setProjectDetailsId(null)}
-              className="group flex items-center gap-2 text-[10px] font-black text-outline hover:text-primary uppercase tracking-[0.2em] transition-all w-fit mb-2"
-            >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              返回应用中心
-            </button>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <div className="space-y-1">
-                  {editingProjectTitle ? (
-                    <div className="flex items-center gap-3">
-                      <input 
-                        autoFocus
-                        type="text" 
-                        value={tempProjectName}
-                        onChange={(e) => setTempProjectName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') updateProjectName(projectDetailsId, tempProjectName);
-                          if (e.key === 'Escape') setEditingProjectTitle(false);
-                        }}
-                        className="text-3xl md:text-5xl font-black tracking-tighter bg-transparent border-b-4 border-primary focus:outline-none px-1"
-                      />
-                      <button 
-                        onClick={() => updateProjectName(projectDetailsId, tempProjectName)}
-                        className="p-3 bg-primary text-white rounded-2xl shadow-xl hover:secondary transition-all"
-                      >
-                        <Save className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="group flex items-center gap-4">
-                      <h2 
-                        className="text-2xl font-black tracking-tight leading-none"
-                        onClick={() => {
-                          setTempProjectName(selectedProject?.name || '');
-                          setEditingProjectTitle(true);
-                        }}
-                      >
-                        {selectedProject?.name}
-                      </h2>
-                      <button 
-                        onClick={() => {
-                           setTempProjectName(selectedProject?.name || '');
-                           setEditingProjectTitle(true);
-                        }}
-                        className="p-2 opacity-0 group-hover:opacity-100 bg-surface border border-outline-variant rounded-xl transition-all shadow-sm"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                      <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest">系统已就绪</span>
-                    </div>
+        </div>
+  ) : (
+    <div className="flex-1 h-full w-full flex flex-col overflow-hidden bg-slate-100 animate-in fade-in duration-300">
+          {/* Top Bar / Tab Header */}
+          <div className="h-14 bg-white border-b border-slate-200/80 flex items-center justify-between px-6 shrink-0 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setProjectDetailsId(null)}
+                className="group flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                id="back-to-projects-btn"
+              >
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                应用管理
+              </button>
+              
+              <div className="h-4 w-px bg-slate-200" />
+              
+              {/* Browser/IDE-like active form tab */}
+              {(() => {
+                const activeForm = rawProjectForms.find(f => f.id === activeFormId) || rawProjectForms[0] || null;
+                return activeForm ? (
+                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border-t-2 border-blue-500 rounded-t-lg text-xs font-bold text-blue-600 shadow-sm relative pr-8">
+                    <span className="truncate max-w-[120px]">{activeForm.name}</span>
+                    <button 
+                      onClick={() => setActiveFormId(null)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5 rotate-45" />
+                    </button>
                   </div>
-                </div>
-              </div>
-              <div className="hidden md:flex items-center gap-4">
-                 <div className="bg-white px-6 py-3 rounded-2xl border border-outline-variant shadow-sm text-right">
-                    <div className="text-[9px] font-black text-outline uppercase tracking-widest mb-0.5">总数据通量</div>
-                    <div className="text-xl font-mono font-black">{selectedProject?.responses || 0} <span className="text-xs text-outline font-bold">REQ</span></div>
-                 </div>
-                 <button className="p-4 bg-white border border-outline-variant rounded-2xl hover:bg-surface transition-all shadow-sm">
-                    <Share2 className="w-5 h-5" />
-                 </button>
-              </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 rounded-t-lg text-xs font-bold text-slate-400">
+                    暂无选中表单
+                  </div>
+                );
+              })()}
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold text-green-500 flex items-center gap-1 bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                运行中
+              </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-8">
-            <div className="space-y-6">
-              {/* Filter Bar */}
-              <div className="bg-white border border-outline-variant rounded-[2.5rem] p-3 flex flex-col md:flex-row items-center gap-3 shadow-sm">
-                 <div className="relative flex-1 group w-full md:w-auto">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+          {/* Dual-Pane Layout */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left Sidebar */}
+            <div className="w-72 bg-white border-r border-slate-200/80 flex flex-col h-full shrink-0 shadow-sm">
+              <div className="p-4 border-b border-slate-100 space-y-3">
+                {/* Search Bar & Filter */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input 
                       type="text" 
-                      placeholder="搜索表单信息..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3 bg-surface rounded-2xl text-xs font-bold border-none focus:ring-2 focus:ring-primary/10 transition-all outline-none"
+                      value={formSearchQuery}
+                      onChange={(e) => setFormSearchQuery(e.target.value)}
+                      placeholder="搜索表单"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 rounded-xl text-xs border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-800 font-medium"
+                      id="form-sidebar-search"
                     />
-                 </div>
-                 <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
-                    {['all', 'normal', 'workflow', 'report'].map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => setTypeFilter(type as any)}
-                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                          typeFilter === type ? 'bg-on-surface text-white shadow-lg' : 'bg-transparent text-outline hover:bg-surface'
-                        }`}
-                      >
-                        {type === 'all' ? '全部' : type === 'normal' ? '普通表单' : type === 'workflow' ? '流程表单' : '报表'}
-                      </button>
-                    ))}
-                 </div>
-                 <div className="h-8 w-px bg-outline-variant/60 hidden md:block" />
-                 <div className="relative shrink-0 w-full md:w-auto">
-                    <button 
-                      onClick={() => setShowNewFormDropdown(!showNewFormDropdown)}
-                      className="w-full md:w-auto px-8 py-3 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:secondary transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl shadow-primary/20"
-                    >
-                      <Plus className="w-4 h-4" /> 新增表单
-                    </button>
+                  </div>
+                  <button 
+                    onClick={() => setFormSearchQuery('')}
+                    className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 rounded-xl transition-all"
+                    title="重置搜索"
+                  >
+                    <ListFilter className="w-4 h-4" />
+                  </button>
+                </div>
 
-                    <AnimatePresence>
-                      {showNewFormDropdown && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setShowNewFormDropdown(false)} />
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute right-0 mt-3 w-56 bg-white rounded-3xl shadow-2xl border border-outline-variant p-3 z-20 space-y-1"
-                          >
-                            {[
-                              { type: 'normal', label: '普通表单', icon: FormInput, desc: '标准的数据收集引擎', color: 'text-blue-500' },
-                              { type: 'workflow', label: '流程表单', icon: Workflow, desc: '支持节点流转和任务审批', color: 'text-purple-500' },
-                              { type: 'report', label: '统计报表', icon: FileSpreadsheet, desc: '聚合分析与导出的数据表格', color: 'text-green-500' },
-                            ].map((item) => (
-                              <button
-                                key={item.type}
-                                onClick={() => {
-                                  setShowNewFormDropdown(false);
-                                  setSelectedProjectId(projectDetailsId);
-                                  openEditor(null, item.type as FormType);
-                                }}
-                                className="w-full flex items-start gap-4 p-4 rounded-2xl hover:bg-surface transition-all text-left group"
-                              >
-                                <div className="p-2 bg-white rounded-xl shadow-sm border border-outline-variant/40 group-hover:bg-primary group-hover:text-white transition-all">
-                                  <item.icon className="w-4 h-4" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-[11px] font-black uppercase tracking-wider text-on-surface mb-0.5">{item.label}</div>
-                                  <div className="text-[9px] text-outline font-medium leading-none truncate">{item.desc}</div>
-                                </div>
-                              </button>
-                            ))}
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                 </div>
+                {/* + 新增表单 Button */}
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowNewFormDropdown(!showNewFormDropdown)}
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/10"
+                    id="add-new-form-btn"
+                  >
+                    <Plus className="w-4 h-4" /> 新增表单
+                  </button>
+
+                  <AnimatePresence>
+                    {showNewFormDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-20" onClick={() => setShowNewFormDropdown(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                          className="absolute left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-30 space-y-0.5"
+                        >
+                          {[
+                            { type: 'normal', label: '普通表单', icon: FormInput, desc: '标准数据收集', color: 'text-blue-500' },
+                            { type: 'workflow', label: '流程表单', icon: Workflow, desc: '节点审批流程', color: 'text-purple-500' },
+                            { type: 'report', label: '统计报表', icon: FileSpreadsheet, desc: '数据透视与报表', color: 'text-green-500' },
+                          ].map((item) => (
+                            <button
+                              key={item.type}
+                              onClick={() => {
+                                setShowNewFormDropdown(false);
+                                setSelectedProjectId(projectDetailsId);
+                                openEditor(null, item.type as FormType);
+                              }}
+                              className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-all text-left"
+                            >
+                              <div className={`p-1.5 rounded-lg bg-slate-50 ${item.color}`}>
+                                <item.icon className="w-4 h-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-bold text-slate-800 leading-none mb-0.5">{item.label}</div>
+                                <div className="text-[10px] text-slate-400 leading-none">{item.desc}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
-              {/* Asset List Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {projectForms.map((form, idx) => {
-                   const config = {
-                      normal: { icon: FormInput, color: 'primary', label: '基础表单' },
-                      workflow: { icon: Workflow, color: 'purple-500', label: '工作流程' },
-                      report: { icon: FileSpreadsheet, color: 'green-500', label: '分析统计' },
-                      dashboard: { icon: LayoutGrid, color: 'amber-500', label: '全景大屏' }
-                   };
-                   const item = config[form.type as keyof typeof config] || config.normal;
-                   const Icon = item.icon;
+              {/* Collapsible Form Lists */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                {(() => {
+                  const filteredProjectForms = rawProjectForms.filter(f =>
+                    f.name.toLowerCase().includes(formSearchQuery.toLowerCase())
+                  );
+                  const unpublished = filteredProjectForms.filter(f => f.status !== 'Published');
+                  const published = filteredProjectForms.filter(f => f.status === 'Published');
+                  const activeForm = filteredProjectForms.find(f => f.id === activeFormId) || filteredProjectForms[0] || null;
 
-                   return (
-                    <motion.div 
-                      key={form.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="group bg-white border border-outline-variant hover:border-primary/40 rounded-[2rem] overflow-hidden transition-all hover:shadow-2xl hover:-translate-y-1"
-                    >
-                      <div className="p-6 space-y-6">
-                        <div className="flex items-start justify-between">
-                          <div className={`p-4 rounded-2xl bg-surface border border-outline-variant group-hover:bg-primary/5 transition-colors`}>
-                            <Icon className={`w-6 h-6 text-${item.color}`} />
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                             <button onClick={() => openEditor(form.id)} className="p-2 hover:bg-surface rounded-lg text-outline hover:text-primary transition-colors"><Code className="w-4 h-4" /></button>
-                             <button onClick={() => deleteForm(form.id, form.name)} className="p-2 hover:bg-error/5 rounded-lg text-outline hover:text-error transition-colors"><Trash2 className="w-4 h-4" /></button>
-                          </div>
-                        </div>
+                  const typeIcons = {
+                    normal: FormInput,
+                    workflow: Workflow,
+                    report: FileSpreadsheet,
+                    dashboard: LayoutGrid
+                  };
+
+                  return (
+                    <>
+                      {/* Section 1: 未发布 (Unpublished) */}
+                      <div className="space-y-1">
+                        <button 
+                          onClick={() => setIsUnpublishedExpanded(!isUnpublishedExpanded)}
+                          className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          <span>未发布</span>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isUnpublishedExpanded ? '' : '-rotate-90'}`} />
+                        </button>
                         
-                        <div className="space-y-1">
-                          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-outline-variant">{item.label}</div>
-                          <h4 className="text-lg font-black tracking-tight text-on-surface truncate group-hover:text-primary transition-colors">{form.name}</h4>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-4 border-t border-dashed border-outline-variant">
-                           <div className={`text-[10px] font-black uppercase tracking-widest ${form.status === 'Published' ? 'text-green-600' : 'text-amber-600'}`}>
-                              {form.status === 'Published' ? 'CONNECTED' : 'STANDBY'}
-                           </div>
-                           <button 
-                             onClick={() => openEditor(form.id)}
-                             className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1 hover:gap-2 transition-all"
-                           >
-                             管理资产 <ChevronRight className="w-3.5 h-3.5" />
-                           </button>
-                        </div>
+                        {isUnpublishedExpanded && (
+                          <div className="space-y-0.5">
+                            {unpublished.map(form => {
+                              const FormIcon = typeIcons[form.type as keyof typeof typeIcons] || FormInput;
+                              const isSelected = activeForm && form.id === activeForm.id;
+                              return (
+                                <div 
+                                  key={form.id}
+                                  onClick={() => setActiveFormId(form.id)}
+                                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                                    isSelected 
+                                      ? 'bg-blue-50/80 text-blue-600 font-semibold border-l-2 border-blue-600' 
+                                      : 'text-slate-600 hover:bg-slate-50 font-medium border-l-2 border-transparent'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <FormIcon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
+                                    <span className="text-xs truncate max-w-[150px]">{form.name}</span>
+                                  </div>
+                                  
+                                  {/* Trash Icon for deletion */}
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteForm(form.id, form.name);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-red-500 rounded transition-all"
+                                    title="删除表单"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            {unpublished.length === 0 && (
+                              <div className="text-[10px] text-slate-400 italic px-2.5 py-2">暂无未发布表单</div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {/* Indicator line */}
-                      <div className={`h-1.5 w-0 group-hover:w-full transition-all duration-500 bg-${item.color}`} />
+
+                      {/* Section 2: 已发布 (Published) */}
+                      <div className="space-y-1">
+                        <button 
+                          onClick={() => setIsPublishedExpanded(!isPublishedExpanded)}
+                          className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          <span>已发布</span>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isPublishedExpanded ? '' : '-rotate-90'}`} />
+                        </button>
+                        
+                        {isPublishedExpanded && (
+                          <div className="space-y-0.5">
+                            {published.map(form => {
+                              const FormIcon = typeIcons[form.type as keyof typeof typeIcons] || FormInput;
+                              const isSelected = activeForm && form.id === activeForm.id;
+                              return (
+                                <div 
+                                  key={form.id}
+                                  onClick={() => setActiveFormId(form.id)}
+                                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                                    isSelected 
+                                      ? 'bg-blue-50/80 text-blue-600 font-semibold border-l-2 border-blue-600' 
+                                      : 'text-slate-600 hover:bg-slate-50 font-medium border-l-2 border-transparent'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <FormIcon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
+                                    <span className="text-xs truncate max-w-[150px]">{form.name}</span>
+                                  </div>
+                                  
+                                  {/* Trash Icon for deletion */}
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteForm(form.id, form.name);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-red-500 rounded transition-all"
+                                    title="删除表单"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            {published.length === 0 && (
+                              <div className="text-[10px] text-slate-400 italic px-2.5 py-2">暂无已发布表单</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Right Main Content Area (Form Preview) */}
+            <div className="flex-1 flex flex-col overflow-hidden h-full">
+              {/* Controls Toolbar (Top) */}
+              <div className="h-12 border-b border-slate-200/50 bg-[#F8FAFC]/60 backdrop-blur-md flex items-center justify-between px-8 shrink-0">
+                {/* Desktop/Mobile Switcher Controls */}
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200/80 p-0.5 rounded-lg shadow-sm">
+                  <button
+                    onClick={() => setPreviewDevice('desktop')}
+                    className={`p-1.5 rounded-md transition-all ${
+                      previewDevice === 'desktop' 
+                        ? 'bg-slate-100 text-slate-800 font-bold' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                    title="电脑预览"
+                  >
+                    <Monitor className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPreviewDevice('mobile')}
+                    className={`p-1.5 rounded-md transition-all ${
+                      previewDevice === 'mobile' 
+                        ? 'bg-slate-100 text-slate-800 font-bold' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                    title="手机预览"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Edit Form Button */}
+                {(() => {
+                  const activeForm = rawProjectForms.find(f => f.id === activeFormId) || rawProjectForms[0] || null;
+                  return (
+                    <button
+                      onClick={() => activeForm && openEditor(activeForm.id)}
+                      disabled={!activeForm}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/5"
+                      id="edit-active-form-btn"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      编辑
+                    </button>
+                  );
+                })()}
+              </div>
+
+              {/* Preview Body Canvas */}
+              <div className="flex-1 overflow-y-auto p-8 flex items-start justify-center bg-slate-50/50">
+                {(() => {
+                  const activeForm = rawProjectForms.find(f => f.id === activeFormId) || rawProjectForms[0] || null;
+                  
+                  if (!activeForm) {
+                    return (
+                      <div className="my-auto text-center max-w-sm p-8 bg-white border border-slate-200/80 rounded-2xl shadow-sm space-y-4">
+                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-500 border border-blue-100">
+                          <FormInput className="w-8 h-8" />
+                        </div>
+                        <h4 className="text-base font-bold text-slate-800">暂无表单资产</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">该项目当前没有创建任何表单。您可以点击左侧 sidebar 的 “新增表单” 按钮进行创建。</p>
+                      </div>
+                    );
+                  }
+
+                  // Retrieve fields or use high-fidelity default fallback that mimics user's image exactly!
+                  const fields = (activeForm && formFieldsMap[activeForm.id]) ? formFieldsMap[activeForm.id] : [
+                    { id: '1', type: 'text', label: '单行文本', placeholder: '请输入', required: false, width: '1/1' },
+                    { id: '2', type: 'text', label: '单行文本', placeholder: '请输入', required: false, width: '1/2' },
+                    { id: '3', type: 'text', label: '单行文本', placeholder: '请输入', required: false, width: '1/2' },
+                    { id: '4', type: 'text', label: '单行文本', placeholder: '请输入', required: false, width: '1/2' },
+                    { id: '5', type: 'text', label: '单行文本', placeholder: '请输入', required: false, width: '1/2' }
+                  ];
+
+                  return (
+                    <motion.div 
+                      key={activeForm.id}
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                      className={
+                        previewDevice === 'mobile'
+                          ? "w-[335px] min-h-[550px] max-h-[640px] bg-white rounded-[2rem] shadow-2xl border-8 border-slate-800 flex flex-col overflow-y-auto p-5 relative select-none"
+                          : "max-w-2xl w-full bg-white rounded-2xl shadow-md border border-slate-200/80 flex flex-col p-8 md:p-10 select-none"
+                      }
+                    >
+                      {/* Form Title inside the preview */}
+                      <h3 className="text-base md:text-lg font-bold text-slate-800 text-center mb-6 md:mb-8 tracking-wide">
+                        {activeForm.name}
+                      </h3>
+
+                      {/* Render inputs dynamically inside a standard grid layout */}
+                      <div className="grid grid-cols-2 gap-4">
+                        {fields.map(field => {
+                          const isFullWidth = field.width === '1/1' || !field.width;
+                          const gridSpan = isFullWidth ? 'col-span-2' : 'col-span-2 md:col-span-1';
+
+                          return (
+                            <div key={field.id} className={gridSpan}>
+                              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                              </label>
+                              <div className="relative">
+                                {field.type === 'textarea' ? (
+                                  <textarea
+                                    disabled
+                                    rows={2}
+                                    placeholder={field.placeholder || '请输入'}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium placeholder-slate-400 cursor-not-allowed select-none outline-none"
+                                  />
+                                ) : field.type === 'select' ? (
+                                  <div className="relative">
+                                    <select
+                                      disabled
+                                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-400 cursor-not-allowed select-none appearance-none outline-none"
+                                    >
+                                      <option>{field.placeholder || '请选择'}</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                  </div>
+                                ) : (
+                                  <input
+                                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                                    disabled
+                                    placeholder={field.placeholder || '请输入'}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium placeholder-slate-400 cursor-not-allowed select-none outline-none"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Submit Button at the bottom of the form card */}
+                      <div className="mt-8 md:mt-10 flex justify-center w-full">
+                        <button 
+                          disabled
+                          className="w-full max-w-xs py-2.5 px-6 bg-blue-600 disabled:opacity-100 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center cursor-not-allowed"
+                        >
+                          提交
+                        </button>
+                      </div>
                     </motion.div>
                   );
-                })}
-                
-                {projectForms.length === 0 && (
-                  <div className="col-span-full py-32 flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-[3rem] bg-surface/20">
-                     <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-sm border border-outline-variant overflow-hidden relative">
-                        <Database className="w-10 h-10 text-outline-variant relative z-10" />
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-                     </div>
-                     <h4 className="text-xl font-black tracking-tight text-on-surface mb-2">资源库空空如也</h4>
-                     <p className="text-xs text-outline-variant font-medium uppercase tracking-widest">开启您的数字化部署第一步</p>
-                  </div>
-                )}
+                })()}
               </div>
             </div>
           </div>
         </div>
-      )
-          }
-        </div>
-      );
-    };
+  );
+};
 
 const WorkflowView = ({ workflowStatus, setWorkflowStatus, workflowInstances, setView }: WorkflowViewProps) => (
   <div className="p-8 space-y-8 max-w-7xl pb-32">
@@ -2959,95 +3161,6 @@ const DataManagementView = ({ projects, savedForms, showNotification }: DataMana
   );
 };
 
-interface OrgTreeItemProps {
-  key?: string | number;
-  node: OrgNode;
-  selectedDeptId: string | null;
-  onSelect: (id: string) => void;
-  onAdd: (parentId: string) => void;
-  onEdit: (node: OrgNode) => void;
-  onDelete: (id: string) => void;
-  level?: number;
-}
-
-const OrgTreeItem = ({ 
-  node, 
-  selectedDeptId, 
-  onSelect, 
-  onAdd, 
-  onEdit, 
-  onDelete,
-  level = 0 
-}: OrgTreeItemProps) => {
-  const [isExpanded, setIsExpanded] = React.useState(true);
-  const hasChildren = node.children && node.children.length > 0;
-
-  return (
-    <div className="select-none relative">
-      {level > 0 && (
-        <div 
-          className="absolute left-0 top-0 w-px bg-outline-variant/30 h-full" 
-          style={{ left: `${(level - 1) * 16 + 10}px` }}
-        />
-      )}
-      <div 
-        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-all duration-200 group relative ${
-          selectedDeptId === node.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'hover:bg-primary/5 text-on-surface-variant'
-        }`}
-        style={{ marginLeft: `${level * 16}px` }}
-        onClick={() => onSelect(node.id)}
-      >
-        {level > 0 && (
-          <div 
-            className="absolute -left-4 top-1/2 w-4 h-px bg-outline-variant/30"
-          />
-        )}
-        <div 
-          className={`w-5 h-5 flex items-center justify-center transition-transform z-10 ${selectedDeptId === node.id ? 'text-white' : 'text-outline/40'}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsExpanded(!isExpanded);
-          }}
-        >
-          {hasChildren ? (
-            <ChevronRight className={`w-3 h-3 transform transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-          ) : (
-            <div className="w-1 h-1 rounded-full bg-outline-variant" />
-          )}
-        </div>
-        
-        <div className="flex-1 flex items-center gap-2 overflow-hidden">
-          <Building2 className={`w-3.5 h-3.5 shrink-0 ${selectedDeptId === node.id ? 'text-white/70' : 'opacity-40'}`} />
-          <span className={`text-xs font-bold tracking-tight truncate ${selectedDeptId === node.id ? 'text-white' : 'text-on-surface'}`}>{node.name}</span>
-        </div>
-
-        <div className={`flex items-center gap-0.5 transition-all duration-200 ${selectedDeptId === node.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-          <Plus className="w-4 h-4 p-1 hover:bg-white/20 rounded-md transition-colors" onClick={(e) => { e.stopPropagation(); onAdd(node.id); }} />
-          <Edit className="w-4 h-4 p-1 hover:bg-white/20 rounded-md transition-colors" onClick={(e) => { e.stopPropagation(); onEdit(node); }} />
-          <Trash2 className="w-4 h-4 p-1 hover:bg-white/20 rounded-md transition-colors" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }} />
-        </div>
-      </div>
-
-      {hasChildren && isExpanded && (
-        <div className="mt-0.5">
-          {node.children!.map(child => (
-            <OrgTreeItem 
-              key={child.id} 
-              node={child} 
-              selectedDeptId={selectedDeptId} 
-              onSelect={onSelect} 
-              onAdd={onAdd}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              level={level + 1} 
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const TeamView = ({ 
   teamMembers, 
   orgData, 
@@ -3056,27 +3169,170 @@ const TeamView = ({
   onDeleteMember,
   onAddDept,
   onUpdateDept,
-  onDeleteDept
+  onDeleteDept,
+  showNotification
 }: TeamViewProps) => {
-  const [activeTab, setActiveTab] = React.useState<'org' | 'users' | 'roles'>('users');
+  const [activeTab, setActiveTab] = React.useState<'org' | 'users' | 'roles'>('roles');
   const [selectedDeptId, setSelectedDeptId] = React.useState<string | null>(orgData[0]?.id || null);
-  const [isMemberModalOpen, setIsMemberModalOpen] = React.useState(false);
-  const [isDeptModalOpen, setIsDeptModalOpen] = React.useState(false);
-  const [editingMember, setEditingMember] = React.useState<TeamMember | null>(null);
-  const [editingDept, setEditingDept] = React.useState<OrgNode | null>(null);
-  const [deptParentId, setDeptParentId] = React.useState<string | null>(null);
 
-  // Filter states
+  // Filter states for read-only user queries
   const [filterName, setFilterName] = React.useState('');
   const [filterRole, setFilterRole] = React.useState('All');
   const [filterStatus, setFilterStatus] = React.useState('All');
 
-  // Member Form states
-  const [memberName, setMemberName] = React.useState('');
-  const [memberRole, setMemberRole] = React.useState('Editor');
-  const [memberDept, setMemberDept] = React.useState('');
-  const [memberEmail, setMemberEmail] = React.useState('');
-  const [deptName, setDeptName] = React.useState('');
+  // External system sync simulation state
+  const [isSyncing, setIsSyncing] = React.useState(false);
+  const [lastSyncTime, setLastSyncTime] = React.useState('2026-06-18 10:00:24');
+
+  // Trigger sync simulation
+  const handleTriggerSync = () => {
+    setIsSyncing(true);
+    setTimeout(() => {
+      setIsSyncing(false);
+      const now = new Date();
+      const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      setLastSyncTime(timeStr);
+      if (showNotification) {
+        showNotification('企业身份主数据拉取成功：已更新 45 个组织单元，同步 382 个成员映射！');
+      }
+    }, 1200);
+  };
+
+  // Preset default roles as requested
+  const [roles, setRoles] = React.useState<any[]>([
+    {
+      id: 'designer',
+      name: '表单设计人',
+      code: 'FORM_DESIGNER',
+      desc: '专职于业务表单、工作流引擎、发布策略的全生命周期配置管理。',
+      count: 8,
+      color: 'border-primary',
+      menus: {
+        dashboard: true,
+        designer: true,
+        dataCenter: true,
+        insights: true,
+        workflow: true,
+        settings: false,
+      },
+      pages: {
+        formFill: true,
+        formDesign: true,
+        workflowDesign: true,
+        publishPage: true,
+      },
+      operations: {
+        createForm: true,
+        deleteForm: true,
+        exportData: true,
+        batchDelete: false,
+        editSystemSettings: false,
+      },
+      dataScope: 'dept', // 本组织
+    },
+    {
+      id: 'filler',
+      name: '表单填写人',
+      code: 'FORM_FILLER',
+      desc: '标准的终端业务填报/移动端协作岗位，可自主填报并检索其本人提交的历史记录。',
+      count: 124,
+      color: 'bg-green-500 border-green-500',
+      menus: {
+        dashboard: true,
+        designer: false,
+        dataCenter: false,
+        insights: false,
+        workflow: false,
+        settings: false,
+      },
+      pages: {
+        formFill: true,
+        formDesign: false,
+        workflowDesign: false,
+        publishPage: false,
+      },
+      operations: {
+        createForm: false,
+        deleteForm: false,
+        exportData: false,
+        batchDelete: false,
+        editSystemSettings: false,
+      },
+      dataScope: 'self', // 本人
+    },
+    {
+      id: 'admin',
+      name: '管理人员',
+      code: 'ADMINISTRATIVE',
+      desc: '全局管理员，拥有全局底单统配数据审核、系统架构重设及最终特权。',
+      count: 2,
+      color: 'border-secondary',
+      menus: {
+        dashboard: true,
+        designer: true,
+        dataCenter: true,
+        insights: true,
+        workflow: true,
+        settings: true,
+      },
+      pages: {
+        formFill: true,
+        formDesign: true,
+        workflowDesign: true,
+        publishPage: true,
+      },
+      operations: {
+        createForm: true,
+        deleteForm: true,
+        exportData: true,
+        batchDelete: true,
+        editSystemSettings: true,
+      },
+      dataScope: 'all', // 全部
+    },
+  ]);
+
+  const [selectedRoleId, setSelectedRoleId] = React.useState<string>('designer');
+  const [isSavingPolicy, setIsSavingPolicy] = React.useState(false);
+
+  const selectedRole = roles.find(r => r.id === selectedRoleId) || roles[0];
+
+  const handleUpdatePolicy = (field: 'menus' | 'pages' | 'operations', subKey: string, val: boolean) => {
+    setRoles(prev => prev.map(r => {
+      if (r.id === selectedRoleId) {
+        return {
+          ...r,
+          [field]: {
+            ...r[field],
+            [subKey]: val
+          }
+        };
+      }
+      return r;
+    }));
+  };
+
+  const handleUpdateDataScope = (scope: 'self' | 'self_sub' | 'dept' | 'dept_charge' | 'all') => {
+    setRoles(prev => prev.map(r => {
+      if (r.id === selectedRoleId) {
+        return {
+          ...r,
+          dataScope: scope
+        };
+      }
+      return r;
+    }));
+  };
+
+  const handleSavePolicies = () => {
+    setIsSavingPolicy(true);
+    setTimeout(() => {
+      setIsSavingPolicy(false);
+      if (showNotification) {
+        showNotification(`角色的核心功能及数据过滤策略包保存成功，已向 AD 域下发对应角色定义！`);
+      }
+    }, 800);
+  };
 
   const getDeptNameById = (id: string, nodes: OrgNode[]): string => {
     for (const node of nodes) {
@@ -3094,51 +3350,62 @@ const TeamView = ({
     const matchesName = m.name.toLowerCase().includes(filterName.toLowerCase()) || m.id.includes(filterName);
     const matchesRole = filterRole === 'All' || m.role === filterRole;
     const matchesStatus = filterStatus === 'All' || m.status === filterStatus;
-
     return matchesDept && matchesName && matchesRole && matchesStatus;
   });
 
-  const resetMemberForm = () => {
-    setMemberName('');
-    setMemberRole('Editor');
-    setMemberDept(selectedDeptId || '');
-    setMemberEmail('');
-    setEditingMember(null);
-  };
-
-  const handleMemberSubmit = () => {
-    if (!memberName || !memberDept) return;
+  const ReadOnlyOrgTreeItem = ({ node, level = 0 }: { node: OrgNode; level?: number; key?: any }) => {
+    const [isExpanded, setIsExpanded] = React.useState(level < 2);
+    const hasChildren = node.children && node.children.length > 0;
     
-    if (editingMember) {
-      onUpdateMember({
-        ...editingMember,
-        name: memberName,
-        role: memberRole,
-        deptId: memberDept,
-        email: memberEmail
-      });
-    } else {
-      onAddMember({
-        name: memberName,
-        role: memberRole,
-        deptId: memberDept,
-        email: memberEmail
-      });
-    }
-    setIsMemberModalOpen(false);
-    resetMemberForm();
-  };
+    return (
+      <div className="select-none relative">
+        {level > 0 && (
+          <div 
+            className="absolute left-0 top-0 w-px bg-outline-variant/30 h-full" 
+            style={{ left: `${(level - 1) * 16 + 10}px` }}
+          />
+        )}
+        <div 
+          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer hover:bg-primary/5 transition-all text-on-surface-variant ${selectedDeptId === node.id ? 'bg-primary/5 text-primary border border-primary/10' : ''}`}
+          style={{ marginLeft: `${level * 16}px` }}
+          onClick={() => setSelectedDeptId(node.id)}
+        >
+          {level > 0 && (
+            <div className="absolute -left-4 top-1/2 w-4 h-px bg-outline-variant/30" />
+          )}
+          <div 
+            className="w-4 h-4 flex items-center justify-center transition-transform z-10 text-outline/40"
+            onClick={(e) => {
+              if (hasChildren) {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }
+            }}
+          >
+            {hasChildren ? (
+              <ChevronRight className={`w-3 h-3 transform transition-transform ${isExpanded ? 'rotate-90 text-primary' : ''}`} />
+            ) : (
+              <div className="w-1 h-1 rounded-full bg-outline-variant" />
+            )}
+          </div>
+          
+          <div className="flex-1 flex items-center gap-2 overflow-hidden">
+            <Building2 className={`w-3.5 h-3.5 shrink-0 ${selectedDeptId === node.id ? 'text-primary' : 'opacity-40 text-on-surface-variant'}`} />
+            <span className={`text-xs font-black tracking-tight ${selectedDeptId === node.id ? 'text-primary' : 'text-on-surface'}`}>{node.name}</span>
+          </div>
 
-  const handleDeptSubmit = () => {
-    if (!deptName) return;
-    if (editingDept) {
-      onUpdateDept(editingDept.id, deptName);
-    } else {
-      onAddDept(deptParentId, deptName);
-    }
-    setIsDeptModalOpen(false);
-    setDeptName('');
-    setEditingDept(null);
+          <span className="text-[9px] font-black tracking-widest text-outline/50 scale-90">🔒</span>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div className="mt-0.5">
+            {node.children!.map(child => (
+              <ReadOnlyOrgTreeItem key={child.id} node={child} level={level + 1} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -3146,9 +3413,9 @@ const TeamView = ({
       {/* Side Tabs Navigation */}
       <div className="w-20 border-r border-outline-variant bg-surface-container-lowest flex flex-col items-center py-8 gap-6 shrink-0 shadow-[1px_0_0_rgba(0,0,0,0.02)]">
          {[
+           { id: 'roles', icon: ShieldCheck, label: '角色' },
            { id: 'org', icon: Network, label: '组织' },
            { id: 'users', icon: Users, label: '用户' },
-           { id: 'roles', icon: ShieldCheck, label: '角色' },
          ].map(tab => (
            <button 
              key={tab.id}
@@ -3159,85 +3426,185 @@ const TeamView = ({
                 <tab.icon className="w-5 h-5" />
              </div>
              <span className="text-[9px] font-black uppercase tracking-[0.15em]">{tab.label}</span>
-             {activeTab === tab.id && <motion.div layoutId="activeTabIndicator" className="absolute -left-[2.5rem] top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full shadow-[2px_0_12px_rgba(var(--primary),0.4)]" />}
+             {activeTab === tab.id && <motion.div layoutId="activeTabIndicator" className="absolute -left-[2.5rem] top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full" />}
            </button>
          ))}
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Main Workspace based on activeTab */}
-        {activeTab === 'org' ? (
+        {/* 一、 组织管理 - 外部托管架构只读透视与外部跳转 */}
+        {activeTab === 'org' && (
           <div className="flex-1 flex bg-surface-container-lowest">
-             <div className="w-80 bg-white border-r border-outline-variant flex flex-col p-8 space-y-8 animate-in slide-in-from-left duration-500 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10">
-                <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-on-surface text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-black/20">
-                         <span className="font-black text-xs">SK</span>
-                      </div>
-                      <h3 className="font-black tracking-tight text-lg">seakoi</h3>
-                   </div>
-                   <button 
-                     onClick={() => { setDeptParentId(null); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
-                     className="p-2.5 hover:bg-primary/10 text-primary rounded-xl transition-all border border-transparent hover:border-primary/20 shadow-sm"
-                   >
-                     <Plus className="w-5 h-5" />
-                   </button>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar pr-2">
-                   {orgData.map(node => (
-                     <OrgTreeItem 
-                       key={node.id} 
-                       node={node} 
-                       selectedDeptId={selectedDeptId} 
-                       onSelect={setSelectedDeptId} 
-                       onAdd={(pid) => { setDeptParentId(pid); setEditingDept(null); setDeptName(''); setIsDeptModalOpen(true); }}
-                       onEdit={(node) => { setDeptParentId(null); setEditingDept(node); setDeptName(node.name); setIsDeptModalOpen(true); }}
-                       onDelete={onDeleteDept}
-                     />
-                   ))}
-                </div>
-             </div>
-             <div className="flex-1 p-12 flex flex-col items-center justify-center text-center space-y-8 bg-[radial-gradient(circle_at_center,rgba(var(--primary),0.02)_0%,transparent_70%)]">
-                <div className="relative">
-                   <div className="absolute inset-0 bg-primary/20 blur-[60px] rounded-full animate-pulse"></div>
-                   <div className="w-40 h-40 bg-white rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] flex items-center justify-center border border-outline-variant/30 relative z-10">
-                      <Building2 className="w-16 h-16 text-primary opacity-20" />
-                   </div>
-                </div>
-                <div>
-                   <h2 className="text-3xl font-black tracking-tight text-on-surface">{selectedDeptId ? getDeptNameById(selectedDeptId, orgData) : '选择组织节点'}</h2>
-                   <p className="text-sm text-on-surface-variant font-bold uppercase tracking-widest mt-3 opacity-60">
-                     {selectedDeptId ? '部门资产与权限沙盒' : '请在左侧目录中选择管理对象'}
-                   </p>
-                </div>
-                <div className="flex gap-4">
-                   <button className="px-10 py-4 bg-white border-2 border-outline-variant/50 rounded-2xl text-xs font-black uppercase tracking-widest hover:border-primary hover:text-primary transition-all shadow-lg shadow-black/5 active:scale-95">部门属性</button>
-                   <button className="px-10 py-4 bg-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all">添加下级</button>
-                </div>
-             </div>
-          </div>
-        ) : activeTab === 'users' ? (
-          <div className="flex-1 flex flex-col bg-white overflow-hidden animate-in fade-in duration-700">
-             <div className="p-12 border-b border-outline-variant space-y-10 bg-surface-container-lowest/30">
-               <div className="flex justify-between items-center">
-                 <div className="space-y-1">
-                   <h2 className="text-5xl font-black tracking-tighter text-on-surface">用户管理</h2>
-                   <p className="text-sm text-on-surface-variant font-black uppercase tracking-[0.2em] opacity-40">Identity & Access Governance</p>
-                 </div>
-                 <button 
-                   onClick={() => { resetMemberForm(); setIsMemberModalOpen(true); }}
-                   className="flex items-center gap-3 px-10 py-5 bg-on-surface text-white rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:-translate-y-1.5 active:scale-95"
-                 >
-                   <UserPlus className="w-5 h-5 font-black" /> 新增成员
-                 </button>
+            {/* Left sidebar for Org tree */}
+            <div className="w-80 bg-white border-r border-outline-variant flex flex-col p-8 space-y-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 overflow-y-auto">
+               <div className="space-y-1">
+                  <h3 className="font-black tracking-tight text-lg flex items-center gap-2">
+                    <Network className="w-5 h-5 text-primary" />
+                    组织架构透视
+                  </h3>
+                  <p className="text-[10px] text-outline font-bold uppercase tracking-wider">Departmental Schema</p>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6">
+               {/* External status box */}
+               <div className="bg-surface px-4 py-3 rounded-2xl border border-outline-variant/65 space-y-1">
+                 <div className="flex items-center gap-1.5 text-[10px] font-black text-on-surface-variant">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span>外部HRM已连接</span>
+                 </div>
+                 <p className="text-[9px] text-outline leading-tight font-medium">
+                   数据流：只读同步，禁止本地篡改
+                 </p>
+               </div>
+
+               <div className="flex-1 space-y-1 custom-scrollbar">
+                  {orgData.map(node => (
+                    <ReadOnlyOrgTreeItem key={node.id} node={node} />
+                  ))}
+               </div>
+            </div>
+
+            {/* Read-Only Portal on Right */}
+            <div className="flex-1 p-12 flex flex-col bg-white overflow-y-auto custom-scrollbar">
+               <div className="max-w-4xl mx-auto w-full space-y-10">
+                 {/* Top Guard Portal Block */}
+                 <div className="relative overflow-hidden p-10 bg-primary/5 rounded-[3rem] border border-primary/10 flex flex-col md:flex-row items-center justify-between gap-8">
+                   <div className="absolute right-0 top-0 translate-x-12 -translate-y-10 opacity-5 pointer-events-none">
+                     <Lock className="w-64 h-64" />
+                   </div>
+                   <div className="space-y-4 max-w-xl">
+                     <div className="flex items-center gap-2">
+                       <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                         外部系统托管
+                       </span>
+                       <span className="text-outline font-bold text-xs flex items-center gap-1">
+                         <Info className="w-3.5 h-3.5 text-on-surface-variant/50" /> 本地为只读视图
+                       </span>
+                     </div>
+                     <h2 className="text-3xl font-black tracking-tight text-on-surface">组织数据存储在外部系统</h2>
+                     <p className="text-xs text-on-surface-variant font-medium leading-relaxed">
+                       本系统的组织架构单元和层级关联均存储和维护在第三方系统（如：企业微信、网关 LDAP、或企业专属 HRM 统筹系统）。系统在此仅作为权限管控的数据过滤器基础层，无权修改基础属性。
+                     </p>
+                   </div>
+                   <div className="shrink-0 flex flex-col gap-3 w-full md:w-auto">
+                     <a 
+                       href="https://hrm.company.internal/staff/organization"
+                       onClick={(e) => { e.preventDefault(); if (showNotification) showNotification("演示模式：已为您模拟发出跳转 HRM 系统的 SSO 验证票据..."); }}
+                       className="px-8 py-4 bg-on-surface hover:bg-primary text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-xl hover:-translate-y-1"
+                     >
+                       <span>前往企业 HRM 系统进行维护</span>
+                       <ExternalLink className="w-4 h-4" />
+                     </a>
+                     <a 
+                       href="https://idaas.company.internal/organizations"
+                       onClick={(e) => { e.preventDefault(); if (showNotification) showNotification("演示模式：已启动跳转 IDaaS 验证流，单点登录成功。"); }}
+                       className="px-8 py-4 bg-white border border-outline-variant hover:border-primary text-on-surface hover:text-primary rounded-2xl text-xs text-center font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-sm"
+                     >
+                       <span>前往 IDaaS 统一身份中心</span>
+                       <ExternalLink className="w-4 h-4" />
+                     </a>
+                   </div>
+                 </div>
+
+                 {/* Sync monitor widgets */}
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+                   <div className="bg-surface p-6 rounded-3xl border border-outline-variant/60 flex flex-col gap-1.5 shadow-sm">
+                     <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-none">同步引擎</span>
+                     <span className="text-base font-black text-on-surface">ActiveDirectory (AD)</span>
+                     <span className="text-[9px] text-outline mt-1 block">单向定时集成链路</span>
+                   </div>
+                   <div className="bg-surface p-6 rounded-3xl border border-outline-variant/60 flex flex-col gap-1.5 shadow-sm">
+                     <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-none">最近映射时间</span>
+                     <span className="text-base font-black text-on-surface font-mono">{lastSyncTime}</span>
+                     <span className="text-[9px] text-outline mt-1 block">集成周期: 3 分钟/次</span>
+                   </div>
+                   <div className="bg-surface p-6 rounded-3xl border border-outline-variant/60 flex flex-col gap-1.5 shadow-sm">
+                     <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-none">手动增量同步</span>
+                     <button
+                       onClick={handleTriggerSync}
+                       disabled={isSyncing}
+                       className="flex items-center justify-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white rounded-xl text-xs font-bold transition-all w-fit shadow-md shadow-primary/10 mt-1"
+                     >
+                       <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                       <span>{isSyncing ? '正在同步验证...' : '立即拉取最新'}</span>
+                     </button>
+                   </div>
+                 </div>
+
+                 {/* Department details view */}
+                 <div className="space-y-4 pt-4 border-t border-outline-variant">
+                   <div className="flex justify-between items-center">
+                     <div className="space-y-0.5">
+                       <h4 className="text-sm font-black text-on-surface">
+                         已选中部门关联情况 : {selectedDeptId ? getDeptNameById(selectedDeptId, orgData) : '未选中'}
+                       </h4>
+                       <p className="text-[11px] text-outline font-medium">下方为该部门在自定义表单中的归属配置透视图</p>
+                     </div>
+                     <span className="bg-surface border border-outline-variant px-3 py-1 rounded-xl text-[10px] text-outline font-bold">同步深度: 全级透查</span>
+                   </div>
+
+                   <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                       <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">上级分支代码</span>
+                       <code className="text-xs font-mono font-bold text-on-surface bg-surface px-2.5 py-1 rounded-lg border">
+                         AD-NODE-{selectedDeptId || 'N/A'}-MAPPED
+                       </code>
+                     </div>
+                     <div className="space-y-2">
+                       <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">部门分管负责人</span>
+                       <span className="text-xs text-on-surface font-bold flex items-center gap-1.5">
+                         <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-black">M</div>
+                         <span>李默（人事主键代号：UID-9903）</span>
+                       </span>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 二、 用户管理 - 外部身份池及系统角色直接分配 */}
+        {activeTab === 'users' && (
+          <div className="flex-1 flex flex-col bg-white overflow-hidden animate-in fade-in duration-500">
+             <div className="p-12 border-b border-outline-variant space-y-8 bg-surface-container-lowest/30">
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                 <div className="space-y-1.5">
+                   <div className="flex items-center gap-2">
+                     <h2 className="text-5xl font-black tracking-tighter text-on-surface">用户管理</h2>
+                     <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                       外部身份映射 (只读)
+                     </span>
+                   </div>
+                   <p className="text-xs text-on-surface-variant font-medium">用户信息和在职状态托管在企业主系统中。系统检测并对已接入成员完成底表权限的精细分类。</p>
+                 </div>
+                 
+                 <div className="flex gap-3">
+                   <button
+                     onClick={handleTriggerSync}
+                     disabled={isSyncing}
+                     className="flex items-center gap-2 px-6 py-4 border border-outline-variant hover:border-primary rounded-2xl text-xs font-black uppercase tracking-wider bg-white transition-all shadow-sm"
+                   >
+                     <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                     <span>{isSyncing ? '正在同步数据...' : '手动执行身份同步'}</span>
+                   </button>
+                   <a 
+                     href="https://idaas.company.internal/staff/accounts" 
+                     onClick={(e) => { e.preventDefault(); if (showNotification) showNotification("演示模式：已为您生成企业专属的单点鉴权跳链。"); }}
+                     className="flex items-center gap-2 px-6 py-4 bg-on-surface hover:bg-primary text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xl hover:-translate-y-1"
+                   >
+                     <span>维护全局用户账号</span>
+                     <ExternalLink className="w-4 h-4" />
+                   </a>
+                 </div>
+               </div>
+
+               {/* Quick stats and filters */}
+               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 pt-2">
                  <div className="col-span-1 md:col-span-2 relative group">
                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-outline group-focus-within:text-primary transition-colors" />
                    <input 
                      type="text" 
-                     placeholder="搜索姓名、工号、邮箱..."
+                     placeholder="搜索姓名、邮箱、工号以定位成员..."
                      value={filterName}
                      onChange={(e) => setFilterName(e.target.value)}
                      className="w-full bg-surface border-2 border-transparent focus:border-primary focus:bg-white rounded-[1.5rem] pl-14 pr-6 py-4.5 text-xs focus:outline-none transition-all font-black placeholder:text-outline/40 shadow-inner"
@@ -3249,11 +3616,11 @@ const TeamView = ({
                      onChange={(e) => setFilterRole(e.target.value)}
                      className="w-full bg-white border-2 border-outline-variant/30 hover:border-primary rounded-[1.5rem] px-6 py-4.5 text-xs focus:outline-none font-black appearance-none cursor-pointer transition-all shadow-sm"
                    >
-                     <option value="All">所有角色</option>
+                     <option value="All">所有系统角色</option>
                      <option value="Admin">管理员</option>
                      <option value="Editor">编辑者</option>
-                     <option value="Manager">经理</option>
                      <option value="Viewer">查看者</option>
+                     <option value="Manager">经理</option>
                    </select>
                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-outline pointer-events-none group-hover:text-primary transition-colors" />
                  </div>
@@ -3263,9 +3630,9 @@ const TeamView = ({
                      onChange={(e) => setFilterStatus(e.target.value)}
                      className="w-full bg-white border-2 border-outline-variant/30 hover:border-primary rounded-[1.5rem] px-6 py-4.5 text-xs focus:outline-none font-black appearance-none cursor-pointer transition-all shadow-sm"
                    >
-                     <option value="All">所有状态</option>
-                     <option value="Active">活跃中</option>
-                     <option value="Inactive">离线</option>
+                     <option value="All">同步就绪状态</option>
+                     <option value="Active">活跃就绪 (Active)</option>
+                     <option value="Inactive">待激活 (Off-grid)</option>
                    </select>
                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-outline pointer-events-none group-hover:text-primary transition-colors" />
                  </div>
@@ -3278,33 +3645,36 @@ const TeamView = ({
                </div>
              </div>
 
+             {/* Directory Table */}
              <div className="flex-1 overflow-auto custom-scrollbar p-12">
                 <table className="w-full text-left border-separate border-spacing-y-4">
                    <thead>
                       <tr className="text-[10px] font-black text-outline uppercase tracking-[0.25em] opacity-60">
-                         <th className="px-8 py-4">UID</th>
-                         <th className="px-8 py-4">实体信息</th>
-                         <th className="px-8 py-4">组织架构</th>
-                         <th className="px-8 py-4">权限策略</th>
-                         <th className="px-8 py-4">健康状态</th>
-                         <th className="px-8 py-4 text-right">管控</th>
+                         <th className="px-8 py-4">ADM 身份代号</th>
+                         <th className="px-8 py-4">实体账户</th>
+                         <th className="px-8 py-4">所属组织架构</th>
+                         <th className="px-8 py-4">系统授权</th>
+                         <th className="px-8 py-4">数据源通道</th>
+                         <th className="px-8 py-4 text-right">角色分配</th>
                       </tr>
                    </thead>
                    <tbody>
                       {filteredMembers.map((user) => (
                         <tr key={user.id} className="group transition-all">
-                           <td className="px-8 py-6 text-[10px] font-black text-outline-variant font-mono bg-surface-container-lowest border-y border-l border-outline-variant/30 rounded-l-[1.5rem] group-hover:bg-primary/5 transition-all">{user.id}</td>
+                           <td className="px-8 py-6 text-[10px] font-black text-outline-variant font-mono bg-surface-container-lowest border-y border-l border-outline-variant/30 rounded-l-[1.5rem] group-hover:bg-primary/5 transition-all">
+                             SYS-{user.id.padStart(4, '0')}
+                           </td>
                            <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
                               <div className="flex items-center gap-5">
                                   <div className="relative shrink-0">
-                                    <div className="absolute -inset-1.5 bg-primary/10 rounded-[1.2rem] opacity-0 group-hover:opacity-100 transition-opacity blur-lg"></div>
+                                    <div className="absolute -inset-1.5 bg-primary/10 rounded-[1.2rem] opacity-0 group-hover:opacity-100 transition-opacity blur-lg" />
                                     <img 
                                       src={`https://picsum.photos/seed/user-${user.id}/100/100`} 
                                       className="w-12 h-12 rounded-[1.1rem] border-2 border-white shadow-xl relative z-10 group-hover:rotate-6 transition-all" 
                                       referrerPolicy="no-referrer"
                                       alt="Avatar"
                                     />
-                                    {user.status === 'Active' && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full z-20 shadow-lg"></div>}
+                                    {user.status === 'Active' && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full z-20 shadow-lg" />}
                                   </div>
                                   <div className="flex flex-col">
                                      <span className="font-black text-sm text-on-surface tracking-tight group-hover:text-primary transition-colors">{user.name}</span>
@@ -3319,41 +3689,35 @@ const TeamView = ({
                               </div>
                            </td>
                            <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
-                              <div className={`text-[10px] font-black px-4 py-1.5 rounded-full border-2 tracking-[0.05em] uppercase shadow-sm ${
+                              <span className={`text-[10px] font-black px-4 py-1.5 rounded-full border-2 tracking-[0.05em] uppercase shadow-sm ${
                                  user.role === 'Admin' ? 'bg-primary/5 text-primary border-primary/20' : 
                                  user.role === 'Manager' ? 'bg-secondary/5 text-secondary border-secondary/20' : 
                                  'bg-on-surface/5 text-on-surface-variant border-outline-variant/40'
                               }`}>
-                                {user.role === 'Admin' ? 'Superuser' : user.role === 'Manager' ? 'Head' : user.role === 'Editor' ? 'Designer' : 'Guest'}
-                              </div>
+                                {user.role === 'Admin' ? '超级管理员' : user.role === 'Manager' ? '业务经理' : user.role === 'Editor' ? '内容编辑' : '普通访客'}
+                              </span>
                            </td>
                            <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
-                              <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${user.status === 'Active' ? 'text-green-600' : 'text-outline/30'}`}>
-                                {user.status === 'Active' ? 'Verified' : 'Offline'}
+                              <span className="text-[9px] font-black bg-outline-variant/15 text-outline px-3 py-1 rounded-full uppercase tracking-wider">
+                                🔒 LDAP Mapped
                               </span>
                            </td>
                            <td className="px-8 py-6 bg-surface-container-lowest border-y border-r border-outline-variant/30 group-hover:bg-primary/5 rounded-r-[1.5rem] transition-all text-right">
-                              <div className="flex items-center justify-end gap-3">
-                                 <button 
-                                   onClick={() => {
-                                     setEditingMember(user);
-                                     setMemberName(user.name);
-                                     setMemberRole(user.role);
-                                     setMemberDept(user.deptId);
-                                     setMemberEmail(user.email);
-                                     setIsMemberModalOpen(true);
-                                   }}
-                                   className="p-2.5 hover:bg-white text-on-surface-variant hover:text-primary rounded-xl transition-all shadow-sm border border-transparent hover:border-primary/20 scale-90 group-hover:scale-100 opacity-0 group-hover:opacity-100"
-                                 >
-                                    <Edit className="w-4 h-4" />
-                                 </button>
-                                 <button 
-                                   onClick={() => onDeleteMember(user.id)}
-                                   className="p-2.5 hover:bg-white text-outline-variant hover:text-error rounded-xl transition-all shadow-sm border border-transparent hover:border-error/20 scale-90 group-hover:scale-100 opacity-0 group-hover:opacity-100"
-                                 >
-                                    <Trash2 className="w-4 h-4" />
-                                 </button>
-                              </div>
+                              <select
+                                value={user.role}
+                                onChange={(e) => {
+                                  onUpdateMember({
+                                    ...user,
+                                    role: e.target.value
+                                  });
+                                }}
+                                className="bg-white border text-[11px] font-black px-3 py-1.5 rounded-xl border-outline-variant focus:outline-none focus:border-primary shrink-0 cursor-pointer text-on-surface"
+                              >
+                                <option value="Admin">管理员</option>
+                                <option value="Editor">开发设计</option>
+                                <option value="Manager">经理</option>
+                                <option value="Viewer">查看客</option>
+                              </select>
                            </td>
                         </tr>
                       ))}
@@ -3361,190 +3725,290 @@ const TeamView = ({
                 </table>
              </div>
           </div>
-        ) : (
-          <div className="flex-1 flex flex-col bg-surface-container-lowest/50 p-16 space-y-16 animate-in zoom-in duration-500 overflow-y-auto custom-scrollbar">
-             <div className="space-y-3">
-                <h2 className="text-6xl font-black tracking-tighter text-on-surface">角色系统</h2>
-                <p className="text-sm font-black text-outline-variant uppercase tracking-[0.3em] opacity-40">RBAC Strategy & Permission Matrices</p>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                {[
-                  { name: '超级管理员', count: 1, color: 'border-primary', desc: '拥有系统全局所有权限，包括应用管理、人员管理、系统级配置等最高权限。', longLabel: 'CORE_ADMIN' },
-                  { name: '业务经理', count: 3, color: 'border-secondary', desc: '负责特定业务线的流程管理、数据审核、部门级人员指派与业务监控。', longLabel: 'BUS_MANAGER' },
-                  { name: '内容编辑', count: 8, color: 'border-green-500', desc: '主要负责表单设计、页面配置与发布预览，不具备系统级权限。', longLabel: 'CONTENT_CREATOR' },
-                  { name: '普通访客', count: 124, color: 'border-outline-variant', desc: '仅拥有表单填写与查看本人提交数据的权限，无法进入控制台进行配置。', longLabel: 'END_USER' },
-                ].map((role) => (
-                  <div key={role.name} className={`bg-white p-10 rounded-[3rem] border-2 ${role.color} shadow-2xl shadow-black/5 hover:-translate-y-3 transition-all flex flex-col gap-8 group relative overflow-hidden`}>
-                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-150 transition-transform duration-700">
-                        <ShieldCheck className="w-32 h-32" />
-                     </div>
-                     <div className="flex justify-between items-start relative z-10">
-                        <div className="w-14 h-14 bg-surface rounded-[1.2rem] flex items-center justify-center shadow-inner">
-                           <ShieldCheck className="w-7 h-7 text-on-surface/60" />
-                        </div>
-                        <span className="text-[9px] font-black bg-on-surface text-white px-4 py-1.5 rounded-full uppercase tracking-[0.25em] shadow-lg">{role.count} NODES</span>
-                     </div>
-                     <div className="relative z-10">
-                        <div className="text-[9px] font-black tracking-widest text-primary mb-1">{role.longLabel}</div>
-                        <h4 className="font-black text-2xl text-on-surface leading-none">{role.name}</h4>
-                        <p className="text-xs text-on-surface-variant font-bold leading-relaxed mt-4 opacity-70">{role.desc}</p>
-                     </div>
-                     <button className="w-full py-4 bg-on-surface/5 hover:bg-on-surface hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-on-surface/5 hover:shadow-2xl relative z-10">策略细则</button>
-                  </div>
-                ))}
-                <button className="rounded-[3rem] border-4 border-dashed border-outline-variant/30 flex flex-col items-center justify-center p-12 gap-6 hover:border-primary hover:bg-primary/5 transition-all text-outline/40 hover:text-primary shadow-inner">
-                   <div className="w-20 h-20 bg-white shadow-xl rounded-[2rem] flex items-center justify-center border border-outline-variant/30">
-                      <Plus className="w-8 h-8" />
+        )}
+
+        {/* 三、 角色管理 - 支持 默认预设角色功能 与 菜单、页面、操作和数据全生命周期管控 */}
+        {activeTab === 'roles' && (
+          <div className="flex-1 flex bg-surface-container-lowest/40 animate-in fade-in duration-500 overflow-hidden">
+             {/* Left Panel: Role List */}
+             <div className="w-96 bg-white border-r border-outline-variant flex flex-col overflow-y-auto z-10 select-none">
+                <div className="p-8 border-b border-outline-variant space-y-2">
+                   <h2 className="text-3xl font-black tracking-tight text-on-surface flex items-center gap-2">
+                     <ShieldCheck className="w-7 h-7 text-primary" />
+                     角色配置中心
+                   </h2>
+                   <p className="text-[10px] font-black text-outline uppercase tracking-[0.2em]">RBAC Governance Panel</p>
+                </div>
+
+                <div className="p-6 space-y-4 flex-1">
+                   {roles.map((role) => (
+                     <button
+                       key={role.id}
+                       onClick={() => setSelectedRoleId(role.id)}
+                       className={`w-full p-6 text-left border rounded-[2rem] transition-all flex flex-col gap-4 relative group overflow-hidden ${
+                         selectedRoleId === role.id 
+                           ? 'bg-primary/5 border-primary shadow-xl shadow-primary/5' 
+                           : 'bg-white border-outline-variant hover:bg-surface-container-low'
+                       }`}
+                     >
+                       <div className="absolute right-0 top-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
+                          <ShieldCheck className="w-16 h-16" />
+                       </div>
+                       
+                       <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                           <span className={`w-2.5 h-2.5 rounded-full ${
+                             role.id === 'designer' ? 'bg-primary' : 
+                             role.id === 'filler' ? 'bg-green-500' : 'bg-secondary'
+                           }`} />
+                           <span className="text-[10px] font-black bg-on-surface/5 text-on-surface-variant px-2 py-0.5 rounded uppercase tracking-widest leading-none">
+                             {role.code}
+                           </span>
+                         </div>
+                         <span className="text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded-full">
+                           {role.count} 成员
+                         </span>
+                       </div>
+
+                       <div>
+                         <h4 className="font-extrabold text-lg text-on-surface tracking-tight">{role.name}</h4>
+                         <p className="text-[11px] text-outline font-medium mt-1 leading-normal opacity-90 line-clamp-2">
+                           {role.desc}
+                         </p>
+                       </div>
+                     </button>
+                   ))}
+
+                   {/* Custom non-editable role notice */}
+                   <div className="rounded-[2.5rem] border-2 border-dashed border-outline-variant/50 p-8 flex flex-col items-center justify-center text-center gap-3 bg-surface/5">
+                     <Lock className="w-6 h-6 text-outline-variant" />
+                     <p className="text-[10px] font-bold text-outline leading-tight">
+                       企业主系统托管模式下，无法新增角色类别，以确保多系统间身份标识一致。
+                     </p>
                    </div>
-                   <span className="font-black uppercase tracking-[0.2em] text-[10px]">Create Custom Policy</span>
-                </button>
+                </div>
+             </div>
+
+             {/* Right Panel: Feature & Data Scope control workspace */}
+             <div className="flex-1 overflow-y-auto custom-scrollbar p-12 bg-white flex flex-col">
+                <div className="flex-1 space-y-10 max-w-5xl w-full mx-auto">
+                   
+                   {/* Role profile header details */}
+                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-outline-variant pb-8 gap-6">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-3xl font-black text-on-surface tracking-tight">{selectedRole.name}</h3>
+                          <span className="bg-primary/10 font-bold font-mono text-[10px] text-primary px-3 py-1 rounded-full uppercase tracking-widest">
+                            {selectedRole.code}
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant font-medium max-w-xl leading-relaxed">
+                          {selectedRole.desc}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={handleSavePolicies}
+                        disabled={isSavingPolicy}
+                        className="flex items-center gap-2 px-8 py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-xl hover:scale-105 hover:shadow-primary/20 active:scale-95 shrink-0"
+                      >
+                        {isSavingPolicy ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        <span>保存权限配置</span>
+                      </button>
+                   </div>
+
+                   {/* (A) 功能权限 - 菜单/页面/操作权限管控 */}
+                   <div className="space-y-8">
+                     <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-5 bg-primary rounded-full" />
+                        <h4 className="text-base font-black text-on-surface">功能权限管控 (功能清单核验)</h4>
+                     </div>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                       
+                       {/* 1. 菜单权限管控 */}
+                       <div className="sleek-card p-6 border border-outline-variant/80 rounded-3xl space-y-4">
+                          <div className="flex items-center gap-2 text-xs font-black text-on-surface border-b pb-3">
+                            <Menu className="w-4 h-4 text-primary" />
+                            <span>菜单级访问控制</span>
+                          </div>
+                          <div className="space-y-3">
+                            {[
+                              { key: 'dashboard', label: '📊 仪表盘菜单' },
+                              { key: 'designer', label: '🛠️ 表单设计器' },
+                              { key: 'dataCenter', label: '🗄️ 数据管理中心' },
+                              { key: 'insights', label: '📈 智能数据洞察' },
+                              { key: 'workflow', label: '🕸️ 工作流审批' },
+                              { key: 'settings', label: '⚙️ 系统设置' }
+                            ].map((item) => (
+                              <label key={item.key} className="flex items-center justify-between p-2 hover:bg-surface rounded-xl cursor-pointer transition-colors">
+                                <span className="text-xs font-bold text-on-surface-variant">{item.label}</span>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRole.menus[item.key]}
+                                  onChange={(e) => handleUpdatePolicy('menus', item.key, e.target.checked)}
+                                  className="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary/20"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                       </div>
+
+                       {/* 2. 页面控制权限管控 */}
+                       <div className="sleek-card p-6 border border-outline-variant/80 rounded-3xl space-y-4">
+                          <div className="flex items-center gap-2 text-xs font-black text-on-surface border-b pb-3">
+                            <Eye className="w-4 h-4 text-primary" />
+                            <span>页面级渲染页面控制</span>
+                          </div>
+                          <div className="space-y-3">
+                            {[
+                              { key: 'formFill', label: '📝 表单数据填写页面' },
+                              { key: 'formDesign', label: '📐 自定义表单设计画布' },
+                              { key: 'workflowDesign', label: '🔗 审批逻辑设计面板' },
+                              { key: 'publishPage', label: '📦 外部工作台发布管理' }
+                            ].map((item) => (
+                              <label key={item.key} className="flex items-center justify-between p-2 hover:bg-surface rounded-xl cursor-pointer transition-colors">
+                                <span className="text-xs font-bold text-on-surface-variant">{item.label}</span>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRole.pages[item.key]}
+                                  onChange={(e) => handleUpdatePolicy('pages', item.key, e.target.checked)}
+                                  className="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary/20"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                       </div>
+
+                       {/* 3. 微观操作权限管控 */}
+                       <div className="sleek-card p-6 border border-outline-variant/80 rounded-3xl space-y-4">
+                          <div className="flex items-center gap-2 text-xs font-black text-on-surface border-b pb-3">
+                            <Sliders className="w-4 h-4 text-primary" />
+                            <span>操作级指令细控</span>
+                          </div>
+                          <div className="space-y-3">
+                            {[
+                              { key: 'createForm', label: '➕ 新建底单及应用' },
+                              { key: 'deleteForm', label: '🚨 物理删除表结构' },
+                              { key: 'exportData', label: '📤 导出全量 Excel 视图' },
+                              { key: 'batchDelete', label: '☣️ 批量物理覆盖删除' },
+                              { key: 'editSystemSettings', label: '🔓 修改全局安全配置' }
+                            ].map((item) => (
+                              <label key={item.key} className="flex items-center justify-between p-2 hover:bg-surface rounded-xl cursor-pointer transition-colors">
+                                <span className="text-xs font-bold text-on-surface-variant">{item.label}</span>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRole.operations[item.key]}
+                                  onChange={(e) => handleUpdatePolicy('operations', item.key, e.target.checked)}
+                                  className="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary/20"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                       </div>
+
+                     </div>
+                   </div>
+
+                   {/* (B) 数据权限 - 按照获取到的组织关系控制本人、本人及下属、本组织、本组织及负责组织、全部 */}
+                   <div className="space-y-6 pt-6 border-t border-outline-variant">
+                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                       <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-5 bg-primary rounded-full" />
+                          <h4 className="text-base font-black text-on-surface">底表数据可见度控制（根据组织树鉴权）</h4>
+                       </div>
+                       <span className="bg-primary/5 text-primary text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider">
+                         HRM 层级智能过滤
+                       </span>
+                     </div>
+                     <p className="text-xs text-outline font-medium">
+                       控制当前角色下的成员，在访问数据管理后台和查看报表底单时，系统应当使用何种关系匹配来过滤该用户的可见范围。
+                     </p>
+
+                     <div className="grid grid-cols-1 gap-4 pt-2">
+                       {[
+                         { 
+                           key: 'self', 
+                           title: '本人', 
+                           expr: 'SQL: author_id = @current_user_id', 
+                           desc: '仅对当前用户本人提交填报的数据，或指派本人作为唯一审批流程的记录开放查阅可见性。' 
+                         },
+                         { 
+                           key: 'self_sub', 
+                           title: '本人及下属', 
+                           expr: 'SQL: author_id IN (@current_user_id, ...@direct_subordinate_ids)', 
+                           desc: '通过企业内嵌汇报树（HRM Org-Trace），向上兼容、透视其下方全量有任免汇报关系的普通下级员工的数据。' 
+                         },
+                         { 
+                           key: 'dept', 
+                           title: '本组织', 
+                           expr: 'SQL: author_dept_id = @current_user_dept_id', 
+                           desc: '范围锁定在当前用户所在的主属行政部门底单，屏蔽上级父部门及旁系平行部门的信息，数据在部门间硬隔離。' 
+                         },
+                         { 
+                           key: 'dept_charge', 
+                           title: '本组织及负责组织', 
+                           expr: 'SQL: author_dept_id IN (@current_user_dept_id, ...@managed_dept_ids)', 
+                           desc: '除所属主行政部门外，允许横向读取其在身份中心担任“部门长/虚线负责人”的全部附属职能团队的汇总数据。' 
+                         },
+                         { 
+                           key: 'all', 
+                           title: '全部', 
+                           expr: 'SQL: 1=1 (跨组织无损通查)', 
+                           desc: '放开所有组织、汇报网络和微观限制，允许对该全局表单数据库进行无死角的归档、大屏看板与分析透视。' 
+                         }
+                       ].map((scope) => (
+                         <button
+                           key={scope.key}
+                           type="button"
+                           onClick={() => handleUpdateDataScope(scope.key as any)}
+                           className={`p-6 rounded-3xl border text-left transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group ${
+                             selectedRole.dataScope === scope.key
+                               ? 'bg-primary/5 border-primary shadow-md'
+                               : 'bg-surface hover:bg-surface-container-low border-outline-variant'
+                           }`}
+                         >
+                           <div className="space-y-1.5 flex-1">
+                             <div className="flex items-center gap-3">
+                               <span className="font-mono text-xs text-primary font-black">[@{scope.title}]</span>
+                               <span className="text-sm font-black text-on-surface">{scope.title}数据可见性</span>
+                             </div>
+                             <p className="text-xs text-on-surface-variant font-medium opacity-80 leading-relaxed max-w-2xl">
+                               {scope.desc}
+                             </p>
+                           </div>
+
+                           <div className="shrink-0 flex flex-col items-end gap-2 text-right">
+                             <div className="flex items-center gap-2">
+                               <code className="text-[10px] font-mono text-outline bg-white px-2 py-1 rounded-md border border-outline-variant/60">
+                                 {scope.expr}
+                               </code>
+                               <input
+                                 type="radio"
+                                 checked={selectedRole.dataScope === scope.key}
+                                 onChange={() => handleUpdateDataScope(scope.key as any)}
+                                 className="w-4 h-4 text-primary accent-primary cursor-pointer"
+                               />
+                             </div>
+                             <span className="text-[9px] font-black tracking-widest text-[rgb(var(--primary))] uppercase opacity-0 group-hover:opacity-100 transition-opacity">
+                               {selectedRole.dataScope === scope.key ? 'ACTIVE POLICY' : 'CLICK TO TOGGLE'}
+                             </span>
+                           </div>
+                         </button>
+                       ))}
+                     </div>
+                   </div>
+
+                </div>
              </div>
           </div>
         )}
       </div>
 
-      {/* Member Modal */}
-      <AnimatePresence>
-        {isMemberModalOpen && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-10 space-y-8"
-            >
-              <div className="space-y-2">
-                <h3 className="text-2xl font-extrabold tracking-tighter">{editingMember ? '编辑成员' : '新增成员'}</h3>
-                <p className="text-sm text-on-surface-variant font-medium">配置人员基本信息及所属组织架构</p>
-              </div>
-              
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">姓名</label>
-                  <input 
-                    type="text" 
-                    value={memberName}
-                    onChange={(e) => setMemberName(e.target.value)}
-                    placeholder="请输入真实姓名"
-                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest">电子邮箱</label>
-                  <input 
-                    type="email" 
-                    value={memberEmail}
-                    onChange={(e) => setMemberEmail(e.target.value)}
-                    placeholder="user@example.com"
-                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">角色</label>
-                    <select 
-                      value={memberRole}
-                      onChange={(e) => setMemberRole(e.target.value)}
-                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
-                    >
-                      <option value="Admin">管理员</option>
-                      <option value="Editor">编辑</option>
-                      <option value="Viewer">查看者</option>
-                      <option value="Manager">经理</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest">所属部门</label>
-                    <select 
-                      value={memberDept}
-                      onChange={(e) => setMemberDept(e.target.value)}
-                      className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
-                    >
-                      <option value="">请选择部门</option>
-                      {/* Linearized dept options */}
-                      {(() => {
-                        const linearDepts: {id: string, name: string}[] = [];
-                        const walk = (nodes: OrgNode[], prefix = '') => {
-                          nodes.forEach(n => {
-                            linearDepts.push({ id: n.id, name: `${prefix}${n.name}` });
-                            if (n.children) walk(n.children, `${prefix}  `);
-                          });
-                        };
-                        walk(orgData);
-                        return linearDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>);
-                      })()}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button 
-                  onClick={() => setIsMemberModalOpen(false)}
-                  className="px-6 py-3 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all"
-                >
-                  取消
-                </button>
-                <button 
-                  onClick={handleMemberSubmit}
-                  disabled={!memberName || !memberDept}
-                  className="px-8 py-3 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all disabled:opacity-50"
-                >
-                  {editingMember ? '保存修改' : '确认新增'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Dept Modal */}
-      <AnimatePresence>
-        {isDeptModalOpen && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border border-outline-variant p-10 space-y-8"
-            >
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold tracking-tight">{editingDept ? '编辑部门' : '新增部门'}</h3>
-                {!editingDept && deptParentId && (
-                  <p className="text-xs text-on-surface-variant font-medium">创建于：<span className="text-primary">{getDeptNameById(deptParentId, orgData)}</span> 之下</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-outline uppercase tracking-widest">部门名称</label>
-                <input 
-                  type="text" 
-                  value={deptName}
-                  onChange={(e) => setDeptName(e.target.value)}
-                  placeholder="如：华东大区业务组"
-                  className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button 
-                  onClick={() => setIsDeptModalOpen(false)}
-                  className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all"
-                >
-                  取消
-                </button>
-                <button 
-                  onClick={handleDeptSubmit}
-                  disabled={!deptName}
-                  className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all disabled:opacity-50"
-                >
-                  确认
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -3694,6 +4158,8 @@ const ArchitectApp: React.FC = () => {
   });
   const [pageMatchMode, setPageMatchMode] = React.useState<'all' | 'any'>('all');
   const [formMatchMode, setFormMatchMode] = React.useState<'all' | 'any'>('all');
+  const [publishDataPagePosition, setPublishDataPagePosition] = React.useState<'sub' | 'parallel'>('sub');
+  const [publishFormPagePosition, setPublishFormPagePosition] = React.useState<'sub' | 'parallel'>('sub');
   const [propertyTab, setPropertyTab] = React.useState<'props' | 'style'>('props');
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
   const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([
@@ -6057,6 +6523,174 @@ const ArchitectApp: React.FC = () => {
                     </div>
                   ) : (
                     <div className="space-y-6">
+                      {/* 发布到工作台 card */}
+                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
+                         <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                            <h3 className="font-black text-base flex items-center gap-2.5 cursor-default text-on-surface">
+                              <Briefcase className="w-5 h-5 text-primary" />
+                              发布到工作台
+                            </h3>
+                            <span className="text-[10px] font-black bg-primary/10 text-primary px-2.5 py-1 rounded-full uppercase tracking-wider">
+                              工作台导航集成
+                            </span>
+                         </div>
+                         <p className="text-xs text-outline font-medium">
+                           配置将此表单的成员填报端、以及管理员数据查询端直接整合进工作台左侧或顶部系统业务菜单中，功能终端用户一键触达。
+                         </p>
+
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
+                           {/* (1) 数据管理页面发布位置 */}
+                           <div className="space-y-4">
+                             <div className="flex items-center gap-2">
+                               <div className="w-1.5 h-4 bg-primary rounded-full" />
+                               <span className="text-sm font-black text-on-surface">数据管理页面发布位置</span>
+                             </div>
+                             <p className="text-[11px] text-outline leading-relaxed">
+                               控制“数据管理（后台明细查看）”页面在工作台显示时的组织架构隶属关系。
+                             </p>
+
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                               {/* Option 1: As Sub-item */}
+                               <button
+                                 type="button"
+                                 onClick={() => setPublishDataPagePosition('sub')}
+                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
+                                   publishDataPagePosition === 'sub'
+                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
+                                     : 'border-outline-variant bg-white hover:bg-surface-container-low'
+                                 }`}
+                               >
+                                 <div className="flex items-center justify-between w-full mb-3">
+                                   <span className="text-xs font-black text-on-surface">作为当前应用下级</span>
+                                   <input
+                                     type="radio"
+                                     checked={publishDataPagePosition === 'sub'}
+                                     onChange={() => setPublishDataPagePosition('sub')}
+                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
+                                   />
+                                 </div>
+                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
+                                   <div className="flex items-center gap-1 font-bold">
+                                      <Briefcase className="w-3 h-3 text-primary" />
+                                      <span>[应用] 当前系统集</span>
+                                   </div>
+                                   <div className="pl-3.5 border-l border-outline-variant flex items-center gap-1 font-black text-on-surface">
+                                      <Database className="w-3 h-3 text-secondary" />
+                                      <span>数据管理明细</span>
+                                   </div>
+                                 </div>
+                               </button>
+
+                               {/* Option 2: Parallel */}
+                               <button
+                                 type="button"
+                                 onClick={() => setPublishDataPagePosition('parallel')}
+                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
+                                   publishDataPagePosition === 'parallel'
+                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
+                                     : 'border-outline-variant bg-white hover:bg-surface-container-low'
+                                 }`}
+                               >
+                                 <div className="flex items-center justify-between w-full mb-3">
+                                   <span className="text-xs font-black text-on-surface">与当前应用平级</span>
+                                   <input
+                                     type="radio"
+                                     checked={publishDataPagePosition === 'parallel'}
+                                     onChange={() => setPublishDataPagePosition('parallel')}
+                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
+                                   />
+                                 </div>
+                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
+                                   <div className="flex items-center gap-1 font-bold">
+                                      <Briefcase className="w-3 h-3 text-outline" />
+                                      <span>[应用] 当前系统集</span>
+                                   </div>
+                                   <div className="flex items-center gap-1 font-black text-on-surface mt-1">
+                                      <Database className="w-3 h-3 text-secondary" />
+                                      <span>[导航项] 数据管理明细</span>
+                                   </div>
+                                 </div>
+                               </button>
+                             </div>
+                           </div>
+
+                           {/* (2) 表单填写页面发布位置 */}
+                           <div className="space-y-4">
+                             <div className="flex items-center gap-2">
+                               <div className="w-1.5 h-4 bg-primary rounded-full" />
+                               <span className="text-sm font-black text-on-surface">表单填写页面发布位置</span>
+                             </div>
+                             <p className="text-[11px] text-outline leading-relaxed">
+                               控制“表单数据填写页”在工作台显示时的组织架构隶属关系。
+                             </p>
+
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                               {/* Option 1: As Sub-item */}
+                               <button
+                                 type="button"
+                                 onClick={() => setPublishFormPagePosition('sub')}
+                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
+                                   publishFormPagePosition === 'sub'
+                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
+                                     : 'border-outline-variant bg-white hover:bg-surface-container-low'
+                                 }`}
+                               >
+                                 <div className="flex items-center justify-between w-full mb-3">
+                                   <span className="text-xs font-black text-on-surface">作为当前应用下级</span>
+                                   <input
+                                     type="radio"
+                                     checked={publishFormPagePosition === 'sub'}
+                                     onChange={() => setPublishFormPagePosition('sub')}
+                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
+                                   />
+                                 </div>
+                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
+                                   <div className="flex items-center gap-1 font-bold">
+                                      <Briefcase className="w-3 h-3 text-primary" />
+                                      <span>[应用] 当前系统集</span>
+                                   </div>
+                                   <div className="pl-3.5 border-l border-outline-variant flex items-center gap-1 font-black text-on-surface">
+                                      <FormInput className="w-3 h-3 text-secondary" />
+                                      <span>表单填报中心</span>
+                                   </div>
+                                 </div>
+                               </button>
+
+                               {/* Option 2: Parallel */}
+                               <button
+                                 type="button"
+                                 onClick={() => setPublishFormPagePosition('parallel')}
+                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
+                                   publishFormPagePosition === 'parallel'
+                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
+                                     : 'border-outline-variant bg-white hover:bg-surface-container-low'
+                                 }`}
+                               >
+                                 <div className="flex items-center justify-between w-full mb-3">
+                                   <span className="text-xs font-black text-on-surface">与当前应用平级</span>
+                                   <input
+                                     type="radio"
+                                     checked={publishFormPagePosition === 'parallel'}
+                                     onChange={() => setPublishFormPagePosition('parallel')}
+                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
+                                   />
+                                 </div>
+                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
+                                   <div className="flex items-center gap-1 font-bold">
+                                      <Briefcase className="w-3 h-3 text-outline" />
+                                      <span>[应用] 当前系统集</span>
+                                   </div>
+                                   <div className="flex items-center gap-1 font-black text-on-surface mt-1">
+                                      <FormInput className="w-3 h-3 text-secondary" />
+                                      <span>[导航项] 表单填报中心</span>
+                                   </div>
+                                 </div>
+                               </button>
+                             </div>
+                           </div>
+                         </div>
+                      </section>
+
                       <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
                             <h3 className="font-bold flex items-center gap-2 cursor-default"><Building2 className="w-5 h-5 text-primary" /> 数据管理页面权限</h3>
@@ -7251,6 +7885,7 @@ const ArchitectApp: React.FC = () => {
         currentView={view}
         setView={setView}
         showNotification={showNotification}
+        hideHeader={!!projectDetailsId}
       >
       <ProjectsView 
         projects={projects}
@@ -7278,6 +7913,8 @@ const ArchitectApp: React.FC = () => {
         confirmModal={confirmModal}
         showNotification={showNotification}
         setView={setView}
+        formFieldsMap={formFieldsMap}
+        setFormFieldsMap={setFormFieldsMap}
       />
       <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
     </ConsoleLayout>
@@ -7335,6 +7972,7 @@ const ArchitectApp: React.FC = () => {
         onAddDept={onAddDept}
         onUpdateDept={onUpdateDept}
         onDeleteDept={onDeleteDept}
+        showNotification={showNotification}
       />
     </ConsoleLayout>
   );
