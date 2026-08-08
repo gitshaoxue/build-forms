@@ -119,6 +119,7 @@ import {
   Plane,
   PauseCircle,
   PlayCircle,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -264,6 +265,11 @@ interface SavedForm {
   designer: string;
   type: FormType;
   isCollecting?: boolean;
+  category?: string;
+  icon?: string;
+  color?: string;
+  description?: string;
+  isFavorite?: boolean;
 }
 
 interface Submission {
@@ -283,12 +289,155 @@ const mockProjects: Project[] = [
 ];
 
 const mockSavedForms: SavedForm[] = [
-  { id: 'f1', projectId: '1', name: '员工基本信息', status: 'Draft', createdAt: '2026-04-10', designer: '陈', type: 'normal' },
-  { id: 'f2', projectId: '1', name: '技术评估', status: 'Draft', createdAt: '2026-04-12', designer: '陈', type: 'workflow' },
-  { id: 'f3', projectId: '2', name: '产品满意度', status: 'Published', createdAt: '2026-03-20', designer: '莎拉', type: 'normal' },
-  { id: 'f4', projectId: '2', name: 'UI 反馈调查', status: 'Published', createdAt: '2026-03-25', designer: '管理员', type: 'report' },
-  { id: 'f5', projectId: '3', name: '客户联系表单', status: 'Published', createdAt: '2026-04-01', designer: '李', type: 'normal' },
-  { id: 'f6', projectId: '4', name: '候选名单 v1', status: 'Archived', createdAt: '2025-12-15', designer: '陈', type: 'dashboard' },
+  { 
+    id: 'f1', 
+    projectId: '1', 
+    name: '新员工基本信息登记表', 
+    status: 'Published', 
+    createdAt: '2026-04-10', 
+    designer: '陈经理', 
+    type: 'normal', 
+    isCollecting: true,
+    category: '综合人事',
+    icon: 'Users',
+    color: 'bg-blue-500',
+    description: '用于新入职员工基础信息搜集与人事档案建立。',
+    isFavorite: true
+  },
+  { 
+    id: 'f2', 
+    projectId: '1', 
+    name: '假勤与出差流程单', 
+    status: 'Published', 
+    createdAt: '2026-04-12', 
+    designer: '陈经理', 
+    type: 'workflow', 
+    isCollecting: true,
+    category: '综合人事',
+    icon: 'Plane',
+    color: 'bg-green-500',
+    description: '员工请假、出差行程规范报备与部门经理多级联动审批。',
+    isFavorite: true
+  },
+  { 
+    id: 'f3', 
+    projectId: '2', 
+    name: 'Q3 产品满意度调查问卷', 
+    status: 'Published', 
+    createdAt: '2026-03-20', 
+    designer: '莎拉', 
+    type: 'normal', 
+    isCollecting: true,
+    category: '问卷调研',
+    icon: 'MessageSquare',
+    color: 'bg-purple-500',
+    description: '核心功能体验评分与客户改善建议多维度收集。',
+    isFavorite: true
+  },
+  { 
+    id: 'f4', 
+    projectId: '2', 
+    name: 'UI/UX 缺陷反馈表', 
+    status: 'Published', 
+    createdAt: '2026-03-25', 
+    designer: '管理员', 
+    type: 'report', 
+    isCollecting: true,
+    category: '客户服务',
+    icon: 'BarChart3',
+    color: 'bg-teal-500',
+    description: '用户体验缺陷提交、截图上报与后端统计面板。',
+    isFavorite: true
+  },
+  { 
+    id: 'f5', 
+    projectId: '3', 
+    name: '潜在客户意向联系表', 
+    status: 'Published', 
+    createdAt: '2026-04-01', 
+    designer: '李主管', 
+    type: 'normal', 
+    isCollecting: true,
+    category: '客户管理',
+    icon: 'UserPlus',
+    color: 'bg-orange-500',
+    description: '搜集多渠道潜在意向线索并自动转交销售团队跟进。',
+    isFavorite: true
+  },
+  { 
+    id: 'f6', 
+    projectId: '4', 
+    name: '敏捷项目需求变更申请', 
+    status: 'Published', 
+    createdAt: '2026-04-05', 
+    designer: '张工', 
+    type: 'workflow', 
+    isCollecting: true,
+    category: '敏捷研发',
+    icon: 'Zap',
+    color: 'bg-indigo-500',
+    description: '研发需求新增、范围调整及影响面评估流动核准。',
+    isFavorite: true
+  },
+  { 
+    id: 'f7', 
+    projectId: '4', 
+    name: '差旅费用报销与付款申请', 
+    status: 'Published', 
+    createdAt: '2026-04-08', 
+    designer: '王会计', 
+    type: 'workflow', 
+    isCollecting: true,
+    category: '财务工具',
+    icon: 'CreditCard',
+    color: 'bg-rose-500',
+    description: '日常差旅、活动备用金借款及发票凭证核销提交。',
+    isFavorite: true
+  },
+  { 
+    id: 'f8', 
+    projectId: '1', 
+    name: '办公用品与设备领用单', 
+    status: 'Published', 
+    createdAt: '2026-04-15', 
+    designer: '赵行政', 
+    type: 'normal', 
+    isCollecting: true,
+    category: '综合行政',
+    icon: 'Briefcase',
+    color: 'bg-amber-500',
+    description: '固定资产及日常消耗性办公物料申领统计。',
+    isFavorite: false
+  },
+  { 
+    id: 'f9', 
+    projectId: '1', 
+    name: '新员工入职培训心得表', 
+    status: 'Published', 
+    createdAt: '2026-04-18', 
+    designer: '陈经理', 
+    type: 'normal', 
+    isCollecting: true,
+    category: '培培训学习',
+    icon: 'BookOpen',
+    color: 'bg-cyan-500',
+    description: '新人培训课程效果评估与讲师综合满意度搜集。',
+    isFavorite: false
+  },
+  { 
+    id: 'f10', 
+    projectId: '1', 
+    name: '工作任务安排与跟进草稿', 
+    status: 'Draft', 
+    createdAt: '2026-04-20', 
+    designer: '陈经理', 
+    type: 'normal',
+    isCollecting: true,
+    category: '项目管理',
+    icon: 'CheckSquare',
+    color: 'bg-blue-600',
+    description: '设计中的表单（在控制台发布后将自动同步至工作台）。'
+  }
 ];
 
 interface ConfirmModalState {
@@ -471,86 +620,611 @@ const APP_CENTER_DATA: AppCenterItem[] = [
   { id: '47', name: '付款申请', icon: CreditCard, color: 'bg-blue-400', category: '最近使用' },
 ];
 
-const AppCenterView = () => {
-  const [activeCategory, setActiveCategory] = React.useState('最近使用');
-  const categories = ['最近使用', '项目管理', '敏捷研发', '待办工具', '问卷调研', '客户服务', '客户管理', '综合人事', '企业文化', '培培训学习', '财务工具', '法务工具', '电子合同', '综合行政', '零/低代码', '电子办公', '综合OA'];
+interface AppCenterViewProps {
+  savedForms: SavedForm[];
+  projects?: Project[];
+  formFieldsMap?: Record<string, FormField[]>;
+  submissions?: Submission[];
+  setSubmissions?: React.Dispatch<React.SetStateAction<Submission[]>>;
+  showNotification: (msg: string) => void;
+  setView?: (v: ViewType) => void;
+  setSavedForms?: React.Dispatch<React.SetStateAction<SavedForm[]>>;
+}
 
-  const featuredApps = APP_CENTER_DATA.slice(0, 7);
-  const filteredApps = APP_CENTER_DATA;
+const AppCenterView: React.FC<AppCenterViewProps> = ({
+  savedForms,
+  projects = [],
+  formFieldsMap = {},
+  submissions = [],
+  setSubmissions,
+  showNotification,
+  setView
+}) => {
+  const [activeCategory, setActiveCategory] = React.useState('全部');
+  const [favoriteFormIds, setFavoriteFormIds] = React.useState<string[]>(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7']);
+  
+  // State for active light app filling modal
+  const [activeFillForm, setActiveFillForm] = React.useState<SavedForm | null>(null);
+  const [fillDevice, setFillDevice] = React.useState<'pc' | 'app'>('pc');
+  const [formData, setFormData] = React.useState<Record<string, any>>({});
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitSuccess, setSubmitSuccess] = React.useState(false);
+
+  // Quick helper to map icon strings to Lucide icon components
+  const getAppIconComponent = (iconName?: string, type?: FormType) => {
+    switch (iconName) {
+      case 'Users': return Users;
+      case 'Plane': return Plane;
+      case 'MessageSquare': return MessageSquare;
+      case 'BarChart3': return BarChart3;
+      case 'UserPlus': return UserPlus;
+      case 'Zap': return Zap;
+      case 'CreditCard': return CreditCard;
+      case 'Briefcase': return Briefcase;
+      case 'BookOpen': return BookOpen;
+      case 'CheckSquare': return CheckSquare;
+      case 'Calendar': return Calendar;
+      case 'ShieldCheck': return ShieldCheck;
+      case 'FileText': return FileText;
+      case 'Layout': return Layout;
+      case 'QrCode': return QrCode;
+      default:
+        return type === 'workflow' ? Zap : type === 'report' ? BarChart3 : FormInput;
+    }
+  };
+
+  const getFormCategory = (form: SavedForm): string => {
+    if (form.category) return form.category;
+    const proj = projects.find(p => p.id === form.projectId);
+    if (proj && proj.category) {
+      const catMap: Record<string, string> = {
+        '人事': '综合人事',
+        '问卷调查': '问卷调研',
+        '市场': '客户管理',
+        '行政': '综合行政',
+        '财务': '财务工具',
+      };
+      return catMap[proj.category] || proj.category;
+    }
+    return '通用工具';
+  };
+
+  const getFormColor = (form: SavedForm, index: number): string => {
+    if (form.color) return form.color;
+    const colors = [
+      'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 
+      'bg-amber-500', 'bg-indigo-500', 'bg-rose-500', 
+      'bg-teal-500', 'bg-cyan-500', 'bg-orange-500'
+    ];
+    return colors[index % colors.length];
+  };
+
+  // Only published forms are shown as Light Apps in the Workspace
+  const publishedForms = React.useMemo(() => {
+    return savedForms.filter(f => f.status === 'Published');
+  }, [savedForms]);
+
+  // Categories list
+  const categories = [
+    '全部',
+    '最近使用',
+    '综合人事',
+    '问卷调研',
+    '客户服务',
+    '客户管理',
+    '敏捷研发',
+    '财务工具',
+    '综合行政',
+    '项目管理',
+    '培培训学习'
+  ];
+
+  // Favorite apps list
+  const favoriteApps = React.useMemo(() => {
+    const list = publishedForms.filter(f => favoriteFormIds.includes(f.id) || f.isFavorite);
+    if (list.length > 0) return list;
+    return publishedForms.slice(0, 7);
+  }, [publishedForms, favoriteFormIds]);
+
+  // Filtered apps based on selected category
+  const filteredApps = React.useMemo(() => {
+    if (activeCategory === '全部') {
+      return publishedForms;
+    }
+    if (activeCategory === '最近使用') {
+      return publishedForms.slice(0, 8);
+    }
+    return publishedForms.filter(f => getFormCategory(f) === activeCategory);
+  }, [publishedForms, activeCategory, projects]);
+
+  const toggleFavorite = (e: React.MouseEvent, formId: string) => {
+    e.stopPropagation();
+    if (favoriteFormIds.includes(formId)) {
+      setFavoriteFormIds(prev => prev.filter(id => id !== formId));
+      showNotification('已从常用应用中移除');
+    } else {
+      setFavoriteFormIds(prev => [...prev, formId]);
+      showNotification('已添加至常用应用');
+    }
+  };
+
+  const handleOpenFill = (form: SavedForm) => {
+    setActiveFillForm(form);
+    setFormData({});
+    setSubmitSuccess(false);
+  };
+
+  const handleInputChange = (fieldId: string, val: any) => {
+    setFormData(prev => ({ ...prev, [fieldId]: val }));
+  };
+
+  const handleSubmitForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeFillForm) return;
+
+    if (activeFillForm.isCollecting === false) {
+      showNotification('此表单已暂停数据收集，暂停期间无法接收新的提交');
+      return;
+    }
+
+    const fields = formFieldsMap[activeFillForm.id] || [
+      { id: '1', type: 'text', label: '申请人姓名', placeholder: '请输入姓名', required: true, width: '1/1' },
+      { id: '2', type: 'date', label: '业务日期', required: true, width: '1/2' },
+      { id: '3', type: 'select', label: '所属部门', options: ['研发部', '市场部', '人力资源部', '财务部'], required: true, width: '1/2' },
+      { id: '4', type: 'textarea', label: '说明事项', placeholder: '请输入内容', required: true, width: '1/1' }
+    ];
+
+    // Check required fields
+    for (const field of fields) {
+      if (field.required) {
+        const val = formData[field.id];
+        if (val === undefined || val === null || (typeof val === 'string' && !val.trim())) {
+          showNotification(`请填写必填字段：「${field.label}」`);
+          return;
+        }
+      }
+    }
+
+    setIsSubmitting(true);
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setSubmitSuccess(true);
+
+      // Create new submission record
+      if (setSubmissions) {
+        const newSub: Submission = {
+          id: `SUB-${Date.now().toString().slice(-6)}`,
+          submitter: '工作台用户',
+          submitTime: new Date().toLocaleString('zh-CN', { hour12: false }),
+          status: activeFillForm.type === 'workflow' ? '处理中' : '已通过',
+          data: formData,
+          approvalHistory: activeFillForm.type === 'workflow' ? [
+            { step: '提交表单', actor: '工作台用户', action: '发起申请', time: new Date().toLocaleString('zh-CN', { hour12: false }) },
+            { step: '部门经理审核', actor: '待处理', action: '处理中', time: '-' }
+          ] : []
+        };
+        setSubmissions(prev => [newSub, ...prev]);
+      }
+
+      showNotification(`表单《${activeFillForm.name}》数据提交成功！已发布至后台数据中心。`);
+    }, 600);
+  };
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="w-full p-8 md:p-10 space-y-10">
-        {/* Featured Top Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 xl:grid-cols-8 gap-4">
-          {featuredApps.map(app => (
-            <div key={app.id} className="sleek-card p-4 group transition-all hover:shadow-lg hover:-translate-y-0.5 flex items-center gap-4">
-              <div className={`${app.color} w-10 min-w-[40px] h-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-110`}>
-                <app.icon className="w-6 h-6" />
-              </div>
-              <span className="text-sm font-bold text-on-surface truncate">{app.name}</span>
+    <div className="flex-1 overflow-y-auto bg-slate-50/50 min-h-screen">
+      <div className="w-full p-6 md:p-10 space-y-10 max-w-7xl mx-auto">
+        
+        {/* Banner Section */}
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+          <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+          <div className="space-y-2 relative z-10">
+            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-blue-100">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>控制台 & 工作台 联动中心</span>
             </div>
-          ))}
-          <div className="bg-surface rounded-2xl p-4 border border-outline-variant border-dashed flex items-center gap-4 cursor-pointer hover:bg-surface-container-low group">
-             <div className="w-10 min-w-[40px] h-10 rounded-xl bg-surface-container-variant/10 flex items-center justify-center text-outline group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                <Plus className="w-5 h-5" />
-             </div>
-             <span className="text-sm font-bold text-outline">添加常用</span>
+            <h2 className="text-2xl md:text-3xl font-black tracking-tight">控制台已发布轻应用（{publishedForms.length} 个）</h2>
+            <p className="text-xs md:text-sm text-blue-100 font-medium max-w-xl leading-relaxed">
+              表单设计人员在控制台发布表单后，将实时同步至此处。点击任意轻应用图标即可进行在线填报与数据上报。
+            </p>
+          </div>
+          <div className="flex items-center gap-3 relative z-10 shrink-0">
+            <button 
+              onClick={() => setView && setView('projects')}
+              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 font-bold rounded-2xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+            >
+              <PenTool className="w-4 h-4" />
+              进入控制台设计表单
+            </button>
           </div>
         </div>
 
-        {/* All Apps Section */}
-        <div className="space-y-8">
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-on-surface">全部应用</h2>
-            <div className="flex items-center justify-between border-b border-outline-variant/30">
-              <div className="flex items-center gap-8 overflow-x-auto no-scrollbar pb-0">
-                  {categories.map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveCategory(cat)}
-                      className={`pb-4 px-1 text-sm font-medium transition-all relative shrink-0 ${
-                        activeCategory === cat ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
-                      }`}
-                    >
-                      {cat}
-                      {activeCategory === cat && (
-                        <motion.div layoutId="appcenter-tab-indicator" className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-                      )}
-                    </button>
-                  ))}
+        {/* Section 1: 常用应用 */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+              <h2 className="text-lg font-extrabold text-slate-800">常用应用</h2>
+              <span className="text-xs font-semibold text-slate-400">({favoriteApps.length})</span>
+            </div>
+            <span className="text-xs text-slate-400 font-medium">快捷点击轻应用直接填报</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+            {favoriteApps.map((form, idx) => {
+              const IconComp = getAppIconComponent(form.icon, form.type);
+              const colorClass = getFormColor(form, idx);
+              const category = getFormCategory(form);
+              const isFav = favoriteFormIds.includes(form.id);
+
+              return (
+                <div 
+                  key={form.id} 
+                  onClick={() => handleOpenFill(form)}
+                  className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
+                >
+                  <button 
+                    onClick={(e) => toggleFavorite(e, form.id)}
+                    className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10 opacity-0 group-hover:opacity-100"
+                    title={isFav ? "取消常用" : "设为常用"}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
+                  </button>
+
+                  <div className="space-y-3">
+                    <div className={`${colorClass} w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform`}>
+                      <IconComp className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
+                        {form.name}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium mt-1">
+                        {category}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                    <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程表单' : '普通填报'}</span>
+                    <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">填报 →</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Add Favorite Button */}
+            <div 
+              onClick={() => showNotification('可在下方“全部应用”中将轻应用取消或标记为常用')}
+              className="bg-slate-50/80 rounded-2xl p-4 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-blue-50/50 hover:border-blue-300 transition-all text-slate-400 hover:text-blue-600 group"
+            >
+              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                <Plus className="w-5 h-5" />
               </div>
+              <span className="text-xs font-bold">常用设置</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: 全部应用 */}
+        <div className="space-y-6 pt-2">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <LayoutGrid className="w-5 h-5 text-blue-600" />
+                <h2 className="text-lg font-extrabold text-slate-800">全部应用</h2>
+                <span className="text-xs font-semibold text-slate-400">({filteredApps.length})</span>
+              </div>
+            </div>
+
+            {/* Category Filter Tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar border-b border-slate-200/80">
+              {categories.map(cat => {
+                const isActive = activeCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 relative ${
+                      isActive 
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
+                        : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-5">
-             {filteredApps.map(app => (
-               <div key={app.id} className="sleek-card p-5 group transition-all hover:shadow-xl hover:-translate-y-1">
-                  <div className="flex items-start justify-between mb-5">
-                     <div className={`${app.color} w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-black/5 transition-transform group-hover:rotate-3`}>
-                        <app.icon className="w-7 h-7" />
-                     </div>
-                     {app.isBot && (
-                       <span className="bg-primary/5 text-primary text-[10px] font-bold px-2 py-0.5 rounded tracking-tighter">机器人</span>
-                     )}
+          {/* Apps Grid */}
+          {filteredApps.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              {filteredApps.map((form, idx) => {
+                const IconComp = getAppIconComponent(form.icon, form.type);
+                const colorClass = getFormColor(form, idx);
+                const category = getFormCategory(form);
+                const isFav = favoriteFormIds.includes(form.id);
+
+                return (
+                  <div 
+                    key={form.id} 
+                    onClick={() => handleOpenFill(form)}
+                    className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
+                  >
+                    <button 
+                      onClick={(e) => toggleFavorite(e, form.id)}
+                      className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10"
+                      title={isFav ? "取消常用" : "设为常用"}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
+                    </button>
+
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className={`${colorClass} w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform`}>
+                          <IconComp className="w-6 h-6" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
+                          {form.name}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-medium mt-1">
+                          {category}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程审批' : form.type === 'report' ? '数据报表' : '普通填报'}</span>
+                      <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                        填报 <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-bold text-on-surface line-clamp-1 group-hover:text-primary transition-colors">{app.name}</h4>
-                    {app.isBot && <p className="text-[10px] text-on-surface-variant font-medium">智能助手</p>}
-                  </div>
-               </div>
-             ))}
-             
-             {/* Fetch more app placeholder */}
-             <div className="bg-surface rounded-[24px] p-5 border-2 border-dashed border-outline-variant flex flex-col items-center justify-center gap-4 text-outline hover:text-primary hover:border-primary/30 transition-all cursor-pointer group">
-                <div className="w-12 h-12 rounded-2xl bg-surface-container-low flex items-center justify-center group-hover:scale-110 transition-transform">
-                   <Plus className="w-8 h-8" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-widest">获取应用</span>
-             </div>
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 max-w-md mx-auto space-y-4 my-8 shadow-sm">
+              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-500 border border-blue-100">
+                <FormInput className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">分类「{activeCategory}」下暂无轻应用</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">表单设计人员可以在控制台设计并发布相关分类的表单，发布后将自动在此处展示。</p>
+              <button 
+                onClick={() => setActiveCategory('全部')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+              >
+                查看全部轻应用
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Light App Form Filling Modal */}
+      <AnimatePresence>
+        {activeFillForm && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden relative"
+            >
+              {/* Modal Top Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                    <FormInput className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-extrabold text-slate-800">{activeFillForm.name}</h3>
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
+                        {getFormCategory(activeFillForm)}
+                      </span>
+                      {activeFillForm.type === 'workflow' && (
+                        <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+                          流程表单
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium">表单设计人: {activeFillForm.designer} · 发布时间: {activeFillForm.createdAt}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* PC / Mobile View Switcher */}
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 p-0.5 rounded-xl shadow-sm mr-2">
+                    <button
+                      onClick={() => setFillDevice('pc')}
+                      className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
+                        fillDevice === 'pc' ? 'bg-slate-100 text-blue-600 shadow-xs' : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                      title="PC 端模式"
+                    >
+                      <Monitor className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setFillDevice('app')}
+                      className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
+                        fillDevice === 'app' ? 'bg-slate-100 text-blue-600 shadow-xs' : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                      title="移动端模式"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setActiveFillForm(null)}
+                    className="p-2 hover:bg-slate-200/80 rounded-full text-slate-400 hover:text-slate-800 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Form Content Scrollable Canvas */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/40 flex justify-center">
+                <div className={`transition-all duration-300 w-full ${fillDevice === 'app' ? 'max-w-[375px] bg-white rounded-3xl border-4 border-slate-800 shadow-xl p-5 my-2' : 'max-w-2xl bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm'}`}>
+                  
+                  {submitSuccess ? (
+                    <div className="py-12 text-center space-y-4">
+                      <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm animate-bounce">
+                        <Check className="w-8 h-8 stroke-[3]" />
+                      </div>
+                      <h3 className="text-xl font-extrabold text-slate-800">数据提交成功！</h3>
+                      <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+                        已将您填写的数据安全上报至控制台数据管理中心。您可以在控制台或数据看板中查看记录。
+                      </p>
+                      <div className="pt-4 flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({});
+                            setSubmitSuccess(false);
+                          }}
+                          className="px-4 py-2 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-700 bg-white"
+                        >
+                          继续填报
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveFillForm(null)}
+                          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/10"
+                        >
+                          完成并返回工作台
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmitForm} className="space-y-6">
+                      <div className="border-b border-slate-100 pb-4">
+                        <h2 className="text-lg font-black text-slate-800">{activeFillForm.name}</h2>
+                        <p className="text-xs text-slate-500 font-medium mt-1">
+                          {activeFillForm.description || '请认真核对以下数据项，如实填写并完成数据提交。'}
+                        </p>
+                      </div>
+
+                      {/* Notice if collecting is paused */}
+                      {activeFillForm.isCollecting === false && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-bold flex items-center gap-2">
+                          <PauseCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>控制台已暂停此表单的数据收集，暂停期间无法接收新的数据提交。</span>
+                        </div>
+                      )}
+
+                      {/* Dynamic Form Fields */}
+                      <div className="space-y-4">
+                        {((activeFillForm && formFieldsMap[activeFillForm.id]) ? formFieldsMap[activeFillForm.id] : [
+                          { id: '1', type: 'text', label: '申请人姓名', placeholder: '请输入姓名', required: true, width: '1/1' },
+                          { id: '2', type: 'date', label: '业务日期', required: true, width: '1/2' },
+                          { id: '3', type: 'select', label: '所属部门', options: ['研发部', '市场部', '人力资源部', '财务部'], required: true, width: '1/2' },
+                          { id: '4', type: 'textarea', label: '说明事项', placeholder: '请输入内容', required: true, width: '1/1' }
+                        ]).map((field) => {
+                          const val = formData[field.id] || '';
+                          return (
+                            <div key={field.id} className="space-y-1.5">
+                              <label className="block text-xs font-bold text-slate-700">
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                              </label>
+
+                              {field.type === 'textarea' ? (
+                                <textarea
+                                  rows={3}
+                                  value={val}
+                                  onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                  placeholder={field.placeholder || '请输入...'}
+                                  disabled={activeFillForm.isCollecting === false}
+                                  className="w-full px-3 py-2 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                                />
+                              ) : field.type === 'select' ? (
+                                <select
+                                  value={val}
+                                  onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                  disabled={activeFillForm.isCollecting === false}
+                                  className="w-full px-3 py-2 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 cursor-pointer"
+                                >
+                                  <option value="">-- 请选择 --</option>
+                                  {(field.options || ['选项一', '选项二', '选项三']).map((opt: string) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                              ) : field.type === 'date' ? (
+                                <input
+                                  type="date"
+                                  value={val}
+                                  onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                  disabled={activeFillForm.isCollecting === false}
+                                  className="w-full px-3 py-2 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800"
+                                />
+                              ) : field.type === 'number' ? (
+                                <input
+                                  type="number"
+                                  value={val}
+                                  onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                  placeholder={field.placeholder || '0'}
+                                  disabled={activeFillForm.isCollecting === false}
+                                  className="w-full px-3 py-2 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800"
+                                />
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                  placeholder={field.placeholder || '请输入...'}
+                                  disabled={activeFillForm.isCollecting === false}
+                                  className="w-full px-3 py-2 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Form Actions Footer */}
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({})}
+                          disabled={activeFillForm.isCollecting === false}
+                          className="px-4 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-600 transition-all disabled:opacity-40"
+                        >
+                          重置
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSubmitting || activeFillForm.isCollecting === false}
+                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-extrabold shadow-md shadow-blue-500/20 transition-all active:scale-95 flex items-center gap-1.5"
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              提交中...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5" />
+                              提交数据
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -4663,15 +5337,54 @@ const ArchitectApp: React.FC = () => {
     'f1': [
       { id: '1', type: 'text', label: '员工全名', placeholder: '请输入姓名', required: true, width: '1/1' },
       { id: '2', type: 'date', label: '入职日期', required: true, width: '1/2' },
-      { id: '3', type: 'select', label: '所在部门', options: ['研发部', '市场部', '人力资源'], required: true, width: '1/2' },
+      { id: '3', type: 'select', label: '所在部门', options: ['研发部', '市场部', '人力资源部', '财务部'], required: true, width: '1/2' },
+      { id: '4', type: 'text', label: '联系电话', placeholder: '请输入手机号码', required: true, width: '1/2' },
+      { id: '5', type: 'textarea', label: '个人简介及特长', placeholder: '请输入...', required: false, width: '1/1' },
     ],
     'f2': [
-      { id: '1', type: 'text', label: '评估标题', required: true, width: '1/1' },
-      { id: '2', type: 'textarea', label: '性能描述', required: true, width: '1/1' },
+      { id: '1', type: 'select', label: '申请类型', options: ['事假', '病假', '年假', '国内出差', '海外出差'], required: true, width: '1/2' },
+      { id: '2', type: 'date', label: '开始日期', required: true, width: '1/2' },
+      { id: '3', type: 'date', label: '结束日期', required: true, width: '1/2' },
+      { id: '4', type: 'text', label: '出差目的地/假勤说明', placeholder: '请输入行程地点或原因', required: true, width: '1/1' },
+      { id: '5', type: 'textarea', label: '工作交接安排', placeholder: '请输入工作代理人及交接事项', required: false, width: '1/1' },
     ],
     'f3': [
-      { id: '1', type: 'number', label: '打分', required: true, width: '1/2' },
-      { id: '2', type: 'textarea', label: '改进建议', required: false, width: '1/1' },
+      { id: '1', type: 'select', label: '总体满意度打分', options: ['5星 - 非常满意', '4星 - 满意', '3星 - 一般', '2星 - 不满意', '1星 - 非常差'], required: true, width: '1/1' },
+      { id: '2', type: 'select', label: '常用功能模块', options: ['表单设计器', '工作台轻应用', '数据管理中心', '工作流审批', '数据洞察'], required: false, width: '1/2' },
+      { id: '3', type: 'textarea', label: '改进建议与需求缺陷', placeholder: '请详述在使用中遇到的困扰或期望改进的功能...', required: false, width: '1/1' },
+    ],
+    'f4': [
+      { id: '1', type: 'text', label: '问题模块或页面', placeholder: '如：控制台应用管理页面', required: true, width: '1/1' },
+      { id: '2', type: 'select', label: '严重程度', options: ['轻微视觉缺陷', '功能不可用', '性能卡顿', '严重崩溃'], required: true, width: '1/2' },
+      { id: '3', type: 'textarea', label: '重现步骤与现象', placeholder: '请输入具体触发操作和预期/实际现象', required: true, width: '1/1' },
+    ],
+    'f5': [
+      { id: '1', type: 'text', label: '客户公司名称', placeholder: '请输入企业全称', required: true, width: '1/1' },
+      { id: '2', type: 'text', label: '联系人姓名', placeholder: '请输入姓名', required: true, width: '1/2' },
+      { id: '3', type: 'text', label: '联系电话/微信', placeholder: '请输入手机号', required: true, width: '1/2' },
+      { id: '4', type: 'select', label: '意向产品方案', options: ['企业标准版', '高级专业版', '私有化部署', '定制化开发'], required: true, width: '1/2' },
+      { id: '5', type: 'textarea', label: '具体需求描述', placeholder: '请输入客户核心诉求或关注点', required: false, width: '1/1' },
+    ],
+    'f6': [
+      { id: '1', type: 'text', label: '需求变更名称', placeholder: '请输入需求标题', required: true, width: '1/1' },
+      { id: '2', type: 'select', label: '所属项目', options: ['自研低代码平台', '企业CRM系统', '移动端OA小程序'], required: true, width: '1/2' },
+      { id: '3', type: 'textarea', label: '变更原因与范围', placeholder: '请说明为何变更及新增调整的具体内容', required: true, width: '1/1' },
+    ],
+    'f7': [
+      { id: '1', type: 'text', label: '报销主题', placeholder: '如：4月上海客户拜访差旅费', required: true, width: '1/1' },
+      { id: '2', type: 'number', label: '报销总金额 (元)', placeholder: '0.00', required: true, width: '1/2' },
+      { id: '3', type: 'select', label: '费用类别', options: ['交通车票', '住宿费', '餐饮招待', '办公采购', '其他'], required: true, width: '1/2' },
+      { id: '4', type: 'textarea', label: '费用明细说明', placeholder: '请输入发票张数及明细事由', required: false, width: '1/1' },
+    ],
+    'f8': [
+      { id: '1', type: 'text', label: '领用物品名称', placeholder: '如：笔记本电脑、无线鼠标、签字笔', required: true, width: '1/1' },
+      { id: '2', type: 'number', label: '领用数量', placeholder: '1', required: true, width: '1/2' },
+      { id: '3', type: 'select', label: '领用用途', options: ['日常办公', '新员工配置', '项目紧急备用', '出差领用'], required: true, width: '1/2' },
+    ],
+    'f9': [
+      { id: '1', type: 'text', label: '学员姓名', placeholder: '请输入', required: true, width: '1/2' },
+      { id: '2', type: 'select', label: '课程满意度', options: ['十分满意', '比较满意', '一般', '需改进'], required: true, width: '1/2' },
+      { id: '3', type: 'textarea', label: '培训收获与心得', placeholder: '分享您本次培训的主要收获...', required: false, width: '1/1' },
     ]
   });
   
@@ -9285,13 +9998,22 @@ const ArchitectApp: React.FC = () => {
       <WorkspaceLayout 
         viewToken="appCenter" 
         title="工作台" 
-        subtitle="浏览并启动您已发布的日常工作应用"
+        subtitle="浏览并启动您已发布的轻应用"
         currentView={view} 
         setView={setView} 
         showNotification={showNotification} 
         notifications={notifications}
       >
-        <AppCenterView />
+        <AppCenterView 
+          savedForms={savedForms}
+          projects={projects}
+          formFieldsMap={formFieldsMap}
+          submissions={submissions}
+          setSubmissions={setSubmissions}
+          showNotification={showNotification}
+          setView={setView}
+          setSavedForms={setSavedForms}
+        />
       </WorkspaceLayout>
     );
   }
