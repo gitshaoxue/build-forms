@@ -117,6 +117,8 @@ import {
   LogOut,
   Lock,
   Plane,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 
@@ -261,6 +263,7 @@ interface SavedForm {
   createdAt: string;
   designer: string;
   type: FormType;
+  isCollecting?: boolean;
 }
 
 interface Submission {
@@ -325,6 +328,7 @@ interface ProjectsViewProps {
   setView: (v: ViewType) => void;
   formFieldsMap?: Record<string, FormField[]>;
   setFormFieldsMap?: React.Dispatch<React.SetStateAction<Record<string, FormField[]>>>;
+  setSavedForms?: React.Dispatch<React.SetStateAction<SavedForm[]>>;
 }
 
 interface SidebarProps {
@@ -1588,7 +1592,8 @@ const ProjectsView = ({
   showNotification,
   setView,
   formFieldsMap = {},
-  setFormFieldsMap
+  setFormFieldsMap,
+  setSavedForms
 }: ProjectsViewProps) => {
   const [activeTab, setActiveTab] = React.useState<'recent' | 'mine' | 'all'>('recent');
   const [showNewFormDropdown, setShowNewFormDropdown] = React.useState(false);
@@ -1608,6 +1613,10 @@ const ProjectsView = ({
   const [projectCategoryFilter, setProjectCategoryFilter] = React.useState<string>('all');
   const [newProjectCategory, setNewProjectCategory] = React.useState<string>('其他');
   const [showTemplatesPage, setShowTemplatesPage] = React.useState(false);
+
+  // Form list item rename state
+  const [renamingFormId, setRenamingFormId] = React.useState<string | null>(null);
+  const [renamingFormName, setRenamingFormName] = React.useState('');
 
   // Local state for Create / Edit Modal Fields details
   const [modalName, setModalName] = React.useState('');
@@ -2287,6 +2296,154 @@ const ProjectsView = ({
                     dashboard: LayoutGrid
                   };
 
+                  const renderFormItem = (form: SavedForm) => {
+                    const FormIcon = typeIcons[form.type as keyof typeof typeIcons] || FormInput;
+                    const isSelected = activeForm && form.id === activeForm.id;
+                    const isRenaming = renamingFormId === form.id;
+                    const isCollecting = form.isCollecting !== false;
+
+                    const handleDuplicate = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (!setSavedForms) return;
+                      const newId = 'form_' + Date.now();
+                      const dupForm: SavedForm = {
+                        ...form,
+                        id: newId,
+                        name: `${form.name} (副本)`,
+                        status: 'Draft',
+                        createdAt: new Date().toISOString().split('T')[0]
+                      };
+                      setSavedForms(prev => [dupForm, ...prev]);
+                      if (formFieldsMap && formFieldsMap[form.id] && setFormFieldsMap) {
+                        setFormFieldsMap(prev => ({
+                          ...prev,
+                          [newId]: JSON.parse(JSON.stringify(formFieldsMap[form.id]))
+                        }));
+                      }
+                      setActiveFormId(newId);
+                      showNotification(`已成功复制表单「${form.name}」`);
+                    };
+
+                    const handleToggleCollect = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (!setSavedForms) return;
+                      const nextCollect = !isCollecting;
+                      setSavedForms(prev => prev.map(f => f.id === form.id ? { ...f, isCollecting: nextCollect } : f));
+                      showNotification(nextCollect ? `已恢复「${form.name}」的数据收集` : `已停止「${form.name}」的数据收集`);
+                    };
+
+                    const handleStartRename = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setRenamingFormId(form.id);
+                      setRenamingFormName(form.name);
+                    };
+
+                    const handleSaveRename = () => {
+                      if (renamingFormName.trim() && setSavedForms) {
+                        setSavedForms(prev => prev.map(f => f.id === form.id ? { ...f, name: renamingFormName.trim() } : f));
+                        showNotification(`重命名成功！已修改为「${renamingFormName.trim()}」`);
+                      }
+                      setRenamingFormId(null);
+                    };
+
+                    return (
+                      <div 
+                        key={form.id}
+                        onClick={() => setActiveFormId(form.id)}
+                        className={`group flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'bg-blue-50/80 text-blue-600 font-semibold border-l-2 border-blue-600 shadow-sm' 
+                            : 'text-slate-600 hover:bg-slate-50 font-medium border-l-2 border-transparent'
+                        }`}
+                      >
+                        {isRenaming ? (
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1 my-0.5" onClick={(e) => e.stopPropagation()}>
+                            <FormIcon className="w-4 h-4 shrink-0 text-blue-600" />
+                            <input
+                              autoFocus
+                              type="text"
+                              value={renamingFormName}
+                              onChange={(e) => setRenamingFormName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveRename();
+                                if (e.key === 'Escape') setRenamingFormId(null);
+                              }}
+                              onBlur={handleSaveRename}
+                              className="text-xs px-1.5 py-0.5 bg-white border border-blue-500 rounded font-bold text-slate-800 w-full focus:outline-none shadow-sm"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
+                              <FormIcon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
+                              <span className="text-xs truncate max-w-[95px]" title={form.name}>{form.name}</span>
+                              {!isCollecting && (
+                                <span className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.2 rounded font-medium shrink-0">已暂停</span>
+                              )}
+                            </div>
+
+                            <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                              {/* 1. 编辑表单 */}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditor(form.id);
+                                }}
+                                className="p-1 hover:bg-slate-200/80 text-slate-400 hover:text-blue-600 rounded transition-all"
+                                title="编辑表单"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* 2. 复制表单 */}
+                              <button 
+                                onClick={handleDuplicate}
+                                className="p-1 hover:bg-slate-200/80 text-slate-400 hover:text-indigo-600 rounded transition-all"
+                                title="复制"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* 3. 重命名 */}
+                              <button 
+                                onClick={handleStartRename}
+                                className="p-1 hover:bg-slate-200/80 text-slate-400 hover:text-slate-800 rounded transition-all"
+                                title="重命名"
+                              >
+                                <PenTool className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* 4. 停止/恢复数据收集 */}
+                              <button 
+                                onClick={handleToggleCollect}
+                                className="p-1 hover:bg-slate-200/80 text-slate-400 rounded transition-all"
+                                title={isCollecting ? "停止数据收集" : "恢复数据收集"}
+                              >
+                                {isCollecting ? (
+                                  <PauseCircle className="w-3.5 h-3.5 text-amber-500 hover:text-amber-600" />
+                                ) : (
+                                  <PlayCircle className="w-3.5 h-3.5 text-emerald-500 hover:text-emerald-600" />
+                                )}
+                              </button>
+
+                              {/* 5. 删除表单 */}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteForm(form.id, form.name);
+                                }}
+                                className="p-1 hover:bg-slate-200/80 text-slate-400 hover:text-red-500 rounded transition-all"
+                                title="删除表单"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  };
+
                   return (
                     <>
                       {/* Section 1: 未发布 (Unpublished) */}
@@ -2301,38 +2458,7 @@ const ProjectsView = ({
                         
                         {isUnpublishedExpanded && (
                           <div className="space-y-0.5">
-                            {unpublished.map(form => {
-                              const FormIcon = typeIcons[form.type as keyof typeof typeIcons] || FormInput;
-                              const isSelected = activeForm && form.id === activeForm.id;
-                              return (
-                                <div 
-                                  key={form.id}
-                                  onClick={() => setActiveFormId(form.id)}
-                                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
-                                    isSelected 
-                                      ? 'bg-blue-50/80 text-blue-600 font-semibold border-l-2 border-blue-600' 
-                                      : 'text-slate-600 hover:bg-slate-50 font-medium border-l-2 border-transparent'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <FormIcon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
-                                    <span className="text-xs truncate max-w-[150px]">{form.name}</span>
-                                  </div>
-                                  
-                                  {/* Trash Icon for deletion */}
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteForm(form.id, form.name);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-red-500 rounded transition-all"
-                                    title="删除表单"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              );
-                            })}
+                            {unpublished.map(renderFormItem)}
                             {unpublished.length === 0 && (
                               <div className="text-[10px] text-slate-400 italic px-2.5 py-2">暂无未发布表单</div>
                             )}
@@ -2352,38 +2478,7 @@ const ProjectsView = ({
                         
                         {isPublishedExpanded && (
                           <div className="space-y-0.5">
-                            {published.map(form => {
-                              const FormIcon = typeIcons[form.type as keyof typeof typeIcons] || FormInput;
-                              const isSelected = activeForm && form.id === activeForm.id;
-                              return (
-                                <div 
-                                  key={form.id}
-                                  onClick={() => setActiveFormId(form.id)}
-                                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
-                                    isSelected 
-                                      ? 'bg-blue-50/80 text-blue-600 font-semibold border-l-2 border-blue-600' 
-                                      : 'text-slate-600 hover:bg-slate-50 font-medium border-l-2 border-transparent'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <FormIcon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
-                                    <span className="text-xs truncate max-w-[150px]">{form.name}</span>
-                                  </div>
-                                  
-                                  {/* Trash Icon for deletion */}
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteForm(form.id, form.name);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-red-500 rounded transition-all"
-                                    title="删除表单"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              );
-                            })}
+                            {published.map(renderFormItem)}
                             {published.length === 0 && (
                               <div className="text-[10px] text-slate-400 italic px-2.5 py-2">暂无已发布表单</div>
                             )}
@@ -2426,19 +2521,55 @@ const ProjectsView = ({
                   </button>
                 </div>
 
-                {/* Edit Form Button */}
+                {/* Toggle Collection & Edit Form Buttons */}
                 {(() => {
                   const activeForm = rawProjectForms.find(f => f.id === activeFormId) || rawProjectForms[0] || null;
+                  const isCollecting = activeForm ? (activeForm.isCollecting !== false) : true;
+
+                  const handleToggleCollection = () => {
+                    if (!activeForm) return;
+                    if (setSavedForms) {
+                      setSavedForms(prev => prev.map(f => f.id === activeForm.id ? { ...f, isCollecting: !isCollecting } : f));
+                    }
+                    showNotification(isCollecting ? `已停止「${activeForm.name}」的数据收集` : `已恢复「${activeForm.name}」的数据收集`);
+                  };
+
                   return (
-                    <button
-                      onClick={() => activeForm && openEditor(activeForm.id)}
-                      disabled={!activeForm}
-                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/5"
-                      id="edit-active-form-btn"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                      编辑
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {activeForm && (
+                        <button
+                          onClick={handleToggleCollection}
+                          id="toggle-collection-btn"
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border shadow-sm ${
+                            isCollecting
+                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200/80 active:scale-95'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200/80 active:scale-95'
+                          }`}
+                          title={isCollecting ? "点击停止数据收集" : "点击恢复数据收集"}
+                        >
+                          {isCollecting ? (
+                            <>
+                              <PauseCircle className="w-3.5 h-3.5" />
+                              停止数据收集
+                            </>
+                          ) : (
+                            <>
+                              <PlayCircle className="w-3.5 h-3.5" />
+                              恢复数据收集
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => activeForm && openEditor(activeForm.id)}
+                        disabled={!activeForm}
+                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/5"
+                        id="edit-active-form-btn"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        编辑
+                      </button>
+                    </div>
                   );
                 })()}
               </div>
@@ -2485,6 +2616,14 @@ const ProjectsView = ({
                       <h3 className="text-base md:text-lg font-bold text-slate-800 text-center mb-6 md:mb-8 tracking-wide">
                         {activeForm.name}
                       </h3>
+
+                      {/* Stopped collecting alert banner */}
+                      {activeForm.isCollecting === false && (
+                        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+                          <PauseCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>此表单已暂停数据收集，暂停期间无法接收新的数据提交。</span>
+                        </div>
+                      )}
 
                       {/* Render inputs dynamically inside a standard grid layout */}
                       <div className="grid grid-cols-2 gap-4">
@@ -5273,10 +5412,19 @@ const ArchitectApp: React.FC = () => {
         <header className="h-16 sleek-glass px-8 grid grid-cols-3 items-center border-b border-outline-variant shrink-0 z-20">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => setView('dashboard')}
-              className="p-2 hover:bg-surface rounded-lg transition-colors mr-2 border border-outline-variant"
+              onClick={() => {
+                const currentFormObj = savedForms.find(f => f.id === selectedFormId);
+                const targetProjectId = currentFormObj?.projectId || selectedProjectId;
+                if (targetProjectId) {
+                  setProjectDetailsId(targetProjectId);
+                  setSelectedProjectId(targetProjectId);
+                }
+                setView('projects');
+              }}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors mr-2 border border-outline-variant flex items-center gap-1"
+              title="返回应用详情页"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5 text-slate-700" />
             </button>
             <div className="flex items-center gap-4">
               <div className="relative group flex items-center">
@@ -6796,8 +6944,18 @@ const ArchitectApp: React.FC = () => {
                           <motion.div 
                             layoutId={node.id}
                             onClick={() => setSelectedNodeId(node.id)}
-                            className={`w-full max-w-sm sleek-card p-6 border-2 transition-all cursor-pointer group relative ${selectedNodeId === node.id ? 'border-primary ring-4 ring-primary/5 shadow-xl' : 'border-outline-variant hover:border-outline'}`}
+                            className={`w-full max-w-sm sleek-card p-6 border-2 transition-all cursor-pointer group relative ${
+                              selectedNodeId === node.id 
+                                ? 'border-blue-600 ring-4 ring-blue-500/20 shadow-2xl shadow-blue-500/10 -translate-y-0.5 bg-blue-50/20' 
+                                : 'border-outline-variant hover:border-blue-300'
+                            }`}
                           >
+                            {selectedNodeId === node.id && (
+                              <div className="absolute -top-3 -right-3 bg-blue-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                                已选中
+                              </div>
+                            )}
                             <div className="flex items-center gap-4">
                               <div className={`p-3 rounded-xl ${
                                 node.type === 'start' ? 'bg-green-100 text-green-700' :
@@ -9179,6 +9337,7 @@ const ArchitectApp: React.FC = () => {
         setView={setView}
         formFieldsMap={formFieldsMap}
         setFormFieldsMap={setFormFieldsMap}
+        setSavedForms={setSavedForms}
       />
       <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
     </ConsoleLayout>
@@ -9189,7 +9348,7 @@ const ArchitectApp: React.FC = () => {
       <ConsoleLayout 
         viewToken="dataManagement" 
         title="数据管理" 
-        subtitle="集中检索、管理和填报所有应用与表单底表数据" 
+        subtitle="" 
         currentView={view} 
         setView={setView} 
         showNotification={showNotification} 
