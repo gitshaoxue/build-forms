@@ -60,6 +60,10 @@ import {
   UserCheck,
   UserMinus,
   History,
+  GitBranch,
+  GitCompare,
+  RotateCcw,
+  ArrowRight,
   ListFilter,
   Link2,
   TableProperties,
@@ -149,31 +153,78 @@ interface FormField {
   formula?: string;
 }
 
+interface WorkflowBranchRule {
+  id: string;
+  name: string;
+  fieldId: string;
+  fieldLabel?: string;
+  operator: '等于' | '不等于' | '大于' | '小于' | '大于等于' | '小于等于' | '包含' | '不包含' | '不为空';
+  value: string;
+  targetNodeId?: string;
+}
+
 interface WorkflowNode {
   id: string;
   type: 'start' | 'approval' | 'notification' | 'condition' | 'cc' | 'end';
   label: string;
   description?: string;
   config?: {
-    assigneeType?: 'user' | 'role' | 'dept' | 'initiator';
+    assigneeType?: 'user' | 'role' | 'dept' | 'initiator' | 'manager';
     assigneeValue?: string;
-    approvalType?: 'OR' | 'AND'; // 或签 / 会签
-    timeout?: number; // hours
-    autoProcess?: 'approve' | 'transfer';
-    actions?: string[]; // ['approve', 'reject', 'transfer', 'add_signer']
+    approvalType?: 'OR' | 'AND' | 'SEQUENTIAL'; // 或签 / 会签 / 依次审批
+    commentRequirement?: 'required' | 'optional'; // 审批意见: 必填 / 非必填
+    timeout?: number;
+    actions?: string[]; // ['approve', 'reject', 'transfer', 'return']
     fieldPermissions?: Record<string, 'editable' | 'readonly' | 'hidden'>;
     buttons?: string[];
     advanced?: {
       autoApproveIfInitiator?: boolean;
-      emptyAssigneeAction?: 'pause' | 'skip' | 'transfer_member' | 'transfer_admin';
+      emptyAssigneeAction?: 'transfer_user' | 'terminate_error' | 'auto_pass' | 'pause_admin' | 'pause' | 'skip' | 'transfer_member' | 'transfer_admin';
       emptyAssigneeTarget?: string;
       timeoutAction?: string;
     };
+    branches?: WorkflowBranchRule[]; // 路由条件分支
     expression?: string; // for condition
     template?: string;
     defaultBranch?: string; // id of target node
   };
   targets: string[]; // ids of next nodes
+}
+
+interface WorkflowVersion {
+  id: string;
+  formId: string;
+  version: string;
+  versionNum: number;
+  title: string;
+  description: string;
+  createdAt: string;
+  creator: string;
+  status: 'active' | 'archived' | 'draft';
+  nodes: WorkflowNode[];
+}
+
+interface TriggerRule {
+  id: string;
+  fieldId: string;
+  fieldLabel: string;
+  operator: '等于' | '不等于' | '大于' | '小于' | '大于等于' | '小于等于' | '包含' | '不包含' | '不为空';
+  value: string;
+}
+
+interface WorkflowGlobalConfig {
+  triggerRules: TriggerRule[];
+  triggerMatchMode: 'ALL' | 'ANY';
+  allowTransfer: boolean;
+  terminateOnFailure: boolean;
+  enableTimeoutNotice: boolean;
+  timeoutNoticeChannels: ('station' | 'email' | 'sms')[];
+  autoApprovalMode: 'none' | 'initiator_all' | 'adjacent_same' | 'approved_before';
+  recallMode: 'none' | 'initiator_only' | 'all_nodes';
+  silentRecall: boolean;
+  enableTimeoutSettings: boolean;
+  timeoutHours: number;
+  timeoutChannels: ('station' | 'email' | 'sms')[];
 }
 
 interface WorkflowInstance {
@@ -425,9 +476,9 @@ const AppCenterView = () => {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-[1600px] mx-auto p-10 space-y-10">
+      <div className="w-full p-8 md:p-10 space-y-10">
         {/* Featured Top Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 xl:grid-cols-8 gap-4">
           {featuredApps.map(app => (
             <div key={app.id} className="sleek-card p-4 group transition-all hover:shadow-lg hover:-translate-y-0.5 flex items-center gap-4">
               <div className={`${app.color} w-10 min-w-[40px] h-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-110`}>
@@ -468,7 +519,7 @@ const AppCenterView = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-5">
              {filteredApps.map(app => (
                <div key={app.id} className="sleek-card p-5 group transition-all hover:shadow-xl hover:-translate-y-1">
                   <div className="flex items-start justify-between mb-5">
@@ -559,7 +610,7 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
 
 const DashboardHeader = ({ title, subtitle, showNotification }: DashboardHeaderProps) => (
   <header className="h-20 sleek-glass sticky top-0 z-10 flex items-center shrink-0">
-    <div className="max-w-7xl mx-auto w-full px-8 flex items-center justify-between">
+    <div className="w-full px-8 md:px-10 flex items-center justify-between">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-on-surface">{title}</h1>
         {subtitle && <p className="text-xs text-on-surface-variant font-medium">{subtitle}</p>}
@@ -591,7 +642,7 @@ const DashboardHeader = ({ title, subtitle, showNotification }: DashboardHeaderP
 
 const WorkspaceHeader = ({ title, subtitle, showNotification, setView }: { title: string, subtitle?: string, showNotification: (msg: string) => void, setView: (view: ViewType) => void }) => (
   <header className="h-20 bg-white sticky top-0 z-10 flex items-center shrink-0 border-b border-outline-variant/60 shadow-sm">
-    <div className="max-w-[1600px] mx-auto w-full px-10 flex items-center justify-between">
+    <div className="w-full px-8 md:px-10 flex items-center justify-between">
       <div className="flex items-center gap-6">
         <div 
           onClick={() => setView('landing')} 
@@ -764,18 +815,112 @@ const JsonSchemaModal = ({ setIsSchemaVisible, formFields, showNotification }: J
   </motion.div>
 );
 
-const GlobalSettingsModal = ({ isOpen, onClose, activeTab, setActiveTab }: { isOpen: boolean, onClose: () => void, activeTab: 'workflow' | 'permissions', setActiveTab: (tab: 'workflow' | 'permissions') => void }) => {
+const GlobalSettingsModal = ({ 
+  isOpen, 
+  onClose, 
+  activeTab, 
+  setActiveTab,
+  config,
+  setConfig,
+  formFields,
+  showNotification
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  activeTab: 'workflow' | 'permissions'; 
+  setActiveTab: (tab: 'workflow' | 'permissions') => void;
+  config: WorkflowGlobalConfig;
+  setConfig: React.Dispatch<React.SetStateAction<WorkflowGlobalConfig>>;
+  formFields: FormField[];
+  showNotification: (msg: string) => void;
+}) => {
   if (!isOpen) return null;
-  
+
+  // Form field options for trigger rules
+  const fieldOptions = formFields.length > 0 
+    ? formFields.map(f => ({ id: f.id, label: f.label }))
+    : [
+        { id: 'f-1', label: '报销总金额' },
+        { id: 'f-2', label: '申请部门' },
+        { id: 'f-3', label: '紧急程度' },
+        { id: 'f-4', label: '请假天数' },
+      ];
+
+  const handleAddRule = () => {
+    const defaultField = fieldOptions[0];
+    const newRule: TriggerRule = {
+      id: 'tr-' + Date.now(),
+      fieldId: defaultField.id,
+      fieldLabel: defaultField.label,
+      operator: '大于',
+      value: '1000'
+    };
+    setConfig(prev => ({
+      ...prev,
+      triggerRules: [...prev.triggerRules, newRule]
+    }));
+  };
+
+  const handleUpdateRule = (id: string, updates: Partial<TriggerRule>) => {
+    setConfig(prev => ({
+      ...prev,
+      triggerRules: prev.triggerRules.map(r => r.id === id ? { ...r, ...updates } : r)
+    }));
+  };
+
+  const handleRemoveRule = (id: string) => {
+    setConfig(prev => ({
+      ...prev,
+      triggerRules: prev.triggerRules.filter(r => r.id !== id)
+    }));
+  };
+
+  const handleToggleNoticeChannel = (channel: 'station' | 'email' | 'sms') => {
+    setConfig(prev => {
+      const exists = prev.timeoutNoticeChannels.includes(channel);
+      return {
+        ...prev,
+        timeoutNoticeChannels: exists 
+          ? prev.timeoutNoticeChannels.filter(c => c !== channel)
+          : [...prev.timeoutNoticeChannels, channel]
+      };
+    });
+  };
+
+  const handleToggleTimeoutChannel = (channel: 'station' | 'email' | 'sms') => {
+    setConfig(prev => {
+      const exists = prev.timeoutChannels.includes(channel);
+      return {
+        ...prev,
+        timeoutChannels: exists 
+          ? prev.timeoutChannels.filter(c => c !== channel)
+          : [...prev.timeoutChannels, channel]
+      };
+    });
+  };
+
+  const handleSave = () => {
+    showNotification('审批流全局配置已保存成功！');
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
       >
-        <header className="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low/30">
-          <h2 className="text-xl font-bold tracking-tight">全局设置</h2>
+        <header className="px-8 py-5 border-b border-outline-variant flex justify-between items-center bg-surface-container-low/30">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-xl">
+              <Settings className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold tracking-tight">审批流全局配置</h2>
+              <p className="text-[11px] text-on-surface-variant font-medium">定制触发规则、审批策略、自动审批、撤回控制及超时预警</p>
+            </div>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors">
             <X className="w-5 h-5 text-outline" />
           </button>
@@ -784,99 +929,447 @@ const GlobalSettingsModal = ({ isOpen, onClose, activeTab, setActiveTab }: { isO
         <div className="p-2 bg-surface-container-low flex border-b border-outline-variant">
            <button 
              onClick={() => setActiveTab('workflow')}
-             className={`flex-1 py-3 text-xs font-bold transition-all rounded-lg ${activeTab === 'workflow' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
+             className={`flex-1 py-2.5 text-xs font-bold transition-all rounded-lg flex items-center justify-center gap-2 ${activeTab === 'workflow' ? 'bg-primary text-white shadow-md' : 'text-outline hover:text-on-surface'}`}
            >
-             流程设置
+             <Workflow className="w-4 h-4" />
+             <span>审批流全局规则</span>
            </button>
            <button 
              onClick={() => setActiveTab('permissions')}
-             className={`flex-1 py-3 text-xs font-bold transition-all rounded-lg ${activeTab === 'permissions' ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
+             className={`flex-1 py-2.5 text-xs font-bold transition-all rounded-lg flex items-center justify-center gap-2 ${activeTab === 'permissions' ? 'bg-primary text-white shadow-md' : 'text-outline hover:text-on-surface'}`}
            >
-             字段权限
+             <Shield className="w-4 h-4" />
+             <span>节点查看态字段权限</span>
            </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
           {activeTab === 'workflow' ? (
-            <div className="space-y-10">
-              <section className="space-y-4">
-                 <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-on-surface">自动审批规则</h3>
-                    <Info className="w-3.5 h-3.5 text-outline" />
-                 </div>
-                 <div className="space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                       <input type="checkbox" className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary" />
-                       <span className="text-xs font-medium text-on-surface-variant">所有发起人合并（所有节点中审批人为发起人时，自动审批）</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                       <input type="checkbox" className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary" />
-                       <span className="text-xs font-medium text-on-surface-variant">相邻审批人合并（相邻节点的审批人相同时，自动审批）</span>
-                    </label>
-                 </div>
-                 <p className="text-[10px] text-outline italic">* 若在节点中修改了自动审批设置，全局设置将会失效</p>
-              </section>
-
-              <section className="space-y-4">
-                 <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                       <h3 className="text-sm font-bold text-on-surface">节点提交规则</h3>
-                       <Info className="w-3.5 h-3.5 text-outline" />
+            <div className="space-y-8">
+              {/* 1. 触发规则 */}
+              <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                      1
                     </div>
-                    <button className="text-xs text-primary font-bold hover:underline">已配置0条集成&自动化</button>
-                 </div>
-                 <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
-                    <span className="text-xs font-bold text-outline">运行失败时，终止后续关联操作规则</span>
-                    <div className="w-8 h-4 bg-outline-variant/30 rounded-full relative cursor-pointer"><div className="absolute left-1 top-0.5 w-3 h-3 bg-white rounded-full transition-all"></div></div>
-                 </div>
-                 <button className="flex items-center gap-1 text-primary text-xs font-bold">
-                    <Plus className="w-4 h-4" />
-                    添加规则
-                 </button>
-              </section>
-
-              <section className="flex items-center justify-between border-t border-outline-variant pt-8">
-                 <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-on-surface">手写签名</h3>
-                    <Info className="w-3.5 h-3.5 text-outline" />
-                 </div>
-                 <div className="w-8 h-4 bg-outline-variant/30 rounded-full relative cursor-pointer"><div className="absolute left-1 top-0.5 w-3 h-3 bg-white rounded-full transition-all"></div></div>
-              </section>
-
-              <section className="space-y-4">
-                 <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                       <h3 className="text-sm font-bold text-on-surface">审批摘要设置</h3>
-                       <Info className="w-3.5 h-3.5 text-outline" />
+                    <div>
+                      <h3 className="text-sm font-extrabold text-on-surface flex items-center gap-2">
+                        触发规则
+                        <span className="text-[10px] font-normal text-outline">（按表单字段动态触发）</span>
+                      </h3>
+                      <p className="text-[11px] text-on-surface-variant mt-0.5 font-medium">支持按照表单里的字段，动态配置流程触发的规则</p>
                     </div>
-                    <button className="text-xs text-primary font-bold">编辑</button>
-                 </div>
-                 <div className="p-4 bg-surface rounded-xl border border-outline-variant text-[11px] text-on-surface/70 leading-relaxed font-bold">
-                    默认设置（根据节点权限过滤显示字段，默认显示前三个必填字段 + 发起人 + 发起时间）
-                 </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 bg-surface border border-outline-variant p-1 rounded-xl shrink-0">
+                    <button 
+                      type="button"
+                      onClick={() => setConfig(prev => ({ ...prev, triggerMatchMode: 'ALL' }))}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${config.triggerMatchMode === 'ALL' ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface'}`}
+                    >
+                      满足所有条件 (AND)
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setConfig(prev => ({ ...prev, triggerMatchMode: 'ANY' }))}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${config.triggerMatchMode === 'ANY' ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface'}`}
+                    >
+                      满足任意条件 (OR)
+                    </button>
+                  </div>
+                </div>
+
+                {config.triggerRules.length === 0 ? (
+                  <div className="p-6 border border-dashed border-outline-variant rounded-xl text-center bg-white/60 space-y-2">
+                    <Sliders className="w-8 h-8 text-outline mx-auto opacity-50" />
+                    <p className="text-xs font-bold text-on-surface-variant">暂未配置触发规则</p>
+                    <p className="text-[10px] text-outline font-medium">表单提交后将默认直接触发流程</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {config.triggerRules.map((rule, idx) => (
+                      <div key={rule.id} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-white border border-outline-variant rounded-xl shadow-xs">
+                        <div className="text-[10px] font-bold text-outline w-6 shrink-0">#{idx + 1}</div>
+                        
+                        {/* Field Selector */}
+                        <div className="flex-1 min-w-[140px]">
+                          <select 
+                            value={rule.fieldId}
+                            onChange={(e) => {
+                              const sel = fieldOptions.find(f => f.id === e.target.value);
+                              handleUpdateRule(rule.id, { fieldId: e.target.value, fieldLabel: sel ? sel.label : e.target.value });
+                            }}
+                            className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none"
+                          >
+                            {fieldOptions.map(f => (
+                              <option key={f.id} value={f.id}>{f.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Operator Selector */}
+                        <div className="w-32">
+                          <select 
+                            value={rule.operator}
+                            onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as any })}
+                            className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none"
+                          >
+                            {['等于', '不等于', '大于', '小于', '大于等于', '小于等于', '包含', '不包含', '不为空'].map(op => (
+                              <option key={op} value={op}>{op}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Value Input */}
+                        <div className="flex-1 min-w-[120px]">
+                          <input 
+                            disabled={rule.operator === '不为空'}
+                            value={rule.value}
+                            onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
+                            placeholder={rule.operator === '不为空' ? '无需比较值' : '触发比较值'}
+                            className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-surface-container-low disabled:text-outline"
+                          />
+                        </div>
+
+                        {/* Delete Action */}
+                        <button 
+                          type="button"
+                          onClick={() => handleRemoveRule(rule.id)}
+                          className="p-2 text-outline hover:text-error hover:bg-error/10 rounded-lg transition-all shrink-0"
+                          title="删除规则"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button 
+                  type="button"
+                  onClick={handleAddRule}
+                  className="flex items-center gap-1.5 text-primary text-xs font-bold hover:bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>添加触发规则</span>
+                </button>
               </section>
 
-              <section className="space-y-4">
-                 <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-on-surface">流程收回控制</h3>
-                    <Info className="w-3.5 h-3.5 text-outline" />
-                 </div>
-                 <label className="flex items-center gap-3 opacity-50 cursor-not-allowed">
-                    <input type="checkbox" disabled className="w-4 h-4 rounded border-outline-variant" />
-                    <span className="text-xs font-medium text-on-surface-variant">开启无痕收回 (收回记录不在审批记录中展示)</span>
-                 </label>
+              {/* 2. 审批策略 */}
+              <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
+                <div className="flex items-center gap-2.5 border-b border-outline-variant pb-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 font-bold text-xs">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-on-surface">审批策略</h3>
+                    <p className="text-[11px] text-on-surface-variant font-medium">配置审批过程中的转批、失败处理及超时提醒</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3.5 pt-1">
+                  {/* (1) 流程审批过程中允许审批人转批 */}
+                  <label className="flex items-start gap-3.5 p-3.5 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary/40 transition-all">
+                    <input 
+                      type="checkbox" 
+                      checked={config.allowTransfer}
+                      onChange={(e) => setConfig(prev => ({ ...prev, allowTransfer: e.target.checked }))}
+                      className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary" 
+                    />
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-on-surface">(1) 流程审批过程中允许审批人转批</span>
+                      <p className="text-[11px] text-on-surface-variant font-medium">开启后，审批节点责任人可将当前审批单手动转交给其他人代办签署</p>
+                    </div>
+                  </label>
+
+                  {/* (2) 运行失败时终止后续操作 */}
+                  <label className="flex items-start gap-3.5 p-3.5 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary/40 transition-all">
+                    <input 
+                      type="checkbox" 
+                      checked={config.terminateOnFailure}
+                      onChange={(e) => setConfig(prev => ({ ...prev, terminateOnFailure: e.target.checked }))}
+                      className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary" 
+                    />
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-on-surface">(2) 运行失败时终止后续操作</span>
+                      <p className="text-[11px] text-on-surface-variant font-medium">当自动化关联脚本或后端服务运行出现异常时，终止后续节点推进</p>
+                    </div>
+                  </label>
+
+                  {/* (3) 审批超时提醒 */}
+                  <div className="p-3.5 bg-white border border-outline-variant rounded-xl space-y-3">
+                    <label className="flex items-start gap-3.5 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={config.enableTimeoutNotice}
+                        onChange={(e) => setConfig(prev => ({ ...prev, enableTimeoutNotice: e.target.checked }))}
+                        className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary" 
+                      />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-on-surface">(3) 审批超时提醒</span>
+                        <p className="text-[11px] text-on-surface-variant font-medium">到达超时时间后向审批人推送催办通知</p>
+                      </div>
+                    </label>
+
+                    {config.enableTimeoutNotice && (
+                      <div className="pl-8 pt-2.5 border-t border-dashed border-outline-variant flex flex-wrap items-center gap-6">
+                        <span className="text-[11px] font-bold text-outline">选择通知管道：</span>
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-on-surface">
+                          <input 
+                            type="checkbox" 
+                            checked={config.timeoutNoticeChannels.includes('station')}
+                            onChange={() => handleToggleNoticeChannel('station')}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          />
+                          <span>站内信</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-on-surface">
+                          <input 
+                            type="checkbox" 
+                            checked={config.timeoutNoticeChannels.includes('email')}
+                            onChange={() => handleToggleNoticeChannel('email')}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          />
+                          <span>发邮件</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-on-surface">
+                          <input 
+                            type="checkbox" 
+                            checked={config.timeoutNoticeChannels.includes('sms')}
+                            onChange={() => handleToggleNoticeChannel('sms')}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          />
+                          <span>发短信</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </section>
 
-              <section className="space-y-4">
-                 <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-on-surface">「超时处理」不计时间时间段</h3>
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                 </div>
-                 <p className="text-[10px] text-outline font-medium">* 当前流程的所有节点的超时处理都将应用以下不计时间时间段规则</p>
-                 <button className="flex items-center gap-1 text-primary text-xs font-bold">
-                    <Plus className="w-4 h-4" />
-                    添加规则
-                 </button>
+              {/* 3. 自动审批 */}
+              <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
+                <div className="flex items-center gap-2.5 border-b border-outline-variant pb-3">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold text-xs">
+                    3
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-on-surface">自动审批</h3>
+                    <p className="text-[11px] text-on-surface-variant font-medium">配置符合特定规则时的免人工无缝自动签署机制</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 pt-1">
+                  {[
+                    { id: 'none', label: '(1) 不允许自动审批', desc: '所有节点的审批必须由对应的责任人员手动签署确认' },
+                    { id: 'initiator_all', label: '(2) 所有节点的审批人与发起人为同一个人时自动审批', desc: '若后续所有审批节点的处理人均是单据提交人本人，自动跳过免审通过' },
+                    { id: 'adjacent_same', label: '(3) 相邻节点的审批人相同时自动审批', desc: '当连续相邻节点的审批人完全相同时，后一节点无需二次点击自动签署' },
+                    { id: 'approved_before', label: '(4) 已执行过审批的审批人自动审批', desc: '同一审批人在该流程的前置节点已做过同意决定，后续节点再次遇到时自动签署' },
+                  ].map((item) => (
+                    <label 
+                      key={item.id} 
+                      className={`flex items-start gap-3.5 p-3.5 rounded-xl border transition-all cursor-pointer ${
+                        config.autoApprovalMode === item.id 
+                          ? 'bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20' 
+                          : 'bg-white border-outline-variant hover:border-outline'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="autoApprovalMode"
+                        checked={config.autoApprovalMode === item.id}
+                        onChange={() => setConfig(prev => ({ ...prev, autoApprovalMode: item.id as any }))}
+                        className="w-4 h-4 mt-0.5 text-primary focus:ring-primary shrink-0"
+                      />
+                      <div className="space-y-0.5">
+                        <div className="text-xs font-bold text-on-surface">{item.label}</div>
+                        <div className="text-[11px] text-on-surface-variant font-medium">{item.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </section>
+
+              {/* 4. 审批撤回 */}
+              <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
+                <div className="flex items-center gap-2.5 border-b border-outline-variant pb-3">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">
+                    4
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-on-surface">审批撤回</h3>
+                    <p className="text-[11px] text-on-surface-variant font-medium">配置流程流转中单据撤回规则与无痕记录策略</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {[
+                    { id: 'none', label: '(1) 不允许撤回审批', desc: '单据提交后即进入冻结处理状态，禁止撤回' },
+                    { id: 'initiator_only', label: '(2) 仅允许发起节点撤回审批', desc: '仅允许发起人在首节点尚未被处理前主动撤回' },
+                    { id: 'all_nodes', label: '(3) 所有节点可撤回', desc: '任意已审节点在后序节点尚未处理前均允许向后撤回' },
+                  ].map((item) => (
+                    <label 
+                      key={item.id} 
+                      className={`flex flex-col p-3.5 rounded-xl border transition-all cursor-pointer ${
+                        config.recallMode === item.id 
+                          ? 'bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20' 
+                          : 'bg-white border-outline-variant hover:border-outline'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <input 
+                          type="radio" 
+                          name="recallMode"
+                          checked={config.recallMode === item.id}
+                          onChange={() => setConfig(prev => ({ ...prev, recallMode: item.id as any }))}
+                          className="w-4 h-4 text-primary focus:ring-primary shrink-0"
+                        />
+                        <span className="text-xs font-bold text-on-surface leading-tight">{item.label}</span>
+                      </div>
+                      <span className="text-[10px] text-on-surface-variant font-medium pl-6 leading-relaxed">{item.desc}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="pt-1">
+                  <label className="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary/30 transition-all">
+                    <input 
+                      type="checkbox" 
+                      checked={config.silentRecall}
+                      onChange={(e) => setConfig(prev => ({ ...prev, silentRecall: e.target.checked }))}
+                      className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary"
+                    />
+                    <span className="text-xs font-bold text-on-surface-variant">开启无痕撤回 (撤回记录不在公开审批历史中展示)</span>
+                  </label>
+                </div>
+              </section>
+
+              {/* 5. 超时设置 */}
+              <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
+                <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold text-xs">
+                      5
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-on-surface">超时设置</h3>
+                      <p className="text-[11px] text-on-surface-variant font-medium">以小时为单位设置超时时限，并配置超时提醒通道</p>
+                    </div>
+                  </div>
+
+                  {/* Switch */}
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={config.enableTimeoutSettings}
+                      onChange={(e) => setConfig(prev => ({ ...prev, enableTimeoutSettings: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-outline-variant/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                {config.enableTimeoutSettings ? (
+                  <div className="space-y-4 pt-1">
+                    {/* (1) 超时时间（小时） */}
+                    <div className="p-4 bg-white border border-outline-variant rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-on-surface flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-primary" />
+                          <span>(1) 开启则以小时为单位，设置超时时间：</span>
+                        </label>
+                        <span className="text-[11px] font-mono font-extrabold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full">
+                          {config.timeoutHours}h ({Math.round((config.timeoutHours / 24) * 10) / 10} 天)
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="number"
+                            min="1"
+                            max="720"
+                            value={config.timeoutHours}
+                            onChange={(e) => setConfig(prev => ({ ...prev, timeoutHours: Math.max(1, parseInt(e.target.value) || 1) }))}
+                            className="w-28 bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none"
+                          />
+                          <span className="text-xs font-bold text-outline">h</span>
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {[
+                            { h: 6, label: '6h' },
+                            { h: 12, label: '12h' },
+                            { h: 24, label: '24h (1天)' },
+                            { h: 48, label: '48h (2天)' },
+                            { h: 72, label: '72h (3天)' },
+                          ].map(preset => (
+                            <button
+                              key={preset.h}
+                              type="button"
+                              onClick={() => setConfig(prev => ({ ...prev, timeoutHours: preset.h }))}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                config.timeoutHours === preset.h 
+                                  ? 'bg-primary text-white shadow-xs' 
+                                  : 'bg-surface hover:bg-surface-container border border-outline-variant text-outline'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* (2) 选择超时提醒方式 */}
+                    <div className="p-4 bg-white border border-outline-variant rounded-xl space-y-3">
+                      <div className="text-xs font-bold text-on-surface flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-amber-500" />
+                        <span>(2) 选择超时提醒方式：</span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-6 pl-1">
+                        <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-on-surface">
+                          <input 
+                            type="checkbox" 
+                            checked={config.timeoutChannels.includes('station')}
+                            onChange={() => handleToggleTimeoutChannel('station')}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          />
+                          <span>站内信提醒</span>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-on-surface">
+                          <input 
+                            type="checkbox" 
+                            checked={config.timeoutChannels.includes('sms')}
+                            onChange={() => handleToggleTimeoutChannel('sms')}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          />
+                          <span>短信提醒</span>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-on-surface">
+                          <input 
+                            type="checkbox" 
+                            checked={config.timeoutChannels.includes('email')}
+                            onChange={() => handleToggleTimeoutChannel('email')}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          />
+                          <span>邮件提醒</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 border border-dashed border-outline-variant rounded-xl text-center bg-white/40">
+                    <p className="text-xs font-bold text-outline">超时处理设置已关闭</p>
+                  </div>
+                )}
               </section>
             </div>
           ) : (
@@ -906,39 +1399,24 @@ const GlobalSettingsModal = ({ isOpen, onClose, activeTab, setActiveTab }: { isO
                        </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant text-[11px] font-bold">
-                       {[
+                       {(formFields.length > 0 ? formFields.map(f => ({ name: f.label, type: f.type })) : [
                           { name: '全选', type: 'checkbox' },
                           { name: '申请人', type: 'radio', value: 'read' },
                           { name: '申请部门', type: 'radio', value: 'read' },
                           { name: '申请日期', type: 'radio', value: 'read' },
                           { name: '领用明细', type: 'radio', value: 'read' },
-                          { name: '领用明细.物品名称', type: 'radio', value: 'read' },
-                          { name: '领用明细.申请数量', type: 'radio', value: 'read' },
-                          { name: '领用明细.物品用途', type: 'radio', value: 'read' },
                           { name: '附件', type: 'radio', value: 'read' },
-                       ].map((row, i) => (
+                       ]).map((row, i) => (
                           <tr key={i} className="hover:bg-surface/50 transition-colors">
-                             <td className="px-6 py-4 text-on-surface">{row.name}</td>
+                             <td className="px-6 py-4 text-on-surface font-extrabold">{row.name}</td>
                              <td className="px-6 py-4 text-center">
-                                {row.name === '全选' ? (
-                                   <input type="checkbox" className="w-4 h-4 rounded border-outline-variant mx-auto" />
-                                ) : (
-                                   <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto" />
-                                )}
+                                <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto text-primary" />
                              </td>
                              <td className="px-6 py-4 text-center">
-                                {row.name === '全选' ? (
-                                   <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-outline-variant mx-auto text-primary" />
-                                ) : (
-                                   <input type="radio" name={`perm-${i}`} defaultChecked className="w-4 h-4 border-outline-variant mx-auto text-primary" />
-                                )}
+                                <input type="radio" name={`perm-${i}`} defaultChecked className="w-4 h-4 border-outline-variant mx-auto text-primary" />
                              </td>
                              <td className="px-6 py-4 text-center">
-                                {row.name === '全选' ? (
-                                   <input type="checkbox" className="w-4 h-4 rounded border-outline-variant mx-auto" />
-                                ) : (
-                                   <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto" />
-                                )}
+                                <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto text-primary" />
                              </td>
                           </tr>
                        ))}
@@ -949,9 +1427,49 @@ const GlobalSettingsModal = ({ isOpen, onClose, activeTab, setActiveTab }: { isO
           )}
         </div>
 
-        <footer className="p-6 border-t border-outline-variant bg-surface flex justify-end gap-3 shrink-0">
-          <button onClick={onClose} className="px-6 py-2 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all">取消</button>
-          <button onClick={onClose} className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl transition-all">保存</button>
+        <footer className="p-6 border-t border-outline-variant bg-surface flex justify-between items-center shrink-0">
+          <button 
+            type="button"
+            onClick={() => {
+              setConfig({
+                triggerRules: [
+                  { id: 'tr-1', fieldId: 'amount', fieldLabel: '报销总金额', operator: '大于', value: '1000' }
+                ],
+                triggerMatchMode: 'ALL',
+                allowTransfer: true,
+                terminateOnFailure: true,
+                enableTimeoutNotice: true,
+                timeoutNoticeChannels: ['station', 'email'],
+                autoApprovalMode: 'adjacent_same',
+                recallMode: 'initiator_only',
+                silentRecall: false,
+                enableTimeoutSettings: true,
+                timeoutHours: 24,
+                timeoutChannels: ['station', 'email', 'sms'],
+              });
+              showNotification('已恢复审批流默认全局配置');
+            }}
+            className="px-4 py-2 border border-outline-variant rounded-xl text-xs font-bold text-outline hover:text-on-surface hover:bg-surface-container-low transition-all cursor-pointer"
+          >
+            恢复默认
+          </button>
+
+          <div className="flex gap-3">
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="px-6 py-2.5 border border-outline-variant rounded-xl text-xs font-bold hover:bg-surface-container-low transition-all cursor-pointer"
+            >
+              取消
+            </button>
+            <button 
+              type="button"
+              onClick={handleSave} 
+              className="px-6 py-2.5 bg-primary text-white rounded-xl text-xs font-bold hover:shadow-xl hover:shadow-primary/20 transition-all cursor-pointer"
+            >
+              保存设置
+            </button>
+          </div>
         </footer>
       </motion.div>
     </div>
@@ -1171,7 +1689,7 @@ const ProjectsView = ({
 
   if (showTemplatesPage) {
     return (
-      <div className="p-8 space-y-8 max-w-7xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="w-full p-8 md:p-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between border-b border-outline-variant/30 pb-6">
           <div className="space-y-1">
             <button 
@@ -1185,7 +1703,7 @@ const ProjectsView = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-24 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 pb-24 animate-in fade-in slide-in-from-bottom-2 duration-300">
            {templates.map((tpl, idx) => (
             <motion.div 
               key={tpl.id}
@@ -1254,7 +1772,7 @@ const ProjectsView = ({
   }
 
   return !projectDetailsId ? (
-    <div className="p-8 space-y-8 max-w-7xl">
+    <div className="w-full p-8 md:p-10 space-y-8">
           {/* Top Bar Actions: Template Center Left to Create Project */}
           <div className="flex flex-col sm:flex-row items-center justify-end gap-4 mb-4">
             <button 
@@ -1330,7 +1848,7 @@ const ProjectsView = ({
           </div>
 
           {/* Cards List Display Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans">
             {displayedProjects.map((project, idx) => {
               const IconComponent = iconMap[project.icon || ''] || Briefcase;
               return (
@@ -2032,7 +2550,7 @@ const ProjectsView = ({
 };
 
 const WorkflowView = ({ workflowStatus, setWorkflowStatus, workflowInstances, setView }: WorkflowViewProps) => (
-  <div className="p-8 space-y-8 max-w-7xl pb-32">
+  <div className="w-full p-8 md:p-10 space-y-8 pb-32">
     <div className="flex justify-between items-end">
       <div>
         <h2 className="text-3xl font-extrabold tracking-tighter">已发布的流程</h2>
@@ -2125,27 +2643,8 @@ const WorkflowView = ({ workflowStatus, setWorkflowStatus, workflowInstances, se
 );
 
 const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, workflowInstances, setView }: InsightsViewProps) => (
-  <div className="p-8 space-y-8 max-w-7xl pb-32">
-     <div className="flex justify-end items-center gap-6">
-      <div className="flex items-center gap-3">
-        <div className="flex bg-surface-container rounded-xl p-1.5 border border-outline-variant shadow-sm text-on-surface">
-           <button 
-             onClick={() => setWorkflowStatus('active')}
-             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'active' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-outline hover:text-on-surface'}`}
-           >活跃流程</button>
-           <button 
-             onClick={() => setWorkflowStatus('inactive')}
-             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${workflowStatus === 'inactive' ? 'bg-on-surface text-white shadow-lg' : 'text-outline hover:text-on-surface'}`}
-           >挂起中</button>
-        </div>
-        <button 
-          onClick={() => showNotification('导出报告已排队')}
-          className="flex items-center gap-2 px-6 py-3 bg-on-surface text-white rounded-xl font-bold text-sm transition-all hover:opacity-90"
-        >
-          <Share2 className="w-4 h-4" /> 导出分析
-        </button>
-      </div>
-    </div>
+  <div className="w-full p-8 md:p-10 space-y-8 pb-32">
+
 
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       {[
@@ -2162,8 +2661,8 @@ const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, wor
       ))}
     </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2 space-y-6">
+    <div className="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+      <div className="xl:col-span-2 2xl:col-span-3 space-y-6">
          <div className="sleek-card overflow-hidden border border-outline-variant shadow-sm text-on-surface bg-white">
             <div className="p-6 border-b border-outline-variant bg-surface-container-low/50 flex justify-between items-center">
                <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> 活跃流程实例</h3>
@@ -2246,8 +2745,8 @@ const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, wor
 );
 
 const IntegrationsView = ({ showNotification, setView }: IntegrationsViewProps & { setView: (v: ViewType) => void }) => (
-  <div className="p-8 space-y-8 max-w-7xl">
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div className="w-full p-8 md:p-10 space-y-8">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
       {[
         { name: '组织管理', desc: '维护公司组织架构和部门信息', icon: Building2, type: 'internal', target: 'team' },
         { name: '用户管理', desc: '新增、编辑和管理平台用户信息', icon: UserCog, type: 'internal', target: 'team' },
@@ -2575,7 +3074,7 @@ const DataManagementView = ({ projects, savedForms, showNotification }: DataMana
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="w-full p-8 md:p-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
       
       {/* Top summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -3465,7 +3964,7 @@ const TeamView = ({
 
             {/* Read-Only Portal on Right */}
             <div className="flex-1 p-12 flex flex-col bg-white overflow-y-auto custom-scrollbar">
-               <div className="max-w-4xl mx-auto w-full space-y-10">
+               <div className="w-full space-y-10">
                  {/* Top Guard Portal Block */}
                  <div className="relative overflow-hidden p-10 bg-primary/5 rounded-[3rem] border border-primary/10 flex flex-col md:flex-row items-center justify-between gap-8">
                    <div className="absolute right-0 top-0 translate-x-12 -translate-y-10 opacity-5 pointer-events-none">
@@ -3791,7 +4290,7 @@ const TeamView = ({
 
              {/* Right Panel: Feature & Data Scope control workspace */}
              <div className="flex-1 overflow-y-auto custom-scrollbar p-12 bg-white flex flex-col">
-                <div className="flex-1 space-y-10 max-w-5xl w-full mx-auto">
+                <div className="flex-1 space-y-10 w-full mx-auto">
                    
                    {/* Role profile header details */}
                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-outline-variant pb-8 gap-6">
@@ -4050,6 +4549,76 @@ const ArchitectApp: React.FC = () => {
     ]
   });
 
+  const [workflowVersionsMap, setWorkflowVersionsMap] = React.useState<Record<string, WorkflowVersion[]>>({
+    'f1': [
+      {
+        id: 'ver-f1-1',
+        formId: 'f1',
+        version: 'v1.0.0',
+        versionNum: 1.0,
+        title: '初始入职单审流程',
+        description: '发布基础入职流转节点',
+        createdAt: '2026-08-01 10:00:00',
+        creator: '系统管理员',
+        status: 'archived',
+        nodes: [
+          { id: 'node-1', type: 'start', label: 'HR发起', description: '新员工入职触发', targets: ['node-2'] },
+          { id: 'node-2', type: 'approval', label: '部门经理审批', targets: ['node-4'], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } },
+          { id: 'node-4', type: 'end', label: '入职完成', targets: [] },
+        ]
+      },
+      {
+        id: 'ver-f1-2',
+        formId: 'f1',
+        version: 'v1.1.0',
+        versionNum: 1.1,
+        title: '引入多级审批与会签',
+        description: '优化部门经理审批方式为会签模式',
+        createdAt: '2026-08-05 14:30:00',
+        creator: '李明 (HRD)',
+        status: 'active',
+        nodes: [
+          { id: 'node-1', type: 'start', label: 'HR发起', description: '新员工入职触发', targets: ['node-2'] },
+          { id: 'node-2', type: 'approval', label: '部门经理审批', targets: ['node-4'], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'AND' } },
+          { id: 'node-4', type: 'end', label: '入职完成', targets: [] },
+        ]
+      }
+    ],
+    'f2': [
+      {
+        id: 'ver-f2-1',
+        formId: 'f2',
+        version: 'v1.0.0',
+        versionNum: 1.0,
+        title: '专家交叉评估规范',
+        description: '技术评估标准化流转模版',
+        createdAt: '2026-08-03 09:15:00',
+        creator: '张伟 (架构师)',
+        status: 'active',
+        nodes: [
+          { id: 'node-1', type: 'start', label: '评估提交', targets: ['node-2'] },
+          { id: 'node-2', type: 'approval', label: '交叉评估', targets: ['node-3'], config: { assigneeType: 'user', assigneeValue: '技术专家' } },
+          { id: 'node-3', type: 'end', label: '归档', targets: [] },
+        ]
+      }
+    ]
+  });
+
+  // Modal visibility states for Version Control
+  const [isNewVersionModalOpen, setIsNewVersionModalOpen] = React.useState(false);
+  const [isVersionHistoryModalOpen, setIsVersionHistoryModalOpen] = React.useState(false);
+  const [isVersionDiffModalOpen, setIsVersionDiffModalOpen] = React.useState(false);
+
+  // New version form state
+  const [newVersionTitle, setNewVersionTitle] = React.useState('');
+  const [newVersionDesc, setNewVersionDesc] = React.useState('');
+  const [newVersionType, setNewVersionType] = React.useState<'minor' | 'major'>('minor');
+
+  // Preview / Diff state
+  const [previewVersionDetail, setPreviewVersionDetail] = React.useState<WorkflowVersion | null>(null);
+  const [diffVersionIdA, setDiffVersionIdA] = React.useState<string>('');
+  const [diffVersionIdB, setDiffVersionIdB] = React.useState<string>('');
+
   const [formFields, setFormFields] = React.useState<FormField[]>([]);
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
@@ -4142,6 +4711,22 @@ const ArchitectApp: React.FC = () => {
   const [ptCustomFooter, setPtCustomFooter] = React.useState('由企业表单低代码系统生成，打印件等同有同等印章效力。');
   const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = React.useState(false);
   const [globalSettingsTab, setGlobalSettingsTab] = React.useState<'workflow' | 'permissions'>('workflow');
+  const [workflowGlobalConfig, setWorkflowGlobalConfig] = React.useState<WorkflowGlobalConfig>({
+    triggerRules: [
+      { id: 'tr-1', fieldId: 'amount', fieldLabel: '报销总金额', operator: '大于', value: '1000' }
+    ],
+    triggerMatchMode: 'ALL',
+    allowTransfer: true,
+    terminateOnFailure: true,
+    enableTimeoutNotice: true,
+    timeoutNoticeChannels: ['station', 'email'],
+    autoApprovalMode: 'adjacent_same',
+    recallMode: 'initiator_only',
+    silentRecall: false,
+    enableTimeoutSettings: true,
+    timeoutHours: 24,
+    timeoutChannels: ['station', 'email', 'sms'],
+  });
   const [publishMode, setPublishMode] = React.useState<'internal' | 'public'>('public');
   const [publishLinks, setPublishLinks] = React.useState({
     page: 'http://f.architect.com/p/default_123',
@@ -6117,21 +6702,90 @@ const ArchitectApp: React.FC = () => {
 
               {editorTab === 'workflow' && (
                 <div className="space-y-8 pb-32">
-                  <div className="flex justify-between items-center bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-outline-variant/60 shadow-sm mb-6">
-                    <div>
-                      <h3 className="text-xs font-extrabold tracking-tight">流程设计画布</h3>
-                      <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">点击编辑节点序列，配置审批及抄送规则</p>
+                  {/* Workflow Top Control Header */}
+                  <div className="flex flex-col gap-3 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-outline-variant/80 shadow-sm mb-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-xs font-extrabold tracking-tight">流程设计画布</h3>
+                          {(() => {
+                            const versions = (selectedFormId && workflowVersionsMap[selectedFormId]) ? workflowVersionsMap[selectedFormId] : [];
+                            const activeVer = versions.find(v => v.status === 'active') || versions[versions.length - 1];
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] bg-primary/10 text-primary font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-primary/20">
+                                  <GitBranch className="w-3 h-3" />
+                                  {activeVer ? activeVer.version : 'v1.0.0'}
+                                </span>
+                                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                                  {activeVer?.status === 'active' ? '当前运行' : '草稿版本'}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                        <p className="text-[10px] text-on-surface-variant font-medium mt-1">
+                          <span className="font-bold text-on-surface">全局策略:</span> 动态触发({workflowGlobalConfig.triggerRules.length}条) • 
+                          {workflowGlobalConfig.allowTransfer ? ' 允许转批' : ' 禁止转批'} • 
+                          超时({workflowGlobalConfig.enableTimeoutSettings ? `${workflowGlobalConfig.timeoutHours}h` : '关'})
+                        </p>
+                      </div>
+
+                      {/* Action buttons for Version Management */}
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => {
+                            const versions = (selectedFormId && workflowVersionsMap[selectedFormId]) ? workflowVersionsMap[selectedFormId] : [];
+                            const lastVer = versions.length > 0 ? versions[versions.length - 1] : null;
+                            const nextNum = lastVer ? parseFloat((lastVer.versionNum + 0.1).toFixed(1)) : 1.1;
+                            setNewVersionTitle(`流程改进版 v${nextNum.toFixed(1)}.0`);
+                            setNewVersionDesc('基于当前编辑状态创建新版本');
+                            setIsNewVersionModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white hover:bg-primary-hover rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/10 active:scale-95 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>新增版本</span>
+                        </button>
+
+                        <button
+                          onClick={() => setIsVersionHistoryModalOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-surface text-on-surface border border-outline-variant hover:border-primary hover:text-primary rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                        >
+                          <History className="w-3.5 h-3.5 text-primary" />
+                          <span>查看历史 ({((selectedFormId && workflowVersionsMap[selectedFormId]) || []).length})</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            const versions = (selectedFormId && workflowVersionsMap[selectedFormId]) || [];
+                            if (versions.length >= 2) {
+                              setDiffVersionIdA(versions[0].id);
+                              setDiffVersionIdB(versions[versions.length - 1].id);
+                            } else if (versions.length === 1) {
+                              setDiffVersionIdA(versions[0].id);
+                              setDiffVersionIdB('current');
+                            }
+                            setIsVersionDiffModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-surface text-on-surface border border-outline-variant hover:border-indigo-600 hover:text-indigo-600 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                        >
+                          <GitCompare className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>版本对比</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setGlobalSettingsTab('workflow');
+                            setIsGlobalSettingsOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-surface-container text-on-surface border border-outline-variant hover:bg-outline-variant/20 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                        >
+                          <Settings className="w-3.5 h-3.5 text-outline" />
+                          <span>全局策略</span>
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        setGlobalSettingsTab('workflow');
-                        setIsGlobalSettingsOpen(true);
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-surface border border-outline-variant hover:border-primary hover:text-primary rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
-                    >
-                      <Settings className="w-3.5 h-3.5 text-outline" />
-                      <span>全局配置</span>
-                    </button>
                   </div>
 
                   <div className="flex flex-col items-center">
@@ -6173,20 +6827,72 @@ const ArchitectApp: React.FC = () => {
                             </div>
                             
                             {node.type === 'approval' && (
-                              <div className="mt-4 pt-4 border-t border-dashed border-outline-variant flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Users className="w-3 h-3 text-primary" />
-                                  <span className="text-[10px] font-extrabold text-primary">{node.config?.assigneeValue || node.config?.assigneeType}</span>
+                              <div className="mt-4 pt-4 border-t border-dashed border-outline-variant space-y-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 overflow-hidden">
+                                    <Users className="w-3.5 h-3.5 text-primary shrink-0" />
+                                    <span className="text-[11px] font-extrabold text-primary truncate">
+                                      {node.config?.assigneeType === 'user' && `固定人员: ${node.config?.assigneeValue || '未指定'}`}
+                                      {node.config?.assigneeType === 'role' && `角色: ${node.config?.assigneeValue || '未指定'}`}
+                                      {node.config?.assigneeType === 'dept' && `部门负责人: ${node.config?.assigneeValue || '未指定'}`}
+                                      {node.config?.assigneeType === 'initiator' && '发起人复核数据'}
+                                      {node.config?.assigneeType === 'manager' && `直属主管: ${node.config?.assigneeValue || '直属一级主管'}`}
+                                      {!node.config?.assigneeType && '未配置审批人'}
+                                    </span>
+                                  </div>
+                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
+                                    node.config?.approvalType === 'AND' ? 'bg-indigo-100 text-indigo-700' :
+                                    node.config?.approvalType === 'SEQUENTIAL' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-800'
+                                  }`}>
+                                    {node.config?.approvalType === 'AND' ? '会签 (全员)' :
+                                     node.config?.approvalType === 'SEQUENTIAL' ? '依次审批 (按级)' : '或签 (一人同意)'}
+                                  </span>
                                 </div>
-                                <span className="text-[10px] font-bold bg-outline-variant/10 px-2 py-0.5 rounded uppercase tracking-widest">{node.config?.approvalType === 'AND' ? '会签' : '或签'}</span>
+
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  <div className="flex gap-1">
+                                    {(node.config?.actions || ['approve', 'reject', 'transfer', 'return']).map(act => (
+                                      <span key={act} className="text-[9px] font-bold bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded border border-outline-variant/60">
+                                        {act === 'approve' ? '通过' : act === 'reject' ? '拒绝' : act === 'transfer' ? '转交' : act === 'return' ? '退回' : act}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${node.config?.commentRequirement === 'optional' ? 'bg-surface text-outline border border-outline-variant' : 'bg-primary/10 text-primary'}`}>
+                                    意见:{node.config?.commentRequirement === 'optional' ? '选填' : '必填'}
+                                  </span>
+
+                                  <span className="text-[9px] font-bold bg-surface text-outline px-1.5 py-0.5 rounded border border-outline-variant">
+                                    为空:{
+                                      node.config?.advanced?.emptyAssigneeAction === 'terminate_error' ? '终止报错' :
+                                      node.config?.advanced?.emptyAssigneeAction === 'auto_pass' ? '自动通过' :
+                                      node.config?.advanced?.emptyAssigneeAction === 'pause_admin' ? '挂起管理员' : '转指定人'
+                                    }
+                                  </span>
+                                </div>
                               </div>
                             )}
 
                             {isBranching && (
                               <div className="mt-4 pt-4 border-t border-dashed border-outline-variant space-y-2">
-                                <div className="text-[10px] font-bold text-outline uppercase tracking-widest">分支逻辑</div>
-                                <div className="flex gap-2">
-                                  <span className="text-[10px] font-mono bg-on-surface text-white px-2 py-1 rounded">IF {node.config?.expression}</span>
+                                <div className="flex justify-between items-center text-[10px] font-bold text-outline uppercase tracking-widest">
+                                  <span>路由条件分支</span>
+                                  <span className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                    {(node.config?.branches?.length || 2)} 条条件分支
+                                  </span>
+                                </div>
+                                <div className="space-y-1">
+                                  {(node.config?.branches || [
+                                    { id: 'b1', name: '分支 1', fieldId: 'amount', operator: '大于', value: '1000' },
+                                    { id: 'b2', name: '默认分支', fieldId: '', operator: '其他', value: '默认路径' }
+                                  ]).map((branch, bIdx) => (
+                                    <div key={branch.id || bIdx} className="flex items-center justify-between text-[10px] font-mono bg-surface p-1.5 rounded-lg border border-outline-variant">
+                                      <span className="font-bold text-on-surface">{branch.name || `分支 ${bIdx + 1}`}:</span>
+                                      <span className="text-primary truncate max-w-[180px]">
+                                        {branch.fieldId ? `${branch.fieldId} ${branch.operator} ${branch.value}` : '其他默认条件'}
+                                      </span>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             )}
@@ -6885,10 +7591,10 @@ const ArchitectApp: React.FC = () => {
                              </button>
                          </div>
                          <button 
-                            onClick={handleExport}
-                            className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-xl font-bold text-xs transition-all hover:shadow-lg shadow-primary/20"
+                           onClick={handleExport}
+                           className="px-4 py-1.5 bg-primary text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-primary-hover transition-all flex items-center gap-1.5 cursor-pointer"
                          >
-                            <Download className="w-4 h-4" /> 导出数据
+                           <Download className="w-3 h-3" /> 导出 Excel
                          </button>
                       </div>
                    </div>
@@ -7218,47 +7924,73 @@ const ArchitectApp: React.FC = () => {
                            <label className="text-xs font-bold">审批人设置</label>
                         </div>
                         <div className="space-y-3">
-                           <label className="text-[10px] font-bold text-outline uppercase tracking-widest">审批人定向</label>
+                           <label className="text-[10px] font-bold text-outline uppercase tracking-widest">审批人</label>
                            <select 
                              value={selectedNode.config?.assigneeType || 'user'}
-                             onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeType: e.target.value as any, assigneeValue: '' } })}
+                             onChange={(e) => {
+                               const newType = e.target.value as any;
+                               updateWorkflowNode(selectedNode.id, { 
+                                 config: { 
+                                   ...selectedNode.config, 
+                                   assigneeType: newType, 
+                                   assigneeValue: '',
+                                   approvalType: newType !== 'user' ? (selectedNode.config?.approvalType || 'OR') : undefined
+                                 } 
+                               });
+                             }}
                              className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                            >
-                             <option value="user">特定用户</option>
-                             <option value="role">角色基础</option>
-                             <option value="dept">部门主管</option>
-                             <option value="initiator">本人（发起人）</option>
+                             <option value="user">固定人员</option>
+                             <option value="role">角色</option>
+                             <option value="dept">部门负责人</option>
                            </select>
                         </div>
 
-                        {selectedNode.config?.assigneeType !== 'initiator' && (
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest">受让人选择</label>
-                            <select 
-                              value={selectedNode.config?.assigneeValue || ''}
-                              onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeValue: e.target.value } })}
-                              className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-                            >
-                              <option value="">选择目标...</option>
-                              {selectedNode.config?.assigneeType === 'user' && teamMembers.map(m => (
-                                <option key={m.id} value={m.name}>{m.name}</option>
-                              ))}
-                              {selectedNode.config?.assigneeType === 'role' && allRoles.map(r => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                              {selectedNode.config?.assigneeType === 'dept' && allDepts.map(d => (
-                                <option key={d} value={d}>{d}</option>
-                              ))}
-                            </select>
+                        {/* 目标选择器 */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest">
+                            {selectedNode.config?.assigneeType === 'user' ? '选择人员' : selectedNode.config?.assigneeType === 'role' ? '选择角色' : '选择部门'}
+                          </label>
+                          <select 
+                            value={selectedNode.config?.assigneeValue || ''}
+                            onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, assigneeValue: e.target.value } })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                          >
+                            <option value="">请选择目标...</option>
+                            {selectedNode.config?.assigneeType === 'user' && teamMembers.map(m => (
+                              <option key={m.id} value={m.name}>{m.name}</option>
+                            ))}
+                            {selectedNode.config?.assigneeType === 'role' && allRoles.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                            {selectedNode.config?.assigneeType === 'dept' && allDepts.map(d => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 当审批人的选项值不是固定人员 (user) 时，显示另外一个配置 “审批方式” */}
+                        {selectedNode.config?.assigneeType !== 'user' && (
+                          <div className="space-y-2 pt-2 border-t border-dashed border-outline-variant/60">
+                             <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">审批方式</label>
+                             <select
+                               value={selectedNode.config?.approvalType || 'OR'}
+                               onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: e.target.value as any } })}
+                               className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                             >
+                               <option value="OR">或签（一名审批人同意即可）</option>
+                               <option value="AND">会签（需所有审批人同意）</option>
+                               <option value="SEQUENTIAL">依次审批（按所属上级逐级审批）</option>
+                             </select>
                           </div>
                         )}
                       </div>
 
-                      {/* 2. 审批按钮配置 */}
+                      {/* 2. 审批动作设置 */}
                       <div className="space-y-4 pt-6 border-t border-outline-variant">
                         <div className="flex items-center gap-2 mb-2">
                            <MousePointer2 className="w-4 h-4 text-primary" />
-                           <label className="text-xs font-bold">审批按钮配置</label>
+                           <label className="text-xs font-bold">审批动作设置</label>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                            {[
@@ -7331,18 +8063,6 @@ const ArchitectApp: React.FC = () => {
                            <label className="text-xs font-bold">高级设置</label>
                         </div>
                         <div className="space-y-3">
-                           <div className="flex items-center justify-between p-3 bg-surface border border-outline-variant rounded-xl group hover:border-primary transition-all cursor-pointer"
-                              onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, advanced: { ...selectedNode.config?.advanced, autoApproveIfInitiator: !selectedNode.config?.advanced?.autoApproveIfInitiator } } })}
-                           >
-                              <span className="text-[10px] font-bold text-outline uppercase tracking-widest">发起人自动审批</span>
-                              <div className={`w-8 h-4 rounded-full relative transition-all ${selectedNode.config?.advanced?.autoApproveIfInitiator ? 'bg-primary' : 'bg-outline-variant'}`}>
-                                 <motion.div 
-                                    animate={{ left: selectedNode.config?.advanced?.autoApproveIfInitiator ? '1rem' : '0.125rem' }}
-                                    className="absolute top-0.5 w-3 h-3 bg-white rounded-full" 
-                                 />
-                              </div>
-                           </div>
-
                            <div className="space-y-2">
                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest">审批人为空时</label>
                               <select 
@@ -7364,43 +8084,6 @@ const ArchitectApp: React.FC = () => {
                               </div>
                            </div>
                         </div>
-                      </div>
-
-                      {/* 5. 操作授权 */}
-                      <div className="space-y-4 pt-6 border-t border-outline-variant">
-                        <div className="flex items-center gap-2 mb-2">
-                           <Layout className="w-4 h-4 text-primary" />
-                           <label className="text-xs font-bold">操作授权</label>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                           {['approve', 'reject', 'transfer', 'add_signer'].map(action => (
-                             <button
-                                key={action}
-                                onClick={() => {
-                                   const current = selectedNode.config?.actions || ['approve', 'reject', 'transfer'];
-                                   const next = current.includes(action) ? current.filter(a => a !== action) : [...current, action];
-                                   updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, actions: next } });
-                                }}
-                                className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold uppercase transition-all ${selectedNode.config?.actions?.includes(action) || (!selectedNode.config?.actions && ['approve', 'reject', 'transfer'].includes(action)) ? 'bg-primary/5 border-primary text-primary shadow-sm' : 'bg-surface border-outline-variant text-outline'}`}
-                             >
-                                {action.replace('_', ' ')}
-                             </button>
-                           ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 pt-6 border-t border-outline-variant">
-                         <label className="text-[10px] font-bold text-outline uppercase tracking-widest">并行逻辑</label>
-                         <div className="flex bg-surface-container rounded-2xl p-1.5 border border-outline-variant">
-                            <button 
-                               onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'OR' } })}
-                               className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'OR' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
-                            >或签 (OR)</button>
-                            <button 
-                               onClick={() => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, approvalType: 'AND' } })}
-                               className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${selectedNode.config?.approvalType === 'AND' ? 'bg-white shadow text-primary font-extrabold' : 'text-outline'}`}
-                            >会签 (AND)</button>
-                         </div>
                       </div>
                     </div>
                   )}
@@ -7852,7 +8535,588 @@ const ArchitectApp: React.FC = () => {
           onClose={() => setIsGlobalSettingsOpen(false)} 
           activeTab={globalSettingsTab}
           setActiveTab={setGlobalSettingsTab}
+          config={workflowGlobalConfig}
+          setConfig={setWorkflowGlobalConfig}
+          formFields={formFields}
+          showNotification={showNotification}
         />
+
+        {/* 1. 新增版本 Modal */}
+        {isNewVersionModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsNewVersionModalOpen(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl border border-outline-variant space-y-6"
+            >
+              <div className="flex items-center justify-between border-b border-outline-variant pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+                    <GitBranch className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-on-surface">新增流程版本</h3>
+                    <p className="text-xs text-on-surface-variant">基于当前编辑的审批流节点，生成自增版本记录</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsNewVersionModalOpen(false)} className="p-2 hover:bg-surface-container rounded-xl text-outline">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-surface-container/60 p-4 rounded-2xl border border-outline-variant flex items-center justify-between">
+                  <span className="text-xs font-bold text-outline">预计生成版本号:</span>
+                  {(() => {
+                    const list = (selectedFormId && workflowVersionsMap[selectedFormId]) || [];
+                    const lastVer = list.length > 0 ? list[list.length - 1] : null;
+                    const lastNum = lastVer ? lastVer.versionNum : 1.0;
+                    const nextNum = newVersionType === 'major' ? Math.floor(lastNum) + 1.0 : parseFloat((lastNum + 0.1).toFixed(1));
+                    return (
+                      <span className="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+                        v{nextNum.toFixed(1)}.0
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-on-surface">版本类型</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setNewVersionType('minor')}
+                      className={`p-3 rounded-2xl border text-left transition-all ${newVersionType === 'minor' ? 'bg-primary/5 border-primary text-primary shadow-sm font-bold' : 'bg-surface border-outline-variant text-outline'}`}
+                    >
+                      <div className="text-xs font-bold">次要升级 (+0.1)</div>
+                      <div className="text-[10px] opacity-70 mt-0.5">微调规则、节点文案或审批人</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewVersionType('major')}
+                      className={`p-3 rounded-2xl border text-left transition-all ${newVersionType === 'major' ? 'bg-primary/5 border-primary text-primary shadow-sm font-bold' : 'bg-surface border-outline-variant text-outline'}`}
+                    >
+                      <div className="text-xs font-black">重大版本 (+1.0)</div>
+                      <div className="text-[10px] opacity-70 mt-0.5">重构整个流程流转链路</div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-on-surface">版本主题名称</label>
+                  <input 
+                    type="text" 
+                    placeholder="例如：优化多级会签与撤回策略"
+                    value={newVersionTitle}
+                    onChange={(e) => setNewVersionTitle(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-on-surface">版本更新说明 (Changelog)</label>
+                  <textarea 
+                    placeholder="详细描述本次流程修改的内容与背景..."
+                    value={newVersionDesc}
+                    onChange={(e) => setNewVersionDesc(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[90px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant">
+                <button
+                  onClick={() => setIsNewVersionModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-outline-variant text-xs font-bold hover:bg-surface-container transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => {
+                    if (!selectedFormId) return;
+                    const list = workflowVersionsMap[selectedFormId] || [];
+                    const lastVer = list.length > 0 ? list[list.length - 1] : null;
+                    const lastNum = lastVer ? lastVer.versionNum : 1.0;
+                    const nextNum = newVersionType === 'major' ? Math.floor(lastNum) + 1.0 : parseFloat((lastNum + 0.1).toFixed(1));
+                    const newVerStr = `v${nextNum.toFixed(1)}.0`;
+
+                    const newVerObj: WorkflowVersion = {
+                      id: `ver-${selectedFormId}-${Date.now()}`,
+                      formId: selectedFormId,
+                      version: newVerStr,
+                      versionNum: nextNum,
+                      title: newVersionTitle.trim() || `流程改进版 ${newVerStr}`,
+                      description: newVersionDesc.trim() || '更新审批流节点与规则策略',
+                      createdAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+                      creator: '当前管理员',
+                      status: 'active',
+                      nodes: JSON.parse(JSON.stringify(workflowNodes))
+                    };
+
+                    const updatedList = list.map(v => ({ ...v, status: 'archived' as const }));
+                    updatedList.push(newVerObj);
+
+                    setWorkflowVersionsMap(prev => ({ ...prev, [selectedFormId]: updatedList }));
+                    setIsNewVersionModalOpen(false);
+                    setNewVersionTitle('');
+                    setNewVersionDesc('');
+                    showNotification(`已发布新流程版本 ${newVerStr}！`);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover shadow-md transition-all active:scale-95"
+                >
+                  保存并生成新版本
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* 2. 查看历史 Modal */}
+        {isVersionHistoryModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setIsVersionHistoryModalOpen(false); setPreviewVersionDetail(null); }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 md:p-8 max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-outline-variant"
+            >
+              <div className="flex items-center justify-between border-b border-outline-variant pb-4 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+                    <History className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-on-surface">审批流版本历史</h3>
+                    <p className="text-xs text-on-surface-variant">查看历次发布的版本记录、细节以及执行版本回滚</p>
+                  </div>
+                </div>
+                <button onClick={() => { setIsVersionHistoryModalOpen(false); setPreviewVersionDetail(null); }} className="p-2 hover:bg-surface-container rounded-xl text-outline">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-6 space-y-4 pr-1">
+                {(() => {
+                  const versions = (selectedFormId && workflowVersionsMap[selectedFormId]) || [];
+                  if (versions.length === 0) {
+                    return (
+                      <div className="text-center py-12 text-outline text-xs">
+                        暂无版本历史记录
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {[...versions].reverse().map((ver) => {
+                        const isSelectedForPreview = previewVersionDetail?.id === ver.id;
+                        return (
+                          <div 
+                            key={ver.id}
+                            className={`p-5 rounded-2xl border transition-all ${ver.status === 'active' ? 'bg-primary/5 border-primary/40 shadow-sm' : 'bg-surface border-outline-variant hover:border-outline'}`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-xs font-black bg-white text-primary border border-primary/20 px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
+                                  <GitBranch className="w-3.5 h-3.5" />
+                                  {ver.version}
+                                </span>
+                                <h4 className="text-sm font-extrabold text-on-surface">{ver.title}</h4>
+                                {ver.status === 'active' && (
+                                  <span className="text-[10px] bg-emerald-500 text-white font-extrabold px-2 py-0.5 rounded-full">
+                                    运行中 (Active)
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setPreviewVersionDetail(isSelectedForPreview ? null : ver)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1 ${isSelectedForPreview ? 'bg-primary text-white border-primary' : 'bg-white border-outline-variant text-on-surface hover:border-primary'}`}
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>{isSelectedForPreview ? '收起详情' : '查看详情'}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`确定要将审批流回滚到 ${ver.version}（${ver.title}）吗？这将会以此版本的节点配置作为基准生成一个新的版本。`)) {
+                                      const restoredNodes = JSON.parse(JSON.stringify(ver.nodes));
+                                      setWorkflowNodes(restoredNodes);
+                                      if (selectedFormId) {
+                                        setWorkflowNodesMap(prev => ({ ...prev, [selectedFormId]: restoredNodes }));
+                                      }
+
+                                      const lastNum = versions.length > 0 ? versions[versions.length - 1].versionNum : 1.0;
+                                      const nextNum = parseFloat((lastNum + 0.1).toFixed(1));
+                                      const newVerStr = `v${nextNum.toFixed(1)}.0`;
+
+                                      const rollbackVerObj: WorkflowVersion = {
+                                        id: `ver-${selectedFormId}-${Date.now()}`,
+                                        formId: selectedFormId || 'f1',
+                                        version: newVerStr,
+                                        versionNum: nextNum,
+                                        title: `回滚自 ${ver.version}`,
+                                        description: `基于历史版本 ${ver.version} (${ver.title}) 恢复执行的回滚操作`,
+                                        createdAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+                                        creator: '当前管理员',
+                                        status: 'active',
+                                        nodes: restoredNodes
+                                      };
+
+                                      const updatedList = versions.map(v => ({ ...v, status: 'archived' as const }));
+                                      updatedList.push(rollbackVerObj);
+
+                                      if (selectedFormId) {
+                                        setWorkflowVersionsMap(prev => ({ ...prev, [selectedFormId]: updatedList }));
+                                      }
+                                      showNotification(`已成功回滚至 ${ver.version} 并发布新版本 ${newVerStr}！`);
+                                      setIsVersionHistoryModalOpen(false);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-surface text-on-surface hover:bg-amber-50 hover:text-amber-700 border border-outline-variant rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>回滚此版本</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            <p className="text-xs text-on-surface-variant font-medium mb-3">
+                              {ver.description}
+                            </p>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-outline pt-3 border-t border-outline-variant/60">
+                              <span>创建时间: {ver.createdAt} • 操作人: {ver.creator}</span>
+                              <span className="font-bold text-on-surface">包含 {ver.nodes.length} 个流转节点</span>
+                            </div>
+
+                            {isSelectedForPreview && (
+                              <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mt-4 pt-4 border-t border-dashed border-outline-variant space-y-3 bg-white/60 p-4 rounded-xl"
+                              >
+                                <h5 className="text-xs font-bold text-primary flex items-center gap-1.5">
+                                  <Layers className="w-3.5 h-3.5" />
+                                  <span>节点流转明细 (Version Snapshot)</span>
+                                </h5>
+                                <div className="space-y-2">
+                                  {ver.nodes.map((n, idx) => (
+                                    <div key={n.id} className="flex items-center justify-between bg-surface p-2.5 rounded-lg border border-outline-variant/60 text-xs">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="font-bold">{n.label}</span>
+                                        <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-surface-container font-mono text-outline">
+                                          {n.type}
+                                        </span>
+                                      </div>
+
+                                      {n.type === 'approval' && (
+                                        <div className="text-[10px] text-outline font-medium flex items-center gap-2">
+                                          <span>
+                                            审批人: {
+                                              n.config?.assigneeType === 'user' ? `固定人员 (${n.config?.assigneeValue || '未选'})` :
+                                              n.config?.assigneeType === 'role' ? `角色 (${n.config?.assigneeValue || '未选'})` :
+                                              n.config?.assigneeType === 'dept' ? `部门负责人 (${n.config?.assigneeValue || '未选'})` : '未配置'
+                                            }
+                                          </span>
+                                          {n.config?.assigneeType !== 'user' && (
+                                            <span className="bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded">
+                                              {n.config?.approvalType === 'AND' ? '会签' : n.config?.approvalType === 'SEQUENTIAL' ? '依次审批' : '或签'}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-outline-variant shrink-0">
+                <button
+                  onClick={() => { setIsVersionHistoryModalOpen(false); setPreviewVersionDetail(null); }}
+                  className="px-6 py-2.5 rounded-xl bg-surface-container text-on-surface text-xs font-bold hover:bg-outline-variant/30 transition-colors"
+                >
+                  关闭
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* 3. 版本对比 Modal */}
+        {isVersionDiffModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsVersionDiffModalOpen(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 md:p-8 max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-outline-variant"
+            >
+              <div className="flex items-center justify-between border-b border-outline-variant pb-4 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-indigo-100 text-indigo-700 rounded-2xl">
+                    <GitCompare className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-on-surface">流程版本差异对比 (Diff)</h3>
+                    <p className="text-xs text-on-surface-variant">选择两个版本的审批流，可视化直观对比节点与属性增删改动</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsVersionDiffModalOpen(false)} className="p-2 hover:bg-surface-container rounded-xl text-outline">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4 border-b border-outline-variant/60 shrink-0">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-outline">基准版本 A</label>
+                  <select 
+                    value={diffVersionIdA}
+                    onChange={(e) => setDiffVersionIdA(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    {((selectedFormId && workflowVersionsMap[selectedFormId]) || []).map(v => (
+                      <option key={v.id} value={v.id}>{v.version} - {v.title} ({v.createdAt})</option>
+                    ))}
+                    <option value="current">当前工作区草稿</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-outline">对比目标版本 B</label>
+                  <select 
+                    value={diffVersionIdB}
+                    onChange={(e) => setDiffVersionIdB(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="current">当前工作区草稿</option>
+                    {((selectedFormId && workflowVersionsMap[selectedFormId]) || []).map(v => (
+                      <option key={v.id} value={v.id}>{v.version} - {v.title} ({v.createdAt})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-6 space-y-6 pr-1">
+                {(() => {
+                  const versions = (selectedFormId && workflowVersionsMap[selectedFormId]) || [];
+                  
+                  const getVerNodes = (id: string) => {
+                    if (id === 'current') return { label: '当前工作区草稿', nodes: workflowNodes };
+                    const found = versions.find(v => v.id === id);
+                    return found ? { label: `${found.version} (${found.title})`, nodes: found.nodes } : { label: '未知', nodes: [] };
+                  };
+
+                  const verAData = getVerNodes(diffVersionIdA);
+                  const verBData = getVerNodes(diffVersionIdB);
+
+                  const nodesA = verAData.nodes || [];
+                  const nodesB = verBData.nodes || [];
+
+                  const mapA = new Map<string, WorkflowNode>(nodesA.map(n => [n.id, n]));
+                  const mapB = new Map<string, WorkflowNode>(nodesB.map(n => [n.id, n]));
+
+                  const added: WorkflowNode[] = [];
+                  const removed: WorkflowNode[] = [];
+                  const modified: { nodeA: WorkflowNode; nodeB: WorkflowNode; diffs: string[] }[] = [];
+                  const unchanged: WorkflowNode[] = [];
+
+                  mapB.forEach((nodeB, id) => {
+                    if (!mapA.has(id)) {
+                      added.push(nodeB);
+                    } else {
+                      const nodeA = mapA.get(id)!;
+                      const diffs: string[] = [];
+                      if (nodeA.label !== nodeB.label) diffs.push(`节点名称: "${nodeA.label}" ➔ "${nodeB.label}"`);
+                      if (nodeA.type !== nodeB.type) diffs.push(`节点类型: "${nodeA.type}" ➔ "${nodeB.type}"`);
+                      if (nodeA.config?.assigneeType !== nodeB.config?.assigneeType) {
+                        const typeMap: Record<string, string> = { user: '固定人员', role: '角色', dept: '部门负责人' };
+                        diffs.push(`审批人: "${typeMap[nodeA.config?.assigneeType || ''] || '未指定'}" ➔ "${typeMap[nodeB.config?.assigneeType || ''] || '未指定'}"`);
+                      }
+                      if (nodeA.config?.assigneeValue !== nodeB.config?.assigneeValue) {
+                        diffs.push(`目标对象: "${nodeA.config?.assigneeValue || '未选'}" ➔ "${nodeB.config?.assigneeValue || '未选'}"`);
+                      }
+                      if (nodeA.config?.approvalType !== nodeB.config?.approvalType) {
+                        const appMap: Record<string, string> = { OR: '或签', AND: '会签', SEQUENTIAL: '依次审批' };
+                        diffs.push(`审批方式: "${appMap[nodeA.config?.approvalType || ''] || '默认'}" ➔ "${appMap[nodeB.config?.approvalType || ''] || '默认'}"`);
+                      }
+
+                      if (diffs.length > 0) {
+                        modified.push({ nodeA, nodeB, diffs });
+                      } else {
+                        unchanged.push(nodeB);
+                      }
+                    }
+                  });
+
+                  mapA.forEach((nodeA, id) => {
+                    if (!mapB.has(id)) {
+                      removed.push(nodeA);
+                    }
+                  });
+
+                  const totalChanges = added.length + removed.length + modified.length;
+
+                  return (
+                    <div className="space-y-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-surface-container rounded-2xl border border-outline-variant">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-on-surface">对比结果摘要:</span>
+                          <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                            +{added.length} 新增节点
+                          </span>
+                          <span className="text-xs font-black text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full">
+                            -{removed.length} 删除节点
+                          </span>
+                          <span className="text-xs font-black text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                            ~{modified.length} 变动节点
+                          </span>
+                        </div>
+                        <span className="text-xs text-outline font-medium">
+                          {totalChanges === 0 ? '两个版本配置完全一致' : `共检测到 ${totalChanges} 处结构或配置差异`}
+                        </span>
+                      </div>
+
+                      {totalChanges === 0 ? (
+                        <div className="text-center py-12 bg-surface/50 rounded-2xl border border-dashed border-outline-variant text-outline text-xs">
+                          ✅ 选中版本的审批流节点与属性配置一致，无差异变动。
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {added.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-extrabold text-emerald-700 flex items-center gap-1.5">
+                                <Plus className="w-4 h-4" />
+                                <span>新增节点 (Added in B)</span>
+                              </h4>
+                              <div className="space-y-2">
+                                {added.map(n => (
+                                  <div key={n.id} className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-emerald-900">{n.label}</span>
+                                      <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded uppercase font-mono">
+                                        {n.type}
+                                      </span>
+                                    </div>
+                                    <span className="text-emerald-700 font-medium text-[11px]">
+                                      {n.description || '新新增的流程流转节点'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {removed.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-extrabold text-rose-700 flex items-center gap-1.5">
+                                <Trash2 className="w-4 h-4" />
+                                <span>删除节点 (Removed from A)</span>
+                              </h4>
+                              <div className="space-y-2">
+                                {removed.map(n => (
+                                  <div key={n.id} className="p-3 bg-rose-50/60 border border-rose-200 rounded-xl flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-rose-900 line-through">{n.label}</span>
+                                      <span className="text-[10px] bg-rose-200 text-rose-800 px-2 py-0.5 rounded uppercase font-mono">
+                                        {n.type}
+                                      </span>
+                                    </div>
+                                    <span className="text-rose-700 font-medium text-[11px]">
+                                      已在此版本中移除
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {modified.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-extrabold text-amber-800 flex items-center gap-1.5">
+                                <GitCompare className="w-4 h-4" />
+                                <span>属性修改节点 (Modified Configurations)</span>
+                              </h4>
+                              <div className="space-y-3">
+                                {modified.map(({ nodeB, diffs }) => (
+                                  <div key={nodeB.id} className="p-4 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-2">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="font-extrabold text-amber-950">{nodeB.label}</span>
+                                      <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded uppercase font-mono">
+                                        ID: {nodeB.id}
+                                      </span>
+                                    </div>
+                                    <div className="space-y-1.5 pt-1">
+                                      {diffs.map((d, idx) => (
+                                        <div key={idx} className="text-xs bg-white/80 p-2 rounded-lg border border-amber-200/80 font-medium text-amber-900 flex items-center gap-2">
+                                          <ArrowRight className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                          <span>{d}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {unchanged.length > 0 && (
+                            <div className="pt-2 text-[11px] text-outline font-medium">
+                              包含 {unchanged.length} 个保持一致未修改的节点 ({unchanged.map(u => u.label).join(', ')})
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-outline-variant shrink-0">
+                <button
+                  onClick={() => setIsVersionDiffModalOpen(false)}
+                  className="px-6 py-2.5 rounded-xl bg-surface-container text-on-surface text-xs font-bold hover:bg-outline-variant/30 transition-colors"
+                >
+                  关闭对比
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
     );
@@ -7993,9 +9257,9 @@ const ArchitectApp: React.FC = () => {
         showNotification={showNotification}
         notifications={notifications}
       >
-        <div className="p-8 space-y-8 max-w-7xl">
+        <div className="w-full p-8 md:p-10 space-y-8">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { label: '应用数', value: appsCount, trend: '↑', color: 'text-primary' },
               { label: '普通表单数', value: normalFormsCount, trend: '↑', color: 'text-secondary' },
@@ -8017,7 +9281,7 @@ const ArchitectApp: React.FC = () => {
           </div>
 
           {/* Content Area */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] 2xl:grid-cols-[1fr_420px] gap-8">
             {/* Main Chart Card */}
             <div className="sleek-card p-8 flex flex-col gap-6">
               <div className="flex justify-between items-center">
