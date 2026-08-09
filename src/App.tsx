@@ -4666,7 +4666,7 @@ const TeamView = ({
   });
 
   const ReadOnlyOrgTreeItem = ({ node, level = 0 }: { node: OrgNode; level?: number; key?: any }) => {
-    const [isExpanded, setIsExpanded] = React.useState(level < 2);
+    const [isExpanded, setIsExpanded] = React.useState(level < 3);
     const hasChildren = node.children && node.children.length > 0;
     
     return (
@@ -5724,22 +5724,88 @@ const ArchitectApp: React.FC = () => {
   const [orgData, setOrgData] = React.useState<OrgNode[]>([
     {
       id: 'd1',
-      name: 'seakoi',
+      name: '集团',
       children: [
-        { id: 'd2', name: '总经办' },
-        { 
-          id: 'd3', 
-          name: '工程部', 
+        {
+          id: 'd-head',
+          name: '总部',
           children: [
-            { id: 'd3-1', name: '后端开发组' },
-            { id: 'd3-2', name: '前端开发组' },
-            { id: 'd3-3', name: '测试组' },
-          ] 
+            { id: 'd2', name: '总经办' },
+            { 
+              id: 'd3', 
+              name: '信息技术部', 
+              children: [
+                { id: 'd3-1', name: '后端开发组' },
+                { id: 'd3-2', name: '前端开发组' },
+                { id: 'd3-3', name: '测试组' },
+              ] 
+            },
+            { id: 'd4', name: '产品部' },
+            { id: 'd5', name: '市场部' },
+            { id: 'd6', name: '人力资源部' },
+            { id: 'd7', name: '财务部' },
+          ]
         },
-        { id: 'd4', name: '产品部' },
-        { id: 'd5', name: '市场部' },
-        { id: 'd6', name: '人力资源部' },
-        { id: 'd7', name: '财务部' },
+        {
+          id: 'd-mkt',
+          name: '市场',
+          children: [
+            {
+              id: 'd-mkt-gd',
+              name: '广东省',
+              children: [
+                { id: 'd-mkt-gd-gz', name: '广州市' },
+                { id: 'd-mkt-gd-sz', name: '深圳市' },
+                { id: 'd-mkt-gd-fs', name: '佛山市' },
+                { id: 'd-mkt-gd-dg', name: '东莞市' },
+              ]
+            },
+            {
+              id: 'd-mkt-zj',
+              name: '浙江省',
+              children: [
+                { id: 'd-mkt-zj-hz', name: '杭州市' },
+                { id: 'd-mkt-zj-nb', name: '宁波市' },
+                { id: 'd-mkt-zj-wz', name: '温州市' },
+              ]
+            },
+            {
+              id: 'd-mkt-js',
+              name: '江苏省',
+              children: [
+                { id: 'd-mkt-js-nj', name: '南京市' },
+                { id: 'd-mkt-js-sz', name: '苏州市' },
+                { id: 'd-mkt-js-wx', name: '无锡市' },
+              ]
+            },
+            {
+              id: 'd-mkt-sd',
+              name: '山东省',
+              children: [
+                { id: 'd-mkt-sd-jn', name: '济南市' },
+                { id: 'd-mkt-sd-qd', name: '青岛市' },
+              ]
+            },
+            {
+              id: 'd-mkt-sc',
+              name: '四川省',
+              children: [
+                { id: 'd-mkt-sc-cd', name: '成都市' },
+                { id: 'd-mkt-sc-my', name: '绵阳市' },
+              ]
+            }
+          ]
+        },
+        {
+          id: 'd-fac',
+          name: '工厂',
+          children: [
+            { id: 'd-fac-hd1', name: '华东一号智能制造基地' },
+            { id: 'd-fac-hn', name: '华南精密电子生产工厂' },
+            { id: 'd-fac-hb', name: '华北自动化装备工厂' },
+            { id: 'd-fac-xn', name: '西南零部件加工中心' },
+          ]
+        }
       ]
     }
   ]);
@@ -5747,9 +5813,12 @@ const ArchitectApp: React.FC = () => {
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([
     { id: '1', name: '小鲤', role: 'Admin', deptId: 'd3', email: 'xiaoli@architect.com', status: 'Active', createdAt: '2024-01-10' },
     { id: '2', name: '陈莎拉', role: 'Editor', deptId: 'd4', email: 'sarah@architect.com', status: 'Active', createdAt: '2024-01-15' },
-    { id: '3', name: '米高·贝克', role: 'Viewer', deptId: 'd3', email: 'michael@architect.com', status: 'Active', createdAt: '2024-02-01' },
+    { id: '3', name: '米高·贝克', role: 'Viewer', deptId: 'd3-1', email: 'michael@architect.com', status: 'Active', createdAt: '2024-02-01' },
     { id: '4', name: '财务主管', role: 'Manager', deptId: 'd7', email: 'finance@architect.com', status: 'Active', createdAt: '2024-02-10' },
     { id: '5', name: 'HR 管理员', role: 'Admin', deptId: 'd6', email: 'hr@architect.com', status: 'Active', createdAt: '2024-02-15' },
+    { id: '6', name: '广州市场负责人', role: 'Manager', deptId: 'd-mkt-gd-gz', email: 'gz_mkt@architect.com', status: 'Active', createdAt: '2024-03-01' },
+    { id: '7', name: '深圳业务主管', role: 'Editor', deptId: 'd-mkt-gd-sz', email: 'sz_mkt@architect.com', status: 'Active', createdAt: '2024-03-05' },
+    { id: '8', name: '华东工厂厂长', role: 'Manager', deptId: 'd-fac-hd1', email: 'hd_factory@architect.com', status: 'Active', createdAt: '2024-03-10' },
   ]);
 
   const onAddMember = (m: Omit<TeamMember, 'id' | 'createdAt' | 'status'>) => {
