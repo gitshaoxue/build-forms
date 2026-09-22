@@ -61,6 +61,11 @@ import {
   UserMinus,
   History,
   GitBranch,
+  GitFork,
+  GitMerge,
+  Split,
+  ArrowLeftRight,
+  Shuffle,
   GitCompare,
   RotateCcw,
   ArrowRight,
@@ -83,6 +88,8 @@ import {
   FileText,
   Upload,
   FileUp,
+  HardDrive,
+  Paperclip,
   Table,
   PenTool,
   MapPin,
@@ -116,12 +123,20 @@ import {
   Repeat,
   LogOut,
   Lock,
+  Unlock,
+  KeyRound,
+  FolderTree,
   Plane,
   PauseCircle,
   PlayCircle,
   Sparkles,
+  ClipboardList,
+  TrendingUp,
+  Target,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { OrgNode, TeamMember, RoleDefinition } from './components/system-settings/types';
+import { SystemSettingsView } from './components/system-settings/SystemSettingsView';
 
 type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter';
 
@@ -156,22 +171,45 @@ interface FormField {
   formula?: string;
 }
 
+interface WorkflowConditionItem {
+  id: string;
+  field: string;
+  operator: '属于' | '不属于' | '等于' | '不等于' | '包含' | '不包含' | '大于' | '小于' | '大于等于' | '小于等于' | '不为空' | string;
+  value: string;
+}
+
+interface WorkflowBranchChildNode {
+  id: string;
+  type: 'approval' | 'notification' | 'cc';
+  label: string;
+  assigneeName?: string;
+  assigneeType?: 'user' | 'role' | 'dept' | 'initiator' | 'manager';
+  approvalType?: 'OR' | 'AND' | 'SEQUENTIAL';
+}
+
 interface WorkflowBranchRule {
   id: string;
   name: string;
-  fieldId: string;
+  isDefault?: boolean;
+  fieldId?: string;
   fieldLabel?: string;
-  operator: '等于' | '不等于' | '大于' | '小于' | '大于等于' | '小于等于' | '包含' | '不包含' | '不为空';
-  value: string;
+  operator?: '等于' | '不等于' | '大于' | '小于' | '大于等于' | '小于等于' | '包含' | '不包含' | '不为空' | '属于' | '不属于' | string;
+  value?: string;
   targetNodeId?: string;
+  conditions?: WorkflowConditionItem[];
+  nodes?: WorkflowNode[];
+  childNode?: WorkflowBranchChildNode;
 }
 
 interface WorkflowNode {
   id: string;
-  type: 'start' | 'approval' | 'notification' | 'condition' | 'cc' | 'end';
+  type: 'start' | 'approval' | 'notification' | 'condition' | 'gateway_exclusive' | 'gateway_parallel' | 'parallel' | 'cc' | 'end';
   label: string;
   description?: string;
+  gatewayType?: 'exclusive' | 'parallel';
   config?: {
+    gatewayType?: 'exclusive' | 'parallel';
+    parallelJoinMode?: 'AND' | 'OR'; // 并行汇聚规则: 'AND' 全部分支完成 / 'OR' 任意分支完成即可
     assigneeType?: 'user' | 'role' | 'dept' | 'initiator' | 'manager';
     assigneeValue?: string;
     approvalType?: 'OR' | 'AND' | 'SEQUENTIAL'; // 或签 / 会签 / 依次审批
@@ -186,7 +224,7 @@ interface WorkflowNode {
       emptyAssigneeTarget?: string;
       timeoutAction?: string;
     };
-    branches?: WorkflowBranchRule[]; // 路由条件分支
+    branches?: WorkflowBranchRule[]; // 路由条件分支 / 并行分支
     expression?: string; // for condition
     template?: string;
     defaultBranch?: string; // id of target node
@@ -211,17 +249,18 @@ interface TriggerRule {
   id: string;
   fieldId: string;
   fieldLabel: string;
-  operator: '等于' | '不等于' | '大于' | '小于' | '大于等于' | '小于等于' | '包含' | '不包含' | '不为空';
+  operator: '属于' | '不属于' | '等于' | '不等于' | '大于' | '小于' | '大于等于' | '小于等于' | '包含' | '不包含' | '不为空' | '为空' | string;
   value: string;
 }
 
 interface WorkflowGlobalConfig {
   triggerRules: TriggerRule[];
   triggerMatchMode: 'ALL' | 'ANY';
+  triggerNotMetAction?: 'pass' | 'terminate' | 'prevent';
   allowTransfer: boolean;
   terminateOnFailure: boolean;
-  enableTimeoutNotice: boolean;
-  timeoutNoticeChannels: ('station' | 'email' | 'sms')[];
+  enableTimeoutNotice?: boolean;
+  timeoutNoticeChannels?: ('station' | 'email' | 'sms')[];
   autoApprovalMode: 'none' | 'initiator_all' | 'adjacent_same' | 'approved_before';
   recallMode: 'none' | 'initiator_only' | 'all_nodes';
   silentRecall: boolean;
@@ -518,31 +557,20 @@ interface InsightsViewProps {
   setView: (view: ViewType) => void;
 }
 
-interface TeamMember {
-  id: string;
-  name: string;
-  role: string;
-  deptId: string;
-  email: string;
-  status: 'Active' | 'Inactive' | 'Pending';
-  createdAt: string;
-}
-
-interface OrgNode {
-  id: string;
-  name: string;
-  children?: OrgNode[];
-}
-
 interface TeamViewProps {
   teamMembers: TeamMember[];
   orgData: OrgNode[];
-  onAddMember: (member: Omit<TeamMember, 'id' | 'createdAt' | 'status'>) => void;
+  roles: RoleDefinition[];
+  setRoles: React.Dispatch<React.SetStateAction<RoleDefinition[]>>;
+  onAddMember: (member: Omit<TeamMember, 'id' | 'createdAt'>) => void;
   onUpdateMember: (member: TeamMember) => void;
   onDeleteMember: (id: string) => void;
-  onAddDept: (parentId: string | null, name: string) => void;
-  onUpdateDept: (id: string, name: string) => void;
+  onAddDept: (parentId: string | null, name: string, extra?: Partial<OrgNode>) => void;
+  onUpdateDept: (id: string, name: string, extra?: Partial<OrgNode>) => void;
   onDeleteDept: (id: string) => void;
+  savedForms: Array<{ id: string; name: string; category?: string }>;
+  formFieldsMap: Record<string, Array<{ id: string; label: string; type: string }>>;
+  initialTab?: 'org' | 'users' | 'roles';
   showNotification?: (text: string) => void;
 }
 
@@ -1245,6 +1273,7 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
         { label: '应用管理', icon: FormInput, view: 'projects' },
         { label: '数据管理', icon: FileSpreadsheet, view: 'dataManagement' },
         { label: '数据洞察', icon: BarChart3, view: 'insights' },
+        { label: '组织与权限', icon: ShieldCheck, view: 'team' },
         { label: '系统设置', icon: Database, view: 'integrations' },
       ].map((item) => (
         <div 
@@ -1505,8 +1534,8 @@ const GlobalSettingsModal = ({
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
-  activeTab: 'workflow' | 'permissions'; 
-  setActiveTab: (tab: 'workflow' | 'permissions') => void;
+  activeTab: 'workflow' | 'permissions' | 'conditions'; 
+  setActiveTab: (tab: 'workflow' | 'permissions' | 'conditions') => void;
   config: WorkflowGlobalConfig;
   setConfig: React.Dispatch<React.SetStateAction<WorkflowGlobalConfig>>;
   formFields: FormField[];
@@ -1514,55 +1543,55 @@ const GlobalSettingsModal = ({
 }) => {
   if (!isOpen) return null;
 
-  // Form field options for trigger rules
-  const fieldOptions = formFields.length > 0 
-    ? formFields.map(f => ({ id: f.id, label: f.label }))
-    : [
-        { id: 'f-1', label: '报销总金额' },
-        { id: 'f-2', label: '申请部门' },
-        { id: 'f-3', label: '紧急程度' },
-        { id: 'f-4', label: '请假天数' },
-      ];
+  // Form field options for trigger rules dynamically loaded from current form design
+  const availableFields = React.useMemo(() => {
+    const validFields = (formFields || []).filter(f => !['grid', 'tabs', 'card', 'group', 'descriptionText'].includes(f.type));
+    if (validFields.length > 0) {
+      return validFields.map(f => ({
+        id: f.id,
+        label: f.label,
+        type: f.type,
+        options: f.options || []
+      }));
+    }
+    return [
+      { id: 'dept', label: '部门', type: 'select', options: ['研发部', '市场部', '销售部', '财务部', '制造部'] },
+      { id: 'amount', label: '金额', type: 'number', options: [] },
+      { id: 'urgency', label: '紧急程度', type: 'radio', options: ['普通', '紧急', '特急'] },
+      { id: 'days', label: '请假天数', type: 'number', options: [] },
+      { id: 'project', label: '所属项目', type: 'text', options: [] },
+    ];
+  }, [formFields]);
 
   const handleAddRule = () => {
-    const defaultField = fieldOptions[0];
+    const defaultField = availableFields[0] || { id: 'dept', label: '部门', type: 'select' };
+    const isDept = defaultField.label.includes('部门') || defaultField.type === 'orgSelect' || defaultField.type === 'select';
+    const isAmount = defaultField.label.includes('金额') || defaultField.type === 'number';
     const newRule: TriggerRule = {
       id: 'tr-' + Date.now(),
       fieldId: defaultField.id,
       fieldLabel: defaultField.label,
-      operator: '大于',
-      value: '1000'
+      operator: isDept ? '属于' : (isAmount ? '大于' : '等于'),
+      value: isDept ? '研发部' : (isAmount ? '1000' : '')
     };
     setConfig(prev => ({
       ...prev,
-      triggerRules: [...prev.triggerRules, newRule]
+      triggerRules: [...(prev.triggerRules || []), newRule]
     }));
   };
 
   const handleUpdateRule = (id: string, updates: Partial<TriggerRule>) => {
     setConfig(prev => ({
       ...prev,
-      triggerRules: prev.triggerRules.map(r => r.id === id ? { ...r, ...updates } : r)
+      triggerRules: (prev.triggerRules || []).map(r => r.id === id ? { ...r, ...updates } : r)
     }));
   };
 
   const handleRemoveRule = (id: string) => {
     setConfig(prev => ({
       ...prev,
-      triggerRules: prev.triggerRules.filter(r => r.id !== id)
+      triggerRules: (prev.triggerRules || []).filter(r => r.id !== id)
     }));
-  };
-
-  const handleToggleNoticeChannel = (channel: 'station' | 'email' | 'sms') => {
-    setConfig(prev => {
-      const exists = prev.timeoutNoticeChannels.includes(channel);
-      return {
-        ...prev,
-        timeoutNoticeChannels: exists 
-          ? prev.timeoutNoticeChannels.filter(c => c !== channel)
-          : [...prev.timeoutNoticeChannels, channel]
-      };
-    });
   };
 
   const handleToggleTimeoutChannel = (channel: 'station' | 'email' | 'sms') => {
@@ -1575,6 +1604,39 @@ const GlobalSettingsModal = ({
           : [...prev.timeoutChannels, channel]
       };
     });
+  };
+
+  const applyPresetTemplate = (type: 'dept_and_amount' | 'dept_or_amount' | 'high_amount') => {
+    if (type === 'dept_and_amount') {
+      setConfig(prev => ({
+        ...prev,
+        triggerMatchMode: 'ALL',
+        triggerRules: [
+          { id: 'tr-' + Date.now() + '-1', fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '研发部' },
+          { id: 'tr-' + Date.now() + '-2', fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '1000' }
+        ]
+      }));
+      showNotification('已应用模版：部门属于研发部 且 金额大于1000');
+    } else if (type === 'dept_or_amount') {
+      setConfig(prev => ({
+        ...prev,
+        triggerMatchMode: 'ANY',
+        triggerRules: [
+          { id: 'tr-' + Date.now() + '-1', fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '市场部' },
+          { id: 'tr-' + Date.now() + '-2', fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '5000' }
+        ]
+      }));
+      showNotification('已应用模版：部门属于市场部 或 金额大于5000');
+    } else if (type === 'high_amount') {
+      setConfig(prev => ({
+        ...prev,
+        triggerMatchMode: 'ALL',
+        triggerRules: [
+          { id: 'tr-' + Date.now() + '-1', fieldId: 'amount', fieldLabel: '金额', operator: '大于等于', value: '10000' }
+        ]
+      }));
+      showNotification('已应用模版：金额大于等于10000（大额申报）');
+    }
   };
 
   const handleSave = () => {
@@ -1596,164 +1658,98 @@ const GlobalSettingsModal = ({
             </div>
             <div>
               <h2 className="text-lg font-extrabold tracking-tight">审批流全局配置</h2>
-              <p className="text-[11px] text-on-surface-variant font-medium">定制触发规则、审批策略、自动审批、撤回控制及超时预警</p>
+              <p className="text-[11px] text-on-surface-variant font-medium">定制触发条件、审批策略、自动审批、撤回控制及超时预警</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors cursor-pointer">
             <X className="w-5 h-5 text-outline" />
           </button>
         </header>
 
-        <div className="p-2 bg-surface-container-low flex border-b border-outline-variant">
-           <button 
-             onClick={() => setActiveTab('workflow')}
-             className={`flex-1 py-2.5 text-xs font-bold transition-all rounded-lg flex items-center justify-center gap-2 ${activeTab === 'workflow' ? 'bg-primary text-white shadow-md' : 'text-outline hover:text-on-surface'}`}
-           >
-             <Workflow className="w-4 h-4" />
-             <span>审批流全局规则</span>
-           </button>
-           <button 
-             onClick={() => setActiveTab('permissions')}
-             className={`flex-1 py-2.5 text-xs font-bold transition-all rounded-lg flex items-center justify-center gap-2 ${activeTab === 'permissions' ? 'bg-primary text-white shadow-md' : 'text-outline hover:text-on-surface'}`}
-           >
-             <Shield className="w-4 h-4" />
-             <span>节点查看态字段权限</span>
-           </button>
+        {/* Tab Header: 审批流全局规则 | 字段权限 | 流程触发条件 */}
+        <div className="p-2 bg-surface-container-low flex border-b border-outline-variant gap-1.5">
+          <button 
+            type="button"
+            onClick={() => setActiveTab('workflow')}
+            className={`flex-1 py-2.5 text-xs font-bold transition-all rounded-lg flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'workflow' ? 'bg-primary text-white shadow-md' : 'text-outline hover:text-on-surface'
+            }`}
+          >
+            <Workflow className="w-4 h-4" />
+            <span>审批流全局规则</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('permissions')}
+            className={`flex-1 py-2.5 text-xs font-bold transition-all rounded-lg flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'permissions' ? 'bg-primary text-white shadow-md' : 'text-outline hover:text-on-surface'
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            <span>字段权限</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('conditions')}
+            className={`flex-1 py-2.5 text-xs font-bold transition-all rounded-lg flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'conditions' ? 'bg-primary text-white shadow-md' : 'text-outline hover:text-on-surface'
+            }`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span>流程触发条件</span>
+            {config.triggerRules && config.triggerRules.length > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-extrabold leading-none ${
+                activeTab === 'conditions' ? 'bg-white text-primary' : 'bg-primary/10 text-primary'
+              }`}>
+                {config.triggerRules.length}
+              </span>
+            )}
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-          {activeTab === 'workflow' ? (
-            <div className="space-y-8">
-              {/* 1. 触发规则 */}
-              <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                      1
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-extrabold text-on-surface flex items-center gap-2">
-                        触发规则
-                        <span className="text-[10px] font-normal text-outline">（按表单字段动态触发）</span>
-                      </h3>
-                      <p className="text-[11px] text-on-surface-variant mt-0.5 font-medium">支持按照表单里的字段，动态配置流程触发的规则</p>
-                    </div>
+          {/* TAB 1: 审批流全局规则 */}
+          {activeTab === 'workflow' && (
+            <div className="space-y-6">
+              {/* 顶部跳转提示卡片 */}
+              <div className="flex items-center justify-between p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                    <Sliders className="w-3.5 h-3.5" />
                   </div>
-                  
-                  <div className="flex items-center gap-2 bg-surface border border-outline-variant p-1 rounded-xl shrink-0">
-                    <button 
-                      type="button"
-                      onClick={() => setConfig(prev => ({ ...prev, triggerMatchMode: 'ALL' }))}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${config.triggerMatchMode === 'ALL' ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface'}`}
-                    >
-                      满足所有条件 (AND)
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setConfig(prev => ({ ...prev, triggerMatchMode: 'ANY' }))}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${config.triggerMatchMode === 'ANY' ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface'}`}
-                    >
-                      满足任意条件 (OR)
-                    </button>
+                  <div className="text-xs text-indigo-900 font-medium">
+                    <span className="font-bold">流程触发条件</span> 现已移至右侧专项 Tab，支持按表单字段动态设定触发门槛（当前已配置 <span className="font-bold text-indigo-700">{config.triggerRules?.length || 0}</span> 条条件）。
                   </div>
                 </div>
-
-                {config.triggerRules.length === 0 ? (
-                  <div className="p-6 border border-dashed border-outline-variant rounded-xl text-center bg-white/60 space-y-2">
-                    <Sliders className="w-8 h-8 text-outline mx-auto opacity-50" />
-                    <p className="text-xs font-bold text-on-surface-variant">暂未配置触发规则</p>
-                    <p className="text-[10px] text-outline font-medium">表单提交后将默认直接触发流程</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {config.triggerRules.map((rule, idx) => (
-                      <div key={rule.id} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 bg-white border border-outline-variant rounded-xl shadow-xs">
-                        <div className="text-[10px] font-bold text-outline w-6 shrink-0">#{idx + 1}</div>
-                        
-                        {/* Field Selector */}
-                        <div className="flex-1 min-w-[140px]">
-                          <select 
-                            value={rule.fieldId}
-                            onChange={(e) => {
-                              const sel = fieldOptions.find(f => f.id === e.target.value);
-                              handleUpdateRule(rule.id, { fieldId: e.target.value, fieldLabel: sel ? sel.label : e.target.value });
-                            }}
-                            className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none"
-                          >
-                            {fieldOptions.map(f => (
-                              <option key={f.id} value={f.id}>{f.label}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Operator Selector */}
-                        <div className="w-32">
-                          <select 
-                            value={rule.operator}
-                            onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as any })}
-                            className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none"
-                          >
-                            {['等于', '不等于', '大于', '小于', '大于等于', '小于等于', '包含', '不包含', '不为空'].map(op => (
-                              <option key={op} value={op}>{op}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Value Input */}
-                        <div className="flex-1 min-w-[120px]">
-                          <input 
-                            disabled={rule.operator === '不为空'}
-                            value={rule.value}
-                            onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
-                            placeholder={rule.operator === '不为空' ? '无需比较值' : '触发比较值'}
-                            className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-surface-container-low disabled:text-outline"
-                          />
-                        </div>
-
-                        {/* Delete Action */}
-                        <button 
-                          type="button"
-                          onClick={() => handleRemoveRule(rule.id)}
-                          className="p-2 text-outline hover:text-error hover:bg-error/10 rounded-lg transition-all shrink-0"
-                          title="删除规则"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
                 <button 
                   type="button"
-                  onClick={handleAddRule}
-                  className="flex items-center gap-1.5 text-primary text-xs font-bold hover:bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/20 transition-all cursor-pointer"
+                  onClick={() => setActiveTab('conditions')}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 shrink-0 ml-2 cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>添加触发规则</span>
+                  去配置触发条件 <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-              </section>
+              </div>
 
-              {/* 2. 审批策略 */}
+              {/* 1. 审批策略 (已移除第三条审批超时提醒配置) */}
               <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
                 <div className="flex items-center gap-2.5 border-b border-outline-variant pb-3">
                   <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 font-bold text-xs">
-                    2
+                    1
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-on-surface">审批策略</h3>
-                    <p className="text-[11px] text-on-surface-variant font-medium">配置审批过程中的转批、失败处理及超时提醒</p>
+                    <p className="text-[11px] text-on-surface-variant font-medium">配置审批过程中的转批及异常失败处理策略</p>
                   </div>
                 </div>
 
-                <div className="space-y-3.5 pt-1">
+                <div className="space-y-3 pt-1">
                   {/* (1) 流程审批过程中允许审批人转批 */}
                   <label className="flex items-start gap-3.5 p-3.5 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary/40 transition-all">
                     <input 
                       type="checkbox" 
                       checked={config.allowTransfer}
                       onChange={(e) => setConfig(prev => ({ ...prev, allowTransfer: e.target.checked }))}
-                      className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary" 
+                      className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary cursor-pointer" 
                     />
                     <div className="space-y-0.5">
                       <span className="text-xs font-bold text-on-surface">(1) 流程审批过程中允许审批人转批</span>
@@ -1767,72 +1763,21 @@ const GlobalSettingsModal = ({
                       type="checkbox" 
                       checked={config.terminateOnFailure}
                       onChange={(e) => setConfig(prev => ({ ...prev, terminateOnFailure: e.target.checked }))}
-                      className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary" 
+                      className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary cursor-pointer" 
                     />
                     <div className="space-y-0.5">
                       <span className="text-xs font-bold text-on-surface">(2) 运行失败时终止后续操作</span>
                       <p className="text-[11px] text-on-surface-variant font-medium">当自动化关联脚本或后端服务运行出现异常时，终止后续节点推进</p>
                     </div>
                   </label>
-
-                  {/* (3) 审批超时提醒 */}
-                  <div className="p-3.5 bg-white border border-outline-variant rounded-xl space-y-3">
-                    <label className="flex items-start gap-3.5 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={config.enableTimeoutNotice}
-                        onChange={(e) => setConfig(prev => ({ ...prev, enableTimeoutNotice: e.target.checked }))}
-                        className="w-4 h-4 mt-0.5 rounded border-outline-variant text-primary focus:ring-primary" 
-                      />
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-bold text-on-surface">(3) 审批超时提醒</span>
-                        <p className="text-[11px] text-on-surface-variant font-medium">到达超时时间后向审批人推送催办通知</p>
-                      </div>
-                    </label>
-
-                    {config.enableTimeoutNotice && (
-                      <div className="pl-8 pt-2.5 border-t border-dashed border-outline-variant flex flex-wrap items-center gap-6">
-                        <span className="text-[11px] font-bold text-outline">选择通知管道：</span>
-                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-on-surface">
-                          <input 
-                            type="checkbox" 
-                            checked={config.timeoutNoticeChannels.includes('station')}
-                            onChange={() => handleToggleNoticeChannel('station')}
-                            className="w-4 h-4 rounded text-primary focus:ring-primary"
-                          />
-                          <span>站内信</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-on-surface">
-                          <input 
-                            type="checkbox" 
-                            checked={config.timeoutNoticeChannels.includes('email')}
-                            onChange={() => handleToggleNoticeChannel('email')}
-                            className="w-4 h-4 rounded text-primary focus:ring-primary"
-                          />
-                          <span>发邮件</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-on-surface">
-                          <input 
-                            type="checkbox" 
-                            checked={config.timeoutNoticeChannels.includes('sms')}
-                            onChange={() => handleToggleNoticeChannel('sms')}
-                            className="w-4 h-4 rounded text-primary focus:ring-primary"
-                          />
-                          <span>发短信</span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </section>
 
-              {/* 3. 自动审批 */}
+              {/* 2. 自动审批 */}
               <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
                 <div className="flex items-center gap-2.5 border-b border-outline-variant pb-3">
                   <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold text-xs">
-                    3
+                    2
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-on-surface">自动审批</h3>
@@ -1860,7 +1805,7 @@ const GlobalSettingsModal = ({
                         name="autoApprovalMode"
                         checked={config.autoApprovalMode === item.id}
                         onChange={() => setConfig(prev => ({ ...prev, autoApprovalMode: item.id as any }))}
-                        className="w-4 h-4 mt-0.5 text-primary focus:ring-primary shrink-0"
+                        className="w-4 h-4 mt-0.5 text-primary focus:ring-primary shrink-0 cursor-pointer"
                       />
                       <div className="space-y-0.5">
                         <div className="text-xs font-bold text-on-surface">{item.label}</div>
@@ -1871,11 +1816,11 @@ const GlobalSettingsModal = ({
                 </div>
               </section>
 
-              {/* 4. 审批撤回 */}
+              {/* 3. 审批撤回 */}
               <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
                 <div className="flex items-center gap-2.5 border-b border-outline-variant pb-3">
                   <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">
-                    4
+                    3
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-on-surface">审批撤回</h3>
@@ -1903,7 +1848,7 @@ const GlobalSettingsModal = ({
                           name="recallMode"
                           checked={config.recallMode === item.id}
                           onChange={() => setConfig(prev => ({ ...prev, recallMode: item.id as any }))}
-                          className="w-4 h-4 text-primary focus:ring-primary shrink-0"
+                          className="w-4 h-4 text-primary focus:ring-primary shrink-0 cursor-pointer"
                         />
                         <span className="text-xs font-bold text-on-surface leading-tight">{item.label}</span>
                       </div>
@@ -1918,19 +1863,19 @@ const GlobalSettingsModal = ({
                       type="checkbox" 
                       checked={config.silentRecall}
                       onChange={(e) => setConfig(prev => ({ ...prev, silentRecall: e.target.checked }))}
-                      className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary"
+                      className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary cursor-pointer"
                     />
                     <span className="text-xs font-bold text-on-surface-variant">开启无痕撤回 (撤回记录不在公开审批历史中展示)</span>
                   </label>
                 </div>
               </section>
 
-              {/* 5. 超时设置 */}
+              {/* 4. 超时设置 */}
               <section className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm hover:border-primary/30 transition-all">
                 <div className="flex items-center justify-between border-b border-outline-variant pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold text-xs">
-                      5
+                      4
                     </div>
                     <div>
                       <h3 className="text-sm font-extrabold text-on-surface">超时设置</h3>
@@ -1938,7 +1883,6 @@ const GlobalSettingsModal = ({
                     </div>
                   </div>
 
-                  {/* Switch */}
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
                       type="checkbox" 
@@ -1952,7 +1896,6 @@ const GlobalSettingsModal = ({
 
                 {config.enableTimeoutSettings ? (
                   <div className="space-y-4 pt-1">
-                    {/* (1) 超时时间（小时） */}
                     <div className="p-4 bg-white border border-outline-variant rounded-xl space-y-3">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-bold text-on-surface flex items-center gap-2">
@@ -1977,7 +1920,6 @@ const GlobalSettingsModal = ({
                           <span className="text-xs font-bold text-outline">h</span>
                         </div>
 
-                        {/* Quick Presets */}
                         <div className="flex flex-wrap items-center gap-1.5">
                           {[
                             { h: 6, label: '6h' },
@@ -1990,7 +1932,7 @@ const GlobalSettingsModal = ({
                               key={preset.h}
                               type="button"
                               onClick={() => setConfig(prev => ({ ...prev, timeoutHours: preset.h }))}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                                 config.timeoutHours === preset.h 
                                   ? 'bg-primary text-white shadow-xs' 
                                   : 'bg-surface hover:bg-surface-container border border-outline-variant text-outline'
@@ -2003,7 +1945,6 @@ const GlobalSettingsModal = ({
                       </div>
                     </div>
 
-                    {/* (2) 选择超时提醒方式 */}
                     <div className="p-4 bg-white border border-outline-variant rounded-xl space-y-3">
                       <div className="text-xs font-bold text-on-surface flex items-center gap-2">
                         <Bell className="w-4 h-4 text-amber-500" />
@@ -2050,57 +1991,417 @@ const GlobalSettingsModal = ({
                 )}
               </section>
             </div>
-          ) : (
-            <div className="space-y-6">
-               <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                     <h3 className="text-sm font-bold text-on-surface">查看态字段权限</h3>
-                     <Info className="w-3.5 h-3.5 text-outline" />
-                  </div>
-                  <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
-                     非当前节点人员查看审批页面时的字段权限 <br/>
-                     如需针对不同成员配置不同的字段权限，请到“权限设置”中配置 <span className="text-primary cursor-pointer hover:underline">去设置</span>
-                  </div>
-                  <div className="flex justify-end">
-                     <button className="text-[10px] text-primary font-bold">同步表单组件状态</button>
-                  </div>
-               </div>
+          )}
 
-               <div className="border border-outline-variant rounded-xl overflow-hidden shadow-sm bg-white">
-                 <table className="w-full text-left border-collapse">
-                    <thead>
-                       <tr className="bg-surface text-[10px] uppercase font-bold text-outline border-b border-outline-variant">
-                          <th className="px-6 py-4">组件名称</th>
-                          <th className="px-6 py-4 text-center">可编辑</th>
-                          <th className="px-6 py-4 text-center">只读</th>
-                          <th className="px-6 py-4 text-center">隐藏</th>
-                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-outline-variant text-[11px] font-bold">
-                       {(formFields.length > 0 ? formFields.map(f => ({ name: f.label, type: f.type })) : [
-                          { name: '全选', type: 'checkbox' },
-                          { name: '申请人', type: 'radio', value: 'read' },
-                          { name: '申请部门', type: 'radio', value: 'read' },
-                          { name: '申请日期', type: 'radio', value: 'read' },
-                          { name: '领用明细', type: 'radio', value: 'read' },
-                          { name: '附件', type: 'radio', value: 'read' },
-                       ]).map((row, i) => (
-                          <tr key={i} className="hover:bg-surface/50 transition-colors">
-                             <td className="px-6 py-4 text-on-surface font-extrabold">{row.name}</td>
-                             <td className="px-6 py-4 text-center">
-                                <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto text-primary" />
-                             </td>
-                             <td className="px-6 py-4 text-center">
-                                <input type="radio" name={`perm-${i}`} defaultChecked className="w-4 h-4 border-outline-variant mx-auto text-primary" />
-                             </td>
-                             <td className="px-6 py-4 text-center">
-                                <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto text-primary" />
-                             </td>
-                          </tr>
-                       ))}
-                    </tbody>
-                 </table>
-               </div>
+          {/* TAB 2: 字段权限 (调整自“节点查看态字段权限”) */}
+          {activeTab === 'permissions' && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-on-surface">字段权限</h3>
+                  <Info className="w-3.5 h-3.5 text-outline" />
+                </div>
+                <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
+                  设置非当前节点处理人或流程办结查看审批单时的字段权限（可编辑、只读、隐藏）。<br/>
+                  如需针对不同审批节点分别指定字段权限，可点击流程画布中的各个审批节点进行精细化设置。
+                </div>
+                <div className="flex justify-end">
+                  <button 
+                    type="button" 
+                    onClick={() => showNotification('已成功同步当前表单组件字段列表')}
+                    className="text-[11px] text-primary font-bold hover:underline cursor-pointer"
+                  >
+                    同步表单组件状态
+                  </button>
+                </div>
+              </div>
+
+              <div className="border border-outline-variant rounded-xl overflow-hidden shadow-sm bg-white">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface text-[10px] uppercase font-bold text-outline border-b border-outline-variant">
+                      <th className="px-6 py-4">组件名称</th>
+                      <th className="px-6 py-4 text-center">可编辑</th>
+                      <th className="px-6 py-4 text-center">只读</th>
+                      <th className="px-6 py-4 text-center">隐藏</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant text-[11px] font-bold">
+                    {(formFields.length > 0 ? formFields.map(f => ({ name: f.label, type: f.type })) : [
+                      { name: '申请人', type: 'text' },
+                      { name: '申请部门', type: 'select' },
+                      { name: '申请日期', type: 'date' },
+                      { name: '报销总金额', type: 'number' },
+                      { name: '事由及明细', type: 'textarea' },
+                      { name: '相关凭证附件', type: 'upload' },
+                    ]).map((row, i) => (
+                      <tr key={i} className="hover:bg-surface/50 transition-colors">
+                        <td className="px-6 py-4 text-on-surface font-extrabold flex items-center gap-2">
+                          <span>{row.name}</span>
+                          <span className="text-[10px] font-normal text-outline">({row.type})</span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto text-primary cursor-pointer" />
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <input type="radio" name={`perm-${i}`} defaultChecked className="w-4 h-4 border-outline-variant mx-auto text-primary cursor-pointer" />
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <input type="radio" name={`perm-${i}`} className="w-4 h-4 border-outline-variant mx-auto text-primary cursor-pointer" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: 流程触发条件 (按表单设计的字段动态配置触发条件) */}
+          {activeTab === 'conditions' && (
+            <div className="space-y-6">
+              {/* 顶部介绍与逻辑模式切换 */}
+              <div className="bg-surface/50 border border-outline-variant/80 rounded-2xl p-6 space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                      <Sliders className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-on-surface flex items-center gap-2">
+                        流程触发条件
+                        <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-mono">
+                          动态规则引擎
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-on-surface-variant mt-0.5 font-medium">
+                        按表单设计添加的字段，动态配置流程触发启动条件（当满足设定的条件时才触发进入此审批流）
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* AND / OR 条件模式切换 */}
+                  <div className="flex items-center gap-1.5 bg-surface border border-outline-variant p-1 rounded-xl shrink-0">
+                    <button 
+                      type="button"
+                      onClick={() => setConfig(prev => ({ ...prev, triggerMatchMode: 'ALL' }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        config.triggerMatchMode === 'ALL' 
+                          ? 'bg-primary text-white shadow-sm' 
+                          : 'text-outline hover:text-on-surface'
+                      }`}
+                    >
+                      满足所有条件 (AND 且)
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setConfig(prev => ({ ...prev, triggerMatchMode: 'ANY' }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        config.triggerMatchMode === 'ANY' 
+                          ? 'bg-primary text-white shadow-sm' 
+                          : 'text-outline hover:text-on-surface'
+                      }`}
+                    >
+                      满足任意条件 (OR 或)
+                    </button>
+                  </div>
+                </div>
+
+                {/* 常用示例快捷模版 */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-outline flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      快捷预设模版：
+                    </span>
+                    <span className="text-[10px] text-outline">
+                      已识别当前表单 <span className="font-bold text-primary">{availableFields.length}</span> 个设计字段
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyPresetTemplate('dept_and_amount')}
+                      className="px-3 py-1.5 bg-white border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/50 rounded-xl text-xs font-bold text-indigo-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <span>示例：部门属于研发部 且 金额大于1000</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetTemplate('dept_or_amount')}
+                      className="px-3 py-1.5 bg-white border border-outline-variant hover:border-outline hover:bg-surface rounded-xl text-xs font-bold text-on-surface-variant transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <span>示例：部门属于市场部 或 金额大于5000</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetTemplate('high_amount')}
+                      className="px-3 py-1.5 bg-white border border-outline-variant hover:border-outline hover:bg-surface rounded-xl text-xs font-bold text-on-surface-variant transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <span>示例：金额大于等于10000 (特大额审批)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 触发规则配置列表 */}
+                <div className="space-y-3 pt-2">
+                  {(!config.triggerRules || config.triggerRules.length === 0) ? (
+                    <div className="p-8 border border-dashed border-outline-variant rounded-2xl text-center bg-white/60 space-y-3">
+                      <Sliders className="w-10 h-10 text-outline mx-auto opacity-40" />
+                      <div>
+                        <p className="text-xs font-bold text-on-surface">暂未配置流程触发条件</p>
+                        <p className="text-[11px] text-outline mt-0.5">
+                          表单提交后将默认无门槛直接触发此审批流。如需按部门、金额等条件过滤，请点击下方添加。
+                        </p>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={handleAddRule}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>立即添加第一条条件</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {config.triggerRules.map((rule, idx) => {
+                        const currentField = availableFields.find(f => f.id === rule.fieldId) || availableFields[0];
+                        const isDeptField = rule.fieldLabel.includes('部门') || currentField?.type === 'orgSelect';
+                        const isAmountField = rule.fieldLabel.includes('金额') || currentField?.type === 'number';
+
+                        return (
+                          <div 
+                            key={rule.id} 
+                            className="p-4 bg-white border border-outline-variant rounded-2xl shadow-xs space-y-3 hover:border-primary/40 transition-all"
+                          >
+                            <div className="flex items-center justify-between gap-2 border-b border-outline-variant/60 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-lg bg-surface-container text-on-surface flex items-center justify-center text-xs font-mono font-bold">
+                                  #{idx + 1}
+                                </span>
+                                <span className="text-xs font-bold text-on-surface">
+                                  条件规则 {idx + 1}
+                                </span>
+                                {idx > 0 && (
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                                    config.triggerMatchMode === 'ALL' 
+                                      ? 'bg-indigo-50 text-indigo-700' 
+                                      : 'bg-amber-50 text-amber-700'
+                                  }`}>
+                                    {config.triggerMatchMode === 'ALL' ? '且 (AND)' : '或 (OR)'}
+                                  </span>
+                                )}
+                              </div>
+
+                              <button 
+                                type="button"
+                                onClick={() => handleRemoveRule(rule.id)}
+                                className="text-outline hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-all cursor-pointer"
+                                title="删除该条件"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                              {/* 1. 表单字段选择器 */}
+                              <div className="sm:col-span-4 space-y-1">
+                                <label className="text-[10px] font-bold text-outline">表单字段：</label>
+                                <select 
+                                  value={rule.fieldId}
+                                  onChange={(e) => {
+                                    const selected = availableFields.find(f => f.id === e.target.value);
+                                    if (selected) {
+                                      const isNewDept = selected.label.includes('部门') || selected.type === 'orgSelect';
+                                      const isNewAmount = selected.label.includes('金额') || selected.type === 'number';
+                                      handleUpdateRule(rule.id, { 
+                                        fieldId: selected.id, 
+                                        fieldLabel: selected.label,
+                                        operator: isNewDept ? '属于' : (isNewAmount ? '大于' : '等于'),
+                                        value: isNewDept ? '研发部' : (isNewAmount ? '1000' : '')
+                                      });
+                                    }
+                                  }}
+                                  className="w-full bg-surface border border-outline-variant rounded-xl px-3 py-2 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                                >
+                                  {availableFields.map(f => (
+                                    <option key={f.id} value={f.id}>
+                                      {f.label} ({f.type === 'select' ? '下拉' : f.type === 'number' ? '数字' : f.type === 'orgSelect' ? '部门' : f.type})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* 2. 比较关系操作符 */}
+                              <div className="sm:col-span-3 space-y-1">
+                                <label className="text-[10px] font-bold text-outline">比较条件：</label>
+                                <select 
+                                  value={rule.operator}
+                                  onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as any })}
+                                  className="w-full bg-surface border border-outline-variant rounded-xl px-3 py-2 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                                >
+                                  {['属于', '不属于', '大于', '小于', '大于等于', '小于等于', '等于', '不等于', '包含', '不包含', '不为空', '为空'].map(op => (
+                                    <option key={op} value={op}>{op}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* 3. 比较值输入 */}
+                              <div className="sm:col-span-5 space-y-1">
+                                <label className="text-[10px] font-bold text-outline">目标比较值：</label>
+                                <input 
+                                  disabled={rule.operator === '不为空' || rule.operator === '为空'}
+                                  value={rule.value}
+                                  onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
+                                  placeholder={
+                                    rule.operator === '不为空' || rule.operator === '为空' 
+                                      ? '无需填写比较值' 
+                                      : (isDeptField ? '输入或点击下方部门，如: 研发部' : isAmountField ? '输入金额，如: 1000' : '输入匹配值')
+                                  }
+                                  className="w-full bg-surface border border-outline-variant rounded-xl px-3 py-2 text-xs font-bold text-on-surface focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-surface-container-low disabled:text-outline"
+                                />
+                              </div>
+                            </div>
+
+                            {/* 快捷输入辅助标签 */}
+                            {rule.operator !== '不为空' && rule.operator !== '为空' && (
+                              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                <span className="text-[10px] font-medium text-outline">快捷选择：</span>
+                                {isDeptField || rule.operator === '属于' || rule.operator === '不属于' ? (
+                                  ['研发部', '市场部', '销售部', '财务部', '制造部', '供应链部'].map(dept => (
+                                    <button
+                                      key={dept}
+                                      type="button"
+                                      onClick={() => handleUpdateRule(rule.id, { value: dept })}
+                                      className={`px-2 py-0.5 text-[10px] rounded-md font-bold transition-all cursor-pointer ${
+                                        rule.value === dept 
+                                          ? 'bg-primary text-white shadow-2xs' 
+                                          : 'bg-surface hover:bg-surface-container border border-outline-variant text-outline hover:text-on-surface'
+                                      }`}
+                                    >
+                                      {dept}
+                                    </button>
+                                  ))
+                                ) : isAmountField || ['大于', '小于', '大于等于', '小于等于'].includes(rule.operator) ? (
+                                  ['1000', '2000', '5000', '10000', '50000'].map(num => (
+                                    <button
+                                      key={num}
+                                      type="button"
+                                      onClick={() => handleUpdateRule(rule.id, { value: num })}
+                                      className={`px-2 py-0.5 text-[10px] rounded-md font-mono font-bold transition-all cursor-pointer ${
+                                        rule.value === num 
+                                          ? 'bg-primary text-white shadow-2xs' 
+                                          : 'bg-surface hover:bg-surface-container border border-outline-variant text-outline hover:text-on-surface'
+                                      }`}
+                                    >
+                                      {num}元
+                                    </button>
+                                  ))
+                                ) : (
+                                  ['高', '中', '低', '是', '否'].map(tag => (
+                                    <button
+                                      key={tag}
+                                      type="button"
+                                      onClick={() => handleUpdateRule(rule.id, { value: tag })}
+                                      className="px-2 py-0.5 text-[10px] rounded-md bg-surface hover:bg-surface-container border border-outline-variant text-outline hover:text-on-surface cursor-pointer font-bold"
+                                    >
+                                      {tag}
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button 
+                      type="button"
+                      onClick={handleAddRule}
+                      className="flex items-center gap-1.5 px-4 py-2 text-primary text-xs font-bold hover:bg-primary/5 rounded-xl border border-primary/20 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>添加一条触发条件</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 动态逻辑公式预览展示卡片 */}
+                {config.triggerRules && config.triggerRules.length > 0 && (
+                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl space-y-2">
+                    <div className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>当前生效触发条件公式预览：</span>
+                    </div>
+                    <div className="p-3 bg-white border border-primary/10 rounded-xl text-xs leading-relaxed text-on-surface">
+                      当填报人提交表单时，系统将评估以下 <span className="font-bold text-primary">【{config.triggerMatchMode === 'ALL' ? '全部 (AND 且)' : '任意 (OR 或)'}】</span> 条件：
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {config.triggerRules.map((r, i) => (
+                          <React.Fragment key={r.id}>
+                            {i > 0 && (
+                              <span className="font-bold text-indigo-600 px-1">
+                                {config.triggerMatchMode === 'ALL' ? '且' : '或'}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center px-2 py-1 rounded-lg bg-surface border border-outline-variant font-medium text-[11px]">
+                              「<strong className="text-on-surface font-extrabold">{r.fieldLabel}</strong>」
+                              <span className="text-indigo-600 mx-1 font-bold">{r.operator}</span>
+                              {r.operator !== '不为空' && r.operator !== '为空' && (
+                                <strong className="text-primary font-mono">{r.value || '（未设置）'}</strong>
+                              )}
+                            </span>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                      <div className="mt-2 text-[11px] text-outline font-medium flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>评估结果为「真」时触发并启动此审批流程</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 未满足触发条件时的处理策略 */}
+                <div className="pt-2 border-t border-outline-variant space-y-3">
+                  <div className="text-xs font-bold text-on-surface">
+                    未达到触发条件时的流转处理：
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      { id: 'pass', label: '无需审批直接归档', desc: '表单提交后跳过审批，直接标记为已完成并归档' },
+                      { id: 'terminate', label: '直接终止流转', desc: '不进入后续审批节点，单据状态设为已终止' },
+                      { id: 'prevent', label: '阻止提交并提示', desc: '在填报页面提示未达触发审批门槛，禁止提交' },
+                    ].map(item => (
+                      <label 
+                        key={item.id}
+                        className={`flex flex-col p-3 rounded-xl border transition-all cursor-pointer ${
+                          (config.triggerNotMetAction || 'pass') === item.id 
+                            ? 'bg-primary/5 border-primary shadow-2xs ring-1 ring-primary/20' 
+                            : 'bg-white border-outline-variant hover:border-outline'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <input 
+                            type="radio"
+                            name="triggerNotMetAction"
+                            checked={(config.triggerNotMetAction || 'pass') === item.id}
+                            onChange={() => setConfig(prev => ({ ...prev, triggerNotMetAction: item.id as any }))}
+                            className="w-3.5 h-3.5 text-primary focus:ring-primary"
+                          />
+                          <span className="text-xs font-bold text-on-surface">{item.label}</span>
+                        </div>
+                        <span className="text-[10px] text-on-surface-variant font-medium pl-5.5 leading-relaxed">
+                          {item.desc}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -2111,13 +2412,13 @@ const GlobalSettingsModal = ({
             onClick={() => {
               setConfig({
                 triggerRules: [
-                  { id: 'tr-1', fieldId: 'amount', fieldLabel: '报销总金额', operator: '大于', value: '1000' }
+                  { id: 'tr-1', fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '研发部' },
+                  { id: 'tr-2', fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '1000' }
                 ],
                 triggerMatchMode: 'ALL',
+                triggerNotMetAction: 'pass',
                 allowTransfer: true,
                 terminateOnFailure: true,
-                enableTimeoutNotice: true,
-                timeoutNoticeChannels: ['station', 'email'],
                 autoApprovalMode: 'adjacent_same',
                 recallMode: 'initiator_only',
                 silentRecall: false,
@@ -2125,7 +2426,7 @@ const GlobalSettingsModal = ({
                 timeoutHours: 24,
                 timeoutChannels: ['station', 'email', 'sms'],
               });
-              showNotification('已恢复审批流默认全局配置');
+              showNotification('已恢复审批流默认全局配置（含示例：部门属于研发部 且 金额大于1000）');
             }}
             className="px-4 py-2 border border-outline-variant rounded-xl text-xs font-bold text-outline hover:text-on-surface hover:bg-surface-container-low transition-all cursor-pointer"
           >
@@ -3557,13 +3858,20 @@ const InsightsView = ({ showNotification, workflowStatus, setWorkflowStatus, wor
   </div>
 );
 
-const IntegrationsView = ({ showNotification, setView }: IntegrationsViewProps & { setView: (v: ViewType) => void }) => (
+const IntegrationsView = ({ 
+  showNotification, 
+  setView,
+  setTeamInitialTab 
+}: IntegrationsViewProps & { 
+  setView: (v: ViewType) => void;
+  setTeamInitialTab?: (tab: 'org' | 'users' | 'roles') => void;
+}) => (
   <div className="w-full p-8 md:p-10 space-y-8">
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
       {[
-        { name: '组织管理', desc: '维护公司组织架构和部门信息', icon: Building2, type: 'internal', target: 'team' },
-        { name: '用户管理', desc: '新增、编辑和管理平台用户信息', icon: UserCog, type: 'internal', target: 'team' },
-        { name: '角色管理', desc: '定义角色权限和功能访问控制', icon: ShieldCheck, type: 'internal', target: 'team' },
+        { name: '组织管理', desc: '独立组织体系，支持在自定义表单中做组织增删改查与启停', icon: Building2, type: 'internal', target: 'team', tab: 'org' as const },
+        { name: '用户管理', desc: '独立用户体系，支持表单CRUD与负责大区/工厂/门店多维标签', icon: UserCog, type: 'internal', target: 'team', tab: 'users' as const },
+        { name: '角色管理', desc: '独立角色体系，配置菜单/表单/操作及行列级数据权限管控', icon: ShieldCheck, type: 'internal', target: 'team', tab: 'roles' as const },
         { name: 'Slack', desc: '在您的频道中接收即时提醒', icon: Mail, connected: true },
         { name: 'Zapier', desc: '连接 5,000+ 其它应用程序', icon: Zap, connected: false },
         { name: 'Google Sheets', desc: '自动导出回复数据', icon: FileSpreadsheet, connected: true },
@@ -3574,6 +3882,9 @@ const IntegrationsView = ({ showNotification, setView }: IntegrationsViewProps &
           key={app.name} 
           onClick={() => {
             if (app.type === 'internal') {
+              if (app.tab && setTeamInitialTab) {
+                setTeamInitialTab(app.tab);
+              }
               setView(app.target as ViewType);
             }
           }}
@@ -4473,856 +4784,8 @@ const DataManagementView = ({ projects, savedForms, showNotification }: DataMana
   );
 };
 
-const TeamView = ({ 
-  teamMembers, 
-  orgData, 
-  onAddMember, 
-  onUpdateMember, 
-  onDeleteMember,
-  onAddDept,
-  onUpdateDept,
-  onDeleteDept,
-  showNotification
-}: TeamViewProps) => {
-  const [activeTab, setActiveTab] = React.useState<'org' | 'users' | 'roles'>('roles');
-  const [selectedDeptId, setSelectedDeptId] = React.useState<string | null>(orgData[0]?.id || null);
-
-  // Filter states for read-only user queries
-  const [filterName, setFilterName] = React.useState('');
-  const [filterRole, setFilterRole] = React.useState('All');
-  const [filterStatus, setFilterStatus] = React.useState('All');
-
-  // External system sync simulation state
-  const [isSyncing, setIsSyncing] = React.useState(false);
-  const [lastSyncTime, setLastSyncTime] = React.useState('2026-06-18 10:00:24');
-
-  // Trigger sync simulation
-  const handleTriggerSync = () => {
-    setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
-      const now = new Date();
-      const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-      setLastSyncTime(timeStr);
-      if (showNotification) {
-        showNotification('企业身份主数据拉取成功：已更新 45 个组织单元，同步 382 个成员映射！');
-      }
-    }, 1200);
-  };
-
-  // Preset default roles as requested
-  const [roles, setRoles] = React.useState<any[]>([
-    {
-      id: 'designer',
-      name: '表单设计人',
-      code: 'FORM_DESIGNER',
-      desc: '专职于业务表单、工作流引擎、发布策略的全生命周期配置管理。',
-      count: 8,
-      color: 'border-primary',
-      menus: {
-        dashboard: true,
-        designer: true,
-        dataCenter: true,
-        insights: true,
-        workflow: true,
-        settings: false,
-      },
-      pages: {
-        formFill: true,
-        formDesign: true,
-        workflowDesign: true,
-        publishPage: true,
-      },
-      operations: {
-        createForm: true,
-        deleteForm: true,
-        exportData: true,
-        batchDelete: false,
-        editSystemSettings: false,
-      },
-      dataScope: 'dept', // 本组织
-    },
-    {
-      id: 'filler',
-      name: '表单填写人',
-      code: 'FORM_FILLER',
-      desc: '标准的终端业务填报/移动端协作岗位，可自主填报并检索其本人提交的历史记录。',
-      count: 124,
-      color: 'bg-green-500 border-green-500',
-      menus: {
-        dashboard: true,
-        designer: false,
-        dataCenter: false,
-        insights: false,
-        workflow: false,
-        settings: false,
-      },
-      pages: {
-        formFill: true,
-        formDesign: false,
-        workflowDesign: false,
-        publishPage: false,
-      },
-      operations: {
-        createForm: false,
-        deleteForm: false,
-        exportData: false,
-        batchDelete: false,
-        editSystemSettings: false,
-      },
-      dataScope: 'self', // 本人
-    },
-    {
-      id: 'admin',
-      name: '管理人员',
-      code: 'ADMINISTRATIVE',
-      desc: '全局管理员，拥有全局底单统配数据审核、系统架构重设及最终特权。',
-      count: 2,
-      color: 'border-secondary',
-      menus: {
-        dashboard: true,
-        designer: true,
-        dataCenter: true,
-        insights: true,
-        workflow: true,
-        settings: true,
-      },
-      pages: {
-        formFill: true,
-        formDesign: true,
-        workflowDesign: true,
-        publishPage: true,
-      },
-      operations: {
-        createForm: true,
-        deleteForm: true,
-        exportData: true,
-        batchDelete: true,
-        editSystemSettings: true,
-      },
-      dataScope: 'all', // 全部
-    },
-  ]);
-
-  const [selectedRoleId, setSelectedRoleId] = React.useState<string>('designer');
-  const [isSavingPolicy, setIsSavingPolicy] = React.useState(false);
-
-  const selectedRole = roles.find(r => r.id === selectedRoleId) || roles[0];
-
-  const handleUpdatePolicy = (field: 'menus' | 'pages' | 'operations', subKey: string, val: boolean) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        return {
-          ...r,
-          [field]: {
-            ...r[field],
-            [subKey]: val
-          }
-        };
-      }
-      return r;
-    }));
-  };
-
-  const handleUpdateDataScope = (scope: 'self' | 'self_sub' | 'dept' | 'dept_charge' | 'all') => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        return {
-          ...r,
-          dataScope: scope
-        };
-      }
-      return r;
-    }));
-  };
-
-  const handleSavePolicies = () => {
-    setIsSavingPolicy(true);
-    setTimeout(() => {
-      setIsSavingPolicy(false);
-      if (showNotification) {
-        showNotification(`角色的核心功能及数据过滤策略包保存成功，已向 AD 域下发对应角色定义！`);
-      }
-    }, 800);
-  };
-
-  const getDeptNameById = (id: string, nodes: OrgNode[]): string => {
-    for (const node of nodes) {
-      if (node.id === id) return node.name;
-      if (node.children) {
-        const found = getDeptNameById(id, node.children);
-        if (found !== '未知部门') return found;
-      }
-    }
-    return '未知部门';
-  };
-
-  const filteredMembers = teamMembers.filter(m => {
-    const matchesDept = !selectedDeptId || m.deptId === selectedDeptId;
-    const matchesName = m.name.toLowerCase().includes(filterName.toLowerCase()) || m.id.includes(filterName);
-    const matchesRole = filterRole === 'All' || m.role === filterRole;
-    const matchesStatus = filterStatus === 'All' || m.status === filterStatus;
-    return matchesDept && matchesName && matchesRole && matchesStatus;
-  });
-
-  const ReadOnlyOrgTreeItem = ({ node, level = 0 }: { node: OrgNode; level?: number; key?: any }) => {
-    const [isExpanded, setIsExpanded] = React.useState(level < 3);
-    const hasChildren = node.children && node.children.length > 0;
-    
-    return (
-      <div className="select-none relative">
-        {level > 0 && (
-          <div 
-            className="absolute left-0 top-0 w-px bg-outline-variant/30 h-full" 
-            style={{ left: `${(level - 1) * 16 + 10}px` }}
-          />
-        )}
-        <div 
-          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer hover:bg-primary/5 transition-all text-on-surface-variant ${selectedDeptId === node.id ? 'bg-primary/5 text-primary border border-primary/10' : ''}`}
-          style={{ marginLeft: `${level * 16}px` }}
-          onClick={() => setSelectedDeptId(node.id)}
-        >
-          {level > 0 && (
-            <div className="absolute -left-4 top-1/2 w-4 h-px bg-outline-variant/30" />
-          )}
-          <div 
-            className="w-4 h-4 flex items-center justify-center transition-transform z-10 text-outline/40"
-            onClick={(e) => {
-              if (hasChildren) {
-                e.stopPropagation();
-                setIsExpanded(!isExpanded);
-              }
-            }}
-          >
-            {hasChildren ? (
-              <ChevronRight className={`w-3 h-3 transform transition-transform ${isExpanded ? 'rotate-90 text-primary' : ''}`} />
-            ) : (
-              <div className="w-1 h-1 rounded-full bg-outline-variant" />
-            )}
-          </div>
-          
-          <div className="flex-1 flex items-center gap-2 overflow-hidden">
-            <Building2 className={`w-3.5 h-3.5 shrink-0 ${selectedDeptId === node.id ? 'text-primary' : 'opacity-40 text-on-surface-variant'}`} />
-            <span className={`text-xs font-black tracking-tight ${selectedDeptId === node.id ? 'text-primary' : 'text-on-surface'}`}>{node.name}</span>
-          </div>
-
-          <span className="text-[9px] font-black tracking-widest text-outline/50 scale-90">🔒</span>
-        </div>
-
-        {hasChildren && isExpanded && (
-          <div className="mt-0.5">
-            {node.children!.map(child => (
-              <ReadOnlyOrgTreeItem key={child.id} node={child} level={level + 1} />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="flex h-full bg-white select-none">
-      {/* Side Tabs Navigation */}
-      <div className="w-20 border-r border-outline-variant bg-surface-container-lowest flex flex-col items-center py-8 gap-6 shrink-0 shadow-[1px_0_0_rgba(0,0,0,0.02)]">
-         {[
-           { id: 'roles', icon: ShieldCheck, label: '角色' },
-           { id: 'org', icon: Network, label: '组织' },
-           { id: 'users', icon: Users, label: '用户' },
-         ].map(tab => (
-           <button 
-             key={tab.id}
-             onClick={() => setActiveTab(tab.id as any)}
-             className={`flex flex-col items-center gap-1 group relative transition-all ${activeTab === tab.id ? 'text-primary' : 'text-outline hover:text-on-surface'}`}
-           >
-             <div className={`p-3 rounded-2xl transition-all duration-300 ${activeTab === tab.id ? 'bg-primary/10 shadow-xl shadow-primary/10 border border-primary/20 scale-110' : 'hover:bg-surface border border-transparent'}`}>
-                <tab.icon className="w-5 h-5" />
-             </div>
-             <span className="text-[9px] font-black uppercase tracking-[0.15em]">{tab.label}</span>
-             {activeTab === tab.id && <motion.div layoutId="activeTabIndicator" className="absolute -left-[2.5rem] top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full" />}
-           </button>
-         ))}
-      </div>
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* 一、 组织管理 - 外部托管架构只读透视与外部跳转 */}
-        {activeTab === 'org' && (
-          <div className="flex-1 flex bg-surface-container-lowest">
-            {/* Left sidebar for Org tree */}
-            <div className="w-80 bg-white border-r border-outline-variant flex flex-col p-8 space-y-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 overflow-y-auto">
-               <div className="space-y-1">
-                  <h3 className="font-black tracking-tight text-lg flex items-center gap-2">
-                    <Network className="w-5 h-5 text-primary" />
-                    组织架构透视
-                  </h3>
-                  <p className="text-[10px] text-outline font-bold uppercase tracking-wider">Departmental Schema</p>
-               </div>
-
-               {/* External status box */}
-               <div className="bg-surface px-4 py-3 rounded-2xl border border-outline-variant/65 space-y-1">
-                 <div className="flex items-center gap-1.5 text-[10px] font-black text-on-surface-variant">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span>外部HRM已连接</span>
-                 </div>
-                 <p className="text-[9px] text-outline leading-tight font-medium">
-                   数据流：只读同步，禁止本地篡改
-                 </p>
-               </div>
-
-               <div className="flex-1 space-y-1 custom-scrollbar">
-                  {orgData.map(node => (
-                    <ReadOnlyOrgTreeItem key={node.id} node={node} />
-                  ))}
-               </div>
-            </div>
-
-            {/* Read-Only Portal on Right */}
-            <div className="flex-1 p-12 flex flex-col bg-white overflow-y-auto custom-scrollbar">
-               <div className="w-full space-y-10">
-                 {/* Top Guard Portal Block */}
-                 <div className="relative overflow-hidden p-10 bg-primary/5 rounded-[3rem] border border-primary/10 flex flex-col md:flex-row items-center justify-between gap-8">
-                   <div className="absolute right-0 top-0 translate-x-12 -translate-y-10 opacity-5 pointer-events-none">
-                     <Lock className="w-64 h-64" />
-                   </div>
-                   <div className="space-y-4 max-w-xl">
-                     <div className="flex items-center gap-2">
-                       <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
-                         外部系统托管
-                       </span>
-                       <span className="text-outline font-bold text-xs flex items-center gap-1">
-                         <Info className="w-3.5 h-3.5 text-on-surface-variant/50" /> 本地为只读视图
-                       </span>
-                     </div>
-                     <h2 className="text-3xl font-black tracking-tight text-on-surface">组织数据存储在外部系统</h2>
-                     <p className="text-xs text-on-surface-variant font-medium leading-relaxed">
-                       本系统的组织架构单元和层级关联均存储和维护在第三方系统（如：企业微信、网关 LDAP、或企业专属 HRM 统筹系统）。系统在此仅作为权限管控的数据过滤器基础层，无权修改基础属性。
-                     </p>
-                   </div>
-                   <div className="shrink-0 flex flex-col gap-3 w-full md:w-auto">
-                     <a 
-                       href="https://hrm.company.internal/staff/organization"
-                       onClick={(e) => { e.preventDefault(); if (showNotification) showNotification("演示模式：已为您模拟发出跳转 HRM 系统的 SSO 验证票据..."); }}
-                       className="px-8 py-4 bg-on-surface hover:bg-primary text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-xl hover:-translate-y-1"
-                     >
-                       <span>前往企业 HRM 系统进行维护</span>
-                       <ExternalLink className="w-4 h-4" />
-                     </a>
-                     <a 
-                       href="https://idaas.company.internal/organizations"
-                       onClick={(e) => { e.preventDefault(); if (showNotification) showNotification("演示模式：已启动跳转 IDaaS 验证流，单点登录成功。"); }}
-                       className="px-8 py-4 bg-white border border-outline-variant hover:border-primary text-on-surface hover:text-primary rounded-2xl text-xs text-center font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-sm"
-                     >
-                       <span>前往 IDaaS 统一身份中心</span>
-                       <ExternalLink className="w-4 h-4" />
-                     </a>
-                   </div>
-                 </div>
-
-                 {/* Sync monitor widgets */}
-                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
-                   <div className="bg-surface p-6 rounded-3xl border border-outline-variant/60 flex flex-col gap-1.5 shadow-sm">
-                     <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-none">同步引擎</span>
-                     <span className="text-base font-black text-on-surface">ActiveDirectory (AD)</span>
-                     <span className="text-[9px] text-outline mt-1 block">单向定时集成链路</span>
-                   </div>
-                   <div className="bg-surface p-6 rounded-3xl border border-outline-variant/60 flex flex-col gap-1.5 shadow-sm">
-                     <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-none">最近映射时间</span>
-                     <span className="text-base font-black text-on-surface font-mono">{lastSyncTime}</span>
-                     <span className="text-[9px] text-outline mt-1 block">集成周期: 3 分钟/次</span>
-                   </div>
-                   <div className="bg-surface p-6 rounded-3xl border border-outline-variant/60 flex flex-col gap-1.5 shadow-sm">
-                     <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-none">手动增量同步</span>
-                     <button
-                       onClick={handleTriggerSync}
-                       disabled={isSyncing}
-                       className="flex items-center justify-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark disabled:bg-primary/50 text-white rounded-xl text-xs font-bold transition-all w-fit shadow-md shadow-primary/10 mt-1"
-                     >
-                       <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                       <span>{isSyncing ? '正在同步验证...' : '立即拉取最新'}</span>
-                     </button>
-                   </div>
-                 </div>
-
-                 {/* Department details view */}
-                 <div className="space-y-4 pt-4 border-t border-outline-variant">
-                   <div className="flex justify-between items-center">
-                     <div className="space-y-0.5">
-                       <h4 className="text-sm font-black text-on-surface">
-                         已选中部门关联情况 : {selectedDeptId ? getDeptNameById(selectedDeptId, orgData) : '未选中'}
-                       </h4>
-                       <p className="text-[11px] text-outline font-medium">下方为该部门在自定义表单中的归属配置透视图</p>
-                     </div>
-                     <span className="bg-surface border border-outline-variant px-3 py-1 rounded-xl text-[10px] text-outline font-bold">同步深度: 全级透查</span>
-                   </div>
-
-                   <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                     <div className="space-y-2">
-                       <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">上级分支代码</span>
-                       <code className="text-xs font-mono font-bold text-on-surface bg-surface px-2.5 py-1 rounded-lg border">
-                         AD-NODE-{selectedDeptId || 'N/A'}-MAPPED
-                       </code>
-                     </div>
-                     <div className="space-y-2">
-                       <span className="text-[10px] font-bold text-outline uppercase tracking-wider block">部门分管负责人</span>
-                       <span className="text-xs text-on-surface font-bold flex items-center gap-1.5">
-                         <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-black">M</div>
-                         <span>李默（人事主键代号：UID-9903）</span>
-                       </span>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-            </div>
-          </div>
-        )}
-
-        {/* 二、 用户管理 - 外部身份池及系统角色直接分配 */}
-        {activeTab === 'users' && (
-          <div className="flex-1 flex flex-col bg-white overflow-hidden animate-in fade-in duration-500">
-             <div className="p-12 border-b border-outline-variant space-y-8 bg-surface-container-lowest/30">
-               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                 <div className="space-y-1.5">
-                   <div className="flex items-center gap-2">
-                     <h2 className="text-5xl font-black tracking-tighter text-on-surface">用户管理</h2>
-                     <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
-                       外部身份映射 (只读)
-                     </span>
-                   </div>
-                   <p className="text-xs text-on-surface-variant font-medium">用户信息和在职状态托管在企业主系统中。系统检测并对已接入成员完成底表权限的精细分类。</p>
-                 </div>
-                 
-                 <div className="flex gap-3">
-                   <button
-                     onClick={handleTriggerSync}
-                     disabled={isSyncing}
-                     className="flex items-center gap-2 px-6 py-4 border border-outline-variant hover:border-primary rounded-2xl text-xs font-black uppercase tracking-wider bg-white transition-all shadow-sm"
-                   >
-                     <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                     <span>{isSyncing ? '正在同步数据...' : '手动执行身份同步'}</span>
-                   </button>
-                   <a 
-                     href="https://idaas.company.internal/staff/accounts" 
-                     onClick={(e) => { e.preventDefault(); if (showNotification) showNotification("演示模式：已为您生成企业专属的单点鉴权跳链。"); }}
-                     className="flex items-center gap-2 px-6 py-4 bg-on-surface hover:bg-primary text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xl hover:-translate-y-1"
-                   >
-                     <span>维护全局用户账号</span>
-                     <ExternalLink className="w-4 h-4" />
-                   </a>
-                 </div>
-               </div>
-
-               {/* Quick stats and filters */}
-               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 pt-2">
-                 <div className="col-span-1 md:col-span-2 relative group">
-                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-outline group-focus-within:text-primary transition-colors" />
-                   <input 
-                     type="text" 
-                     placeholder="搜索姓名、邮箱、工号以定位成员..."
-                     value={filterName}
-                     onChange={(e) => setFilterName(e.target.value)}
-                     className="w-full bg-surface border-2 border-transparent focus:border-primary focus:bg-white rounded-[1.5rem] pl-14 pr-6 py-4.5 text-xs focus:outline-none transition-all font-black placeholder:text-outline/40 shadow-inner"
-                   />
-                 </div>
-                 <div className="relative group">
-                   <select 
-                     value={filterRole}
-                     onChange={(e) => setFilterRole(e.target.value)}
-                     className="w-full bg-white border-2 border-outline-variant/30 hover:border-primary rounded-[1.5rem] px-6 py-4.5 text-xs focus:outline-none font-black appearance-none cursor-pointer transition-all shadow-sm"
-                   >
-                     <option value="All">所有系统角色</option>
-                     <option value="Admin">管理员</option>
-                     <option value="Editor">编辑者</option>
-                     <option value="Viewer">查看者</option>
-                     <option value="Manager">经理</option>
-                   </select>
-                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-outline pointer-events-none group-hover:text-primary transition-colors" />
-                 </div>
-                 <div className="relative group">
-                   <select 
-                     value={filterStatus}
-                     onChange={(e) => setFilterStatus(e.target.value)}
-                     className="w-full bg-white border-2 border-outline-variant/30 hover:border-primary rounded-[1.5rem] px-6 py-4.5 text-xs focus:outline-none font-black appearance-none cursor-pointer transition-all shadow-sm"
-                   >
-                     <option value="All">同步就绪状态</option>
-                     <option value="Active">活跃就绪 (Active)</option>
-                     <option value="Inactive">待激活 (Off-grid)</option>
-                   </select>
-                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-outline pointer-events-none group-hover:text-primary transition-colors" />
-                 </div>
-                 <button 
-                   onClick={() => { setFilterName(''); setFilterRole('All'); setFilterStatus('All'); }}
-                   className="aspect-square flex items-center justify-center text-outline hover:text-white hover:bg-primary transition-all rounded-[1.2rem] border-2 border-outline-variant/30 shadow-sm"
-                 >
-                   <RefreshCw className="w-5 h-5" />
-                 </button>
-               </div>
-             </div>
-
-             {/* Directory Table */}
-             <div className="flex-1 overflow-auto custom-scrollbar p-12">
-                <table className="w-full text-left border-separate border-spacing-y-4">
-                   <thead>
-                      <tr className="text-[10px] font-black text-outline uppercase tracking-[0.25em] opacity-60">
-                         <th className="px-8 py-4">ADM 身份代号</th>
-                         <th className="px-8 py-4">实体账户</th>
-                         <th className="px-8 py-4">所属组织架构</th>
-                         <th className="px-8 py-4">系统授权</th>
-                         <th className="px-8 py-4">数据源通道</th>
-                         <th className="px-8 py-4 text-right">角色分配</th>
-                      </tr>
-                   </thead>
-                   <tbody>
-                      {filteredMembers.map((user) => (
-                        <tr key={user.id} className="group transition-all">
-                           <td className="px-8 py-6 text-[10px] font-black text-outline-variant font-mono bg-surface-container-lowest border-y border-l border-outline-variant/30 rounded-l-[1.5rem] group-hover:bg-primary/5 transition-all">
-                             SYS-{user.id.padStart(4, '0')}
-                           </td>
-                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
-                              <div className="flex items-center gap-5">
-                                  <div className="relative shrink-0">
-                                    <div className="absolute -inset-1.5 bg-primary/10 rounded-[1.2rem] opacity-0 group-hover:opacity-100 transition-opacity blur-lg" />
-                                    <img 
-                                      src={`https://picsum.photos/seed/user-${user.id}/100/100`} 
-                                      className="w-12 h-12 rounded-[1.1rem] border-2 border-white shadow-xl relative z-10 group-hover:rotate-6 transition-all" 
-                                      referrerPolicy="no-referrer"
-                                      alt="Avatar"
-                                    />
-                                    {user.status === 'Active' && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full z-20 shadow-lg" />}
-                                  </div>
-                                  <div className="flex flex-col">
-                                     <span className="font-black text-sm text-on-surface tracking-tight group-hover:text-primary transition-colors">{user.name}</span>
-                                     <span className="text-[10px] font-bold text-outline-variant uppercase font-mono tracking-tight">{user.email}</span>
-                                  </div>
-                              </div>
-                           </td>
-                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
-                              <div className="flex items-center gap-2.5 px-4 py-2 bg-on-surface/5 rounded-2xl border border-on-surface/5 w-fit shadow-inner">
-                                 <Building2 className="w-3.5 h-3.5 text-on-surface/40" />
-                                 <span className="text-[10px] font-black tracking-tight text-on-surface/70">{getDeptNameById(user.deptId, orgData)}</span>
-                              </div>
-                           </td>
-                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
-                              <span className={`text-[10px] font-black px-4 py-1.5 rounded-full border-2 tracking-[0.05em] uppercase shadow-sm ${
-                                 user.role === 'Admin' ? 'bg-primary/5 text-primary border-primary/20' : 
-                                 user.role === 'Manager' ? 'bg-secondary/5 text-secondary border-secondary/20' : 
-                                 'bg-on-surface/5 text-on-surface-variant border-outline-variant/40'
-                              }`}>
-                                {user.role === 'Admin' ? '超级管理员' : user.role === 'Manager' ? '业务经理' : user.role === 'Editor' ? '内容编辑' : '普通访客'}
-                              </span>
-                           </td>
-                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-outline-variant/30 group-hover:bg-primary/5 transition-all">
-                              <span className="text-[9px] font-black bg-outline-variant/15 text-outline px-3 py-1 rounded-full uppercase tracking-wider">
-                                🔒 LDAP Mapped
-                              </span>
-                           </td>
-                           <td className="px-8 py-6 bg-surface-container-lowest border-y border-r border-outline-variant/30 group-hover:bg-primary/5 rounded-r-[1.5rem] transition-all text-right">
-                              <select
-                                value={user.role}
-                                onChange={(e) => {
-                                  onUpdateMember({
-                                    ...user,
-                                    role: e.target.value
-                                  });
-                                }}
-                                className="bg-white border text-[11px] font-black px-3 py-1.5 rounded-xl border-outline-variant focus:outline-none focus:border-primary shrink-0 cursor-pointer text-on-surface"
-                              >
-                                <option value="Admin">管理员</option>
-                                <option value="Editor">开发设计</option>
-                                <option value="Manager">经理</option>
-                                <option value="Viewer">查看客</option>
-                              </select>
-                           </td>
-                        </tr>
-                      ))}
-                   </tbody>
-                </table>
-             </div>
-          </div>
-        )}
-
-        {/* 三、 角色管理 - 支持 默认预设角色功能 与 菜单、页面、操作和数据全生命周期管控 */}
-        {activeTab === 'roles' && (
-          <div className="flex-1 flex bg-surface-container-lowest/40 animate-in fade-in duration-500 overflow-hidden">
-             {/* Left Panel: Role List */}
-             <div className="w-96 bg-white border-r border-outline-variant flex flex-col overflow-y-auto z-10 select-none">
-                <div className="p-8 border-b border-outline-variant space-y-2">
-                   <h2 className="text-3xl font-black tracking-tight text-on-surface flex items-center gap-2">
-                     <ShieldCheck className="w-7 h-7 text-primary" />
-                     角色配置中心
-                   </h2>
-                   <p className="text-[10px] font-black text-outline uppercase tracking-[0.2em]">RBAC Governance Panel</p>
-                </div>
-
-                <div className="p-6 space-y-4 flex-1">
-                   {roles.map((role) => (
-                     <button
-                       key={role.id}
-                       onClick={() => setSelectedRoleId(role.id)}
-                       className={`w-full p-6 text-left border rounded-[2rem] transition-all flex flex-col gap-4 relative group overflow-hidden ${
-                         selectedRoleId === role.id 
-                           ? 'bg-primary/5 border-primary shadow-xl shadow-primary/5' 
-                           : 'bg-white border-outline-variant hover:bg-surface-container-low'
-                       }`}
-                     >
-                       <div className="absolute right-0 top-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
-                          <ShieldCheck className="w-16 h-16" />
-                       </div>
-                       
-                       <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-2">
-                           <span className={`w-2.5 h-2.5 rounded-full ${
-                             role.id === 'designer' ? 'bg-primary' : 
-                             role.id === 'filler' ? 'bg-green-500' : 'bg-secondary'
-                           }`} />
-                           <span className="text-[10px] font-black bg-on-surface/5 text-on-surface-variant px-2 py-0.5 rounded uppercase tracking-widest leading-none">
-                             {role.code}
-                           </span>
-                         </div>
-                         <span className="text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded-full">
-                           {role.count} 成员
-                         </span>
-                       </div>
-
-                       <div>
-                         <h4 className="font-extrabold text-lg text-on-surface tracking-tight">{role.name}</h4>
-                         <p className="text-[11px] text-outline font-medium mt-1 leading-normal opacity-90 line-clamp-2">
-                           {role.desc}
-                         </p>
-                       </div>
-                     </button>
-                   ))}
-
-                   {/* Custom non-editable role notice */}
-                   <div className="rounded-[2.5rem] border-2 border-dashed border-outline-variant/50 p-8 flex flex-col items-center justify-center text-center gap-3 bg-surface/5">
-                     <Lock className="w-6 h-6 text-outline-variant" />
-                     <p className="text-[10px] font-bold text-outline leading-tight">
-                       企业主系统托管模式下，无法新增角色类别，以确保多系统间身份标识一致。
-                     </p>
-                   </div>
-                </div>
-             </div>
-
-             {/* Right Panel: Feature & Data Scope control workspace */}
-             <div className="flex-1 overflow-y-auto custom-scrollbar p-12 bg-white flex flex-col">
-                <div className="flex-1 space-y-10 w-full mx-auto">
-                   
-                   {/* Role profile header details */}
-                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-outline-variant pb-8 gap-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-3xl font-black text-on-surface tracking-tight">{selectedRole.name}</h3>
-                          <span className="bg-primary/10 font-bold font-mono text-[10px] text-primary px-3 py-1 rounded-full uppercase tracking-widest">
-                            {selectedRole.code}
-                          </span>
-                        </div>
-                        <p className="text-xs text-on-surface-variant font-medium max-w-xl leading-relaxed">
-                          {selectedRole.desc}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={handleSavePolicies}
-                        disabled={isSavingPolicy}
-                        className="flex items-center gap-2 px-8 py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-xl hover:scale-105 hover:shadow-primary/20 active:scale-95 shrink-0"
-                      >
-                        {isSavingPolicy ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        <span>保存权限配置</span>
-                      </button>
-                   </div>
-
-                   {/* (A) 功能权限 - 菜单/页面/操作权限管控 */}
-                   <div className="space-y-8">
-                     <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-5 bg-primary rounded-full" />
-                        <h4 className="text-base font-black text-on-surface">功能权限管控 (功能清单核验)</h4>
-                     </div>
-                     
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                       
-                       {/* 1. 菜单权限管控 */}
-                       <div className="sleek-card p-6 border border-outline-variant/80 rounded-3xl space-y-4">
-                          <div className="flex items-center gap-2 text-xs font-black text-on-surface border-b pb-3">
-                            <Menu className="w-4 h-4 text-primary" />
-                            <span>菜单级访问控制</span>
-                          </div>
-                          <div className="space-y-3">
-                            {[
-                              { key: 'dashboard', label: '📊 仪表盘菜单' },
-                              { key: 'designer', label: '🛠️ 表单设计器' },
-                              { key: 'dataCenter', label: '🗄️ 数据管理中心' },
-                              { key: 'insights', label: '📈 智能数据洞察' },
-                              { key: 'workflow', label: '🕸️ 工作流审批' },
-                              { key: 'settings', label: '⚙️ 系统设置' }
-                            ].map((item) => (
-                              <label key={item.key} className="flex items-center justify-between p-2 hover:bg-surface rounded-xl cursor-pointer transition-colors">
-                                <span className="text-xs font-bold text-on-surface-variant">{item.label}</span>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRole.menus[item.key]}
-                                  onChange={(e) => handleUpdatePolicy('menus', item.key, e.target.checked)}
-                                  className="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary/20"
-                                />
-                              </label>
-                            ))}
-                          </div>
-                       </div>
-
-                       {/* 2. 页面控制权限管控 */}
-                       <div className="sleek-card p-6 border border-outline-variant/80 rounded-3xl space-y-4">
-                          <div className="flex items-center gap-2 text-xs font-black text-on-surface border-b pb-3">
-                            <Eye className="w-4 h-4 text-primary" />
-                            <span>页面级渲染页面控制</span>
-                          </div>
-                          <div className="space-y-3">
-                            {[
-                              { key: 'formFill', label: '📝 表单数据填写页面' },
-                              { key: 'formDesign', label: '📐 自定义表单设计画布' },
-                              { key: 'workflowDesign', label: '🔗 审批逻辑设计面板' },
-                              { key: 'publishPage', label: '📦 外部工作台发布管理' }
-                            ].map((item) => (
-                              <label key={item.key} className="flex items-center justify-between p-2 hover:bg-surface rounded-xl cursor-pointer transition-colors">
-                                <span className="text-xs font-bold text-on-surface-variant">{item.label}</span>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRole.pages[item.key]}
-                                  onChange={(e) => handleUpdatePolicy('pages', item.key, e.target.checked)}
-                                  className="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary/20"
-                                />
-                              </label>
-                            ))}
-                          </div>
-                       </div>
-
-                       {/* 3. 微观操作权限管控 */}
-                       <div className="sleek-card p-6 border border-outline-variant/80 rounded-3xl space-y-4">
-                          <div className="flex items-center gap-2 text-xs font-black text-on-surface border-b pb-3">
-                            <Sliders className="w-4 h-4 text-primary" />
-                            <span>操作级指令细控</span>
-                          </div>
-                          <div className="space-y-3">
-                            {[
-                              { key: 'createForm', label: '➕ 新建底单及应用' },
-                              { key: 'deleteForm', label: '🚨 物理删除表结构' },
-                              { key: 'exportData', label: '📤 导出全量 Excel 视图' },
-                              { key: 'batchDelete', label: '☣️ 批量物理覆盖删除' },
-                              { key: 'editSystemSettings', label: '🔓 修改全局安全配置' }
-                            ].map((item) => (
-                              <label key={item.key} className="flex items-center justify-between p-2 hover:bg-surface rounded-xl cursor-pointer transition-colors">
-                                <span className="text-xs font-bold text-on-surface-variant">{item.label}</span>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRole.operations[item.key]}
-                                  onChange={(e) => handleUpdatePolicy('operations', item.key, e.target.checked)}
-                                  className="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary/20"
-                                />
-                              </label>
-                            ))}
-                          </div>
-                       </div>
-
-                     </div>
-                   </div>
-
-                   {/* (B) 数据权限 - 按照获取到的组织关系控制本人、本人及下属、本组织、本组织及负责组织、全部 */}
-                   <div className="space-y-6 pt-6 border-t border-outline-variant">
-                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                       <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-5 bg-primary rounded-full" />
-                          <h4 className="text-base font-black text-on-surface">底表数据可见度控制（根据组织树鉴权）</h4>
-                       </div>
-                       <span className="bg-primary/5 text-primary text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider">
-                         HRM 层级智能过滤
-                       </span>
-                     </div>
-                     <p className="text-xs text-outline font-medium">
-                       控制当前角色下的成员，在访问数据管理后台和查看报表底单时，系统应当使用何种关系匹配来过滤该用户的可见范围。
-                     </p>
-
-                     <div className="grid grid-cols-1 gap-4 pt-2">
-                       {[
-                         { 
-                           key: 'self', 
-                           title: '本人', 
-                           expr: 'SQL: author_id = @current_user_id', 
-                           desc: '仅对当前用户本人提交填报的数据，或指派本人作为唯一审批流程的记录开放查阅可见性。' 
-                         },
-                         { 
-                           key: 'self_sub', 
-                           title: '本人及下属', 
-                           expr: 'SQL: author_id IN (@current_user_id, ...@direct_subordinate_ids)', 
-                           desc: '通过企业内嵌汇报树（HRM Org-Trace），向上兼容、透视其下方全量有任免汇报关系的普通下级员工的数据。' 
-                         },
-                         { 
-                           key: 'dept', 
-                           title: '本组织', 
-                           expr: 'SQL: author_dept_id = @current_user_dept_id', 
-                           desc: '范围锁定在当前用户所在的主属行政部门底单，屏蔽上级父部门及旁系平行部门的信息，数据在部门间硬隔離。' 
-                         },
-                         { 
-                           key: 'dept_charge', 
-                           title: '本组织及负责组织', 
-                           expr: 'SQL: author_dept_id IN (@current_user_dept_id, ...@managed_dept_ids)', 
-                           desc: '除所属主行政部门外，允许横向读取其在身份中心担任“部门长/虚线负责人”的全部附属职能团队的汇总数据。' 
-                         },
-                         { 
-                           key: 'all', 
-                           title: '全部', 
-                           expr: 'SQL: 1=1 (跨组织无损通查)', 
-                           desc: '放开所有组织、汇报网络和微观限制，允许对该全局表单数据库进行无死角的归档、大屏看板与分析透视。' 
-                         }
-                       ].map((scope) => (
-                         <button
-                           key={scope.key}
-                           type="button"
-                           onClick={() => handleUpdateDataScope(scope.key as any)}
-                           className={`p-6 rounded-3xl border text-left transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group ${
-                             selectedRole.dataScope === scope.key
-                               ? 'bg-primary/5 border-primary shadow-md'
-                               : 'bg-surface hover:bg-surface-container-low border-outline-variant'
-                           }`}
-                         >
-                           <div className="space-y-1.5 flex-1">
-                             <div className="flex items-center gap-3">
-                               <span className="font-mono text-xs text-primary font-black">[@{scope.title}]</span>
-                               <span className="text-sm font-black text-on-surface">{scope.title}数据可见性</span>
-                             </div>
-                             <p className="text-xs text-on-surface-variant font-medium opacity-80 leading-relaxed max-w-2xl">
-                               {scope.desc}
-                             </p>
-                           </div>
-
-                           <div className="shrink-0 flex flex-col items-end gap-2 text-right">
-                             <div className="flex items-center gap-2">
-                               <code className="text-[10px] font-mono text-outline bg-white px-2 py-1 rounded-md border border-outline-variant/60">
-                                 {scope.expr}
-                               </code>
-                               <input
-                                 type="radio"
-                                 checked={selectedRole.dataScope === scope.key}
-                                 onChange={() => handleUpdateDataScope(scope.key as any)}
-                                 className="w-4 h-4 text-primary accent-primary cursor-pointer"
-                               />
-                             </div>
-                             <span className="text-[9px] font-black tracking-widest text-[rgb(var(--primary))] uppercase opacity-0 group-hover:opacity-100 transition-opacity">
-                               {selectedRole.dataScope === scope.key ? 'ACTIVE POLICY' : 'CLICK TO TOGGLE'}
-                             </span>
-                           </div>
-                         </button>
-                       ))}
-                     </div>
-                   </div>
-
-                </div>
-             </div>
-          </div>
-        )}
-      </div>
-
-    </div>
-  );
+const TeamView: React.FC<TeamViewProps> = (props) => {
+  return <SystemSettingsView {...props} />;
 };
 
 const ArchitectApp: React.FC = () => {
@@ -5390,14 +4853,83 @@ const ArchitectApp: React.FC = () => {
   
   const [workflowNodesMap, setWorkflowNodesMap] = React.useState<Record<string, WorkflowNode[]>>({
     'f1': [
-      { id: 'node-1', type: 'start', label: 'HR发起', description: '新员工入职触发', targets: ['node-2'] },
-      { id: 'node-2', type: 'approval', label: '部门经理审批', targets: ['node-4'], config: { assigneeType: 'role', assigneeValue: '部门经理' } },
-      { id: 'node-4', type: 'end', label: '入职完成', targets: [] },
+      { id: 'node-1', type: 'start', label: '发起申请', description: '表单提交自动触发', targets: ['node-2'] },
+      { id: 'node-2', type: 'approval', label: '主管初步审核', description: '直属部门主管审核', targets: ['node-3'], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } },
+      { 
+        id: 'node-3', 
+        type: 'gateway_parallel', 
+        label: '并行签核网关', 
+        description: '多部门同时并行处理审核', 
+        targets: ['node-4'], 
+        config: { 
+          gatewayType: 'parallel',
+          parallelJoinMode: 'AND',
+          branches: [
+            {
+              id: 'b-p1',
+              name: '工厂生产/技术评估',
+              nodes: [
+                { id: 'child-p1-1', type: 'approval', label: '生产厂长会签', config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'AND' }, targets: [] },
+                { id: 'child-p1-2', type: 'notification', label: '知会车间主管', config: { assigneeType: 'role', assigneeValue: '车间主管' }, targets: [] }
+              ]
+            },
+            {
+              id: 'b-p2',
+              name: '财务与行政合规复核',
+              nodes: [
+                { id: 'child-p2-1', type: 'approval', label: '财务总监审核', config: { assigneeType: 'user', assigneeValue: '陈莎拉', approvalType: 'OR' }, targets: [] }
+              ]
+            }
+          ]
+        } 
+      },
+      { id: 'node-4', type: 'cc', label: '知会发起人与HR', description: '抄送归档', targets: ['node-5'], config: { assigneeType: 'role', assigneeValue: '部门成员' } },
+      { id: 'node-5', type: 'end', label: '归档完成', description: '流程流转归档', targets: [] },
     ],
     'f2': [
-      { id: 'node-1', type: 'start', label: '评估提交', targets: ['node-2'] },
-      { id: 'node-2', type: 'approval', label: '交叉评估', targets: ['node-3'], config: { assigneeType: 'user', assigneeValue: '技术专家' } },
-      { id: 'node-3', type: 'end', label: '归档', targets: [] },
+      { id: 'node-1', type: 'start', label: '提交采购申请', description: '业务提交采购/报销单', targets: ['node-2'] },
+      { 
+        id: 'node-2', 
+        type: 'gateway_exclusive', 
+        label: '金额与部门排它网关', 
+        description: '根据金额和部门互斥路由', 
+        targets: ['node-3'], 
+        config: { 
+          gatewayType: 'exclusive',
+          branches: [
+            {
+              id: 'b-e1',
+              name: '市场部/大额审核',
+              conditions: [
+                { id: 'c-1', field: '创建人所属组织', operator: '属于', value: '集团/总部/市场部' }
+              ],
+              nodes: [
+                { id: 'child-e1-1', type: 'approval', label: '市场副总裁审批', config: { assigneeType: 'user', assigneeValue: '陈晓冰', approvalType: 'OR' }, targets: [] }
+              ]
+            },
+            {
+              id: 'b-e2',
+              name: '工厂生产线采购',
+              conditions: [
+                { id: 'c-2', field: '创建人所属组织', operator: '属于', value: '集团/工厂' }
+              ],
+              nodes: [
+                { id: 'child-e2-1', type: 'approval', label: '工厂厂长审批', config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'OR' }, targets: [] }
+              ]
+            },
+            {
+              id: 'b-e3',
+              name: '常规默认分支',
+              isDefault: true,
+              conditions: [],
+              nodes: [
+                { id: 'child-e3-1', type: 'approval', label: '总经办常务审批', config: { assigneeType: 'user', assigneeValue: '小鲤', approvalType: 'OR' }, targets: [] }
+              ]
+            }
+          ]
+        } 
+      },
+      { id: 'node-3', type: 'end', label: '流程完成', targets: [] },
     ]
   });
 
@@ -5474,6 +5006,8 @@ const ArchitectApp: React.FC = () => {
   const [formFields, setFormFields] = React.useState<FormField[]>([]);
   const [workflowNodes, setWorkflowNodes] = React.useState<WorkflowNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = React.useState<string | null>(null);
+  const [selectedBranchNodeId, setSelectedBranchNodeId] = React.useState<string | null>(null);
   const [showInsertNodeMenu, setShowInsertNodeMenu] = React.useState<string | null>(null);
   const [editorTab, setEditorTab] = React.useState<'design' | 'page' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
   
@@ -5493,6 +5027,15 @@ const ArchitectApp: React.FC = () => {
   const [submitActionSms, setSubmitActionSms] = React.useState('13800000000');
   const [formLimits, setFormLimits] = React.useState<string[]>(['device_limit']);
   const [fillingControls, setFillingControls] = React.useState<string[]>(['allow_repeat']);
+  
+  // 附件存储控制 (Attachment Storage Control)
+  const [attachmentStorageType, setAttachmentStorageType] = React.useState<'permanent' | 'temporary'>('permanent');
+  const [attachmentRetentionDays, setAttachmentRetentionDays] = React.useState<number>(30);
+  const [attachmentRetentionPreset, setAttachmentRetentionPreset] = React.useState<string>('30');
+  const [attachmentCleanScope, setAttachmentCleanScope] = React.useState<'all' | 'unapproved'>('all');
+  const [attachmentAutoNotify, setAttachmentAutoNotify] = React.useState<boolean>(true);
+  const [attachmentNotifyDaysAhead, setAttachmentNotifyDaysAhead] = React.useState<number>(3);
+  const [attachmentKeepAuditStub, setAttachmentKeepAuditStub] = React.useState<boolean>(true);
   
   // Notification templates
   const [notificationTemplates, setNotificationTemplates] = React.useState([
@@ -5562,16 +5105,16 @@ const ArchitectApp: React.FC = () => {
   const [ptShowWatermark, setPtShowWatermark] = React.useState(false);
   const [ptCustomFooter, setPtCustomFooter] = React.useState('由企业表单低代码系统生成，打印件等同有同等印章效力。');
   const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = React.useState(false);
-  const [globalSettingsTab, setGlobalSettingsTab] = React.useState<'workflow' | 'permissions'>('workflow');
+  const [globalSettingsTab, setGlobalSettingsTab] = React.useState<'workflow' | 'permissions' | 'conditions'>('workflow');
   const [workflowGlobalConfig, setWorkflowGlobalConfig] = React.useState<WorkflowGlobalConfig>({
     triggerRules: [
-      { id: 'tr-1', fieldId: 'amount', fieldLabel: '报销总金额', operator: '大于', value: '1000' }
+      { id: 'tr-1', fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '研发部' },
+      { id: 'tr-2', fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '1000' }
     ],
     triggerMatchMode: 'ALL',
+    triggerNotMetAction: 'pass',
     allowTransfer: true,
     terminateOnFailure: true,
-    enableTimeoutNotice: true,
-    timeoutNoticeChannels: ['station', 'email'],
     autoApprovalMode: 'adjacent_same',
     recallMode: 'initiator_only',
     silentRecall: false,
@@ -5597,6 +5140,21 @@ const ArchitectApp: React.FC = () => {
   const [formMatchMode, setFormMatchMode] = React.useState<'all' | 'any'>('all');
   const [publishDataPagePosition, setPublishDataPagePosition] = React.useState<'sub' | 'parallel'>('sub');
   const [publishFormPagePosition, setPublishFormPagePosition] = React.useState<'sub' | 'parallel'>('sub');
+
+  // 内部发布 - 设置发布位置: 一级目录(轻应用首页) | 二级目录(某个应用下)
+  const [publishLocationType, setPublishLocationType] = React.useState<'root' | 'sub'>('root');
+  const [publishTargetApp, setPublishTargetApp] = React.useState<string>('人力资源管理系统 (HRMS)');
+  const [customTargetApp, setCustomTargetApp] = React.useState<string>('');
+
+  // 公开发布 - 密码控制
+  const [enablePasswordControl, setEnablePasswordControl] = React.useState<boolean>(false);
+  const [formPassword, setFormPassword] = React.useState<string>('8K2P');
+  const [isVisitorModalOpen, setIsVisitorModalOpen] = React.useState<boolean>(false);
+  const [visitorVerified, setVisitorVerified] = React.useState<boolean>(false);
+  const [visitorPasswordInput, setVisitorPasswordInput] = React.useState<string>('');
+  const [visitorPasswordError, setVisitorPasswordError] = React.useState<string>('');
+  const [visitorFormData, setVisitorFormData] = React.useState<Record<string, any>>({});
+  const [visitorSubmitSuccess, setVisitorSubmitSuccess] = React.useState<boolean>(false);
   const [propertyTab, setPropertyTab] = React.useState<'props' | 'style'>('props');
   const [workflowStatus, setWorkflowStatus] = React.useState<'active' | 'inactive'>('active');
   const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([
@@ -5680,6 +5238,106 @@ const ArchitectApp: React.FC = () => {
   const [selectedSubmissions, setSelectedSubmissions] = React.useState<string[]>([]);
   const [isDataMasked, setIsDataMasked] = React.useState(true);
   const [viewingSubmission, setViewingSubmission] = React.useState<Submission | null>(null);
+  const [totalRequiredSubmissions, setTotalRequiredSubmissions] = React.useState<number>(50);
+  const [isEditingTarget, setIsEditingTarget] = React.useState<boolean>(false);
+
+  // 4位密码生成与验证方法
+  const generate4CharPassword = () => {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let res = '';
+    for (let i = 0; i < 4; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+  };
+
+  const handleTogglePasswordControl = (checked: boolean) => {
+    setEnablePasswordControl(checked);
+    if (checked && !formPassword) {
+      setFormPassword(generate4CharPassword());
+    }
+    showNotification(checked ? '已启用访问密码控制，已自动生成 4 位字符密码' : '已关闭密码控制');
+  };
+
+  const handleRegeneratePassword = () => {
+    const newPwd = generate4CharPassword();
+    setFormPassword(newPwd);
+    showNotification(`已重新生成 4 位访问密码：${newPwd}`);
+  };
+
+  const handleVerifyVisitorPassword = () => {
+    if (!visitorPasswordInput.trim()) {
+      setVisitorPasswordError('请输入 4 位访问密码');
+      return;
+    }
+    if (visitorPasswordInput.trim().toUpperCase() !== formPassword.toUpperCase()) {
+      setVisitorPasswordError(`密码不正确，请重新输入（提示：当前设定密码为 ${formPassword}）`);
+      return;
+    }
+    setVisitorPasswordError('');
+    setVisitorVerified(true);
+    showNotification('密码验证通过，已解锁表单填报');
+  };
+
+  const handleSubmitVisitorForm = () => {
+    for (const field of formFields) {
+      if (field.required && !visitorFormData[field.id]) {
+        showNotification(`请填写必填项：${field.label}`);
+        return;
+      }
+    }
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const nowStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const newId = `SUB-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${String(submissions.length + 1).padStart(2, '0')}`;
+    const newSub: Submission = {
+      id: newId,
+      submitter: enablePasswordControl ? '公开发布访客(密码验证)' : '公开发布访客',
+      submitTime: nowStr,
+      status: '已通过',
+      data: {
+        fullname: visitorFormData['fullname'] || visitorFormData['name'] || '公开发布访客',
+        ...visitorFormData
+      },
+      approvalHistory: [
+        { step: '访客填写提交', actor: enablePasswordControl ? '密码验证访客' : '公开访客', action: '提交', time: nowStr }
+      ]
+    };
+    setSubmissions([newSub, ...submissions]);
+    setVisitorSubmitSuccess(true);
+    showNotification('表单数据提交成功！已实时收录至后台数据中心');
+  };
+
+  const handleQuickAddSubmission = () => {
+    const mockNames = ['赵子龙', '孙尚香', '诸葛亮', '黄忠', '魏延', '姜维', '关银屏', '马超'];
+    const mockDepts = ['研发部', '市场部', '后勤部', '销售部', '财务部', '人力资源部', '战略运营中心'];
+    const randomName = mockNames[Math.floor(Math.random() * mockNames.length)];
+    const randomDept = mockDepts[Math.floor(Math.random() * mockDepts.length)];
+    const randomAmount = Math.floor(Math.random() * 8000) + 1200;
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const nowStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const newId = `SUB-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${String(submissions.length + 1).padStart(2, '0')}`;
+    const newSub: Submission = {
+      id: newId,
+      submitter: randomName,
+      submitTime: nowStr,
+      status: '处理中',
+      data: {
+        fullname: randomName,
+        phone: `13${Math.floor(100000000 + Math.random() * 900000000)}`,
+        idcard: `110101199${Math.floor(100000000 + Math.random() * 900000000)}`,
+        amount: randomAmount,
+        dept: randomDept
+      },
+      approvalHistory: [
+        { step: '发起申请', actor: randomName, action: '提交', time: nowStr },
+        { step: '部门经理初审', actor: '系统主管', action: '处理中', time: nowStr }
+      ]
+    };
+    setSubmissions(prev => [newSub, ...prev]);
+    showNotification(`已成功新增一条填报数据 (${newId})`);
+  };
 
   const handleExport = () => {
     // Collect all unique keys from data objects for dynamic columns
@@ -5810,40 +5468,442 @@ const ArchitectApp: React.FC = () => {
     }
   ]);
 
-  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([
-    { id: '1', name: '小鲤', role: 'Admin', deptId: 'd3', email: 'xiaoli@architect.com', status: 'Active', createdAt: '2024-01-10' },
-    { id: '2', name: '陈莎拉', role: 'Editor', deptId: 'd4', email: 'sarah@architect.com', status: 'Active', createdAt: '2024-01-15' },
-    { id: '3', name: '米高·贝克', role: 'Viewer', deptId: 'd3-1', email: 'michael@architect.com', status: 'Active', createdAt: '2024-02-01' },
-    { id: '4', name: '财务主管', role: 'Manager', deptId: 'd7', email: 'finance@architect.com', status: 'Active', createdAt: '2024-02-10' },
-    { id: '5', name: 'HR 管理员', role: 'Admin', deptId: 'd6', email: 'hr@architect.com', status: 'Active', createdAt: '2024-02-15' },
-    { id: '6', name: '广州市场负责人', role: 'Manager', deptId: 'd-mkt-gd-gz', email: 'gz_mkt@architect.com', status: 'Active', createdAt: '2024-03-01' },
-    { id: '7', name: '深圳业务主管', role: 'Editor', deptId: 'd-mkt-gd-sz', email: 'sz_mkt@architect.com', status: 'Active', createdAt: '2024-03-05' },
-    { id: '8', name: '华东工厂厂长', role: 'Manager', deptId: 'd-fac-hd1', email: 'hd_factory@architect.com', status: 'Active', createdAt: '2024-03-10' },
+  const [teamInitialTab, setTeamInitialTab] = React.useState<'org' | 'users' | 'roles'>('roles');
+
+  const [roles, setRoles] = React.useState<RoleDefinition[]>([
+    {
+      id: 'superadmin',
+      name: '超级管理员',
+      code: 'ROLE_SUPERADMIN',
+      desc: '拥有系统全部功能与数据的无限制访问权限，可穿透全组织及所有业务标签维度。',
+      isSystem: true,
+      userCount: 2,
+      menus: {
+        dashboard: true,
+        projects: true,
+        designer: true,
+        dataManagement: true,
+        insights: true,
+        workflow: true,
+        settings: true
+      },
+      forms: {
+        f1: { view: true, fill: true, manage: true },
+        f2: { view: true, fill: true, manage: true },
+        f3: { view: true, fill: true, manage: true },
+        f4: { view: true, fill: true, manage: true },
+        f5: { view: true, fill: true, manage: true },
+        f6: { view: true, fill: true, manage: true },
+      },
+      operations: {
+        create: true,
+        edit: true,
+        delete: true,
+        enable: true,
+        disable: true,
+        export: true,
+        batchDelete: true,
+        importData: true
+      },
+      orgScope: 'all',
+      tagControl: {
+        enabled: false,
+        matchMode: 'any',
+        byChargeDepts: false,
+        bySalesRegions: false,
+        byFactories: false,
+        byStores: false
+      },
+      fieldPermissions: {}
+    },
+    {
+      id: 'designer',
+      name: '表单设计人',
+      code: 'FORM_DESIGNER',
+      desc: '专职于业务表单、工作流引擎、发布策略的全生命周期配置管理。',
+      isSystem: true,
+      userCount: 8,
+      menus: {
+        dashboard: true,
+        projects: true,
+        designer: true,
+        dataManagement: true,
+        insights: true,
+        workflow: true,
+        settings: false
+      },
+      forms: {
+        f1: { view: true, fill: true, manage: true },
+        f2: { view: true, fill: true, manage: true },
+        f3: { view: true, fill: true, manage: true },
+        f4: { view: true, fill: true, manage: true },
+        f5: { view: true, fill: true, manage: true },
+        f6: { view: true, fill: true, manage: true },
+      },
+      operations: {
+        create: true,
+        edit: true,
+        delete: true,
+        enable: true,
+        disable: true,
+        export: true,
+        batchDelete: false,
+        importData: true
+      },
+      orgScope: 'dept_sub',
+      tagControl: {
+        enabled: true,
+        matchMode: 'any',
+        byChargeDepts: true,
+        bySalesRegions: false,
+        byFactories: false,
+        byStores: false
+      },
+      fieldPermissions: {}
+    },
+    {
+      id: 'sales_lead',
+      name: '销售区域主管',
+      code: 'ROLE_SALES_LEAD',
+      desc: '负责销售大区的业务商机与跟进记录，按负责销售区域标签严格管控表单行权限，预算金额列字段脱敏。',
+      isSystem: false,
+      userCount: 4,
+      menus: {
+        dashboard: true,
+        projects: true,
+        designer: false,
+        dataManagement: true,
+        insights: true,
+        workflow: true,
+        settings: false
+      },
+      forms: {
+        f1: { view: true, fill: true, manage: false },
+        f5: { view: true, fill: true, manage: false },
+      },
+      operations: {
+        create: true,
+        edit: true,
+        delete: false,
+        enable: true,
+        disable: false,
+        export: true,
+        batchDelete: false,
+        importData: false
+      },
+      orgScope: 'dept_sub',
+      tagControl: {
+        enabled: true,
+        matchMode: 'any',
+        byChargeDepts: false,
+        bySalesRegions: true,
+        byFactories: false,
+        byStores: false
+      },
+      fieldPermissions: {
+        f5: {
+          budget: 'masked'
+        }
+      }
+    },
+    {
+      id: 'factory_lead',
+      name: '工厂生产主管',
+      code: 'ROLE_FACTORY_LEAD',
+      desc: '负责制造基地的巡检工单与安全申报，按负责工厂标签严格管控行级可见范围。',
+      isSystem: false,
+      userCount: 3,
+      menus: {
+        dashboard: true,
+        projects: true,
+        designer: false,
+        dataManagement: true,
+        insights: true,
+        workflow: true,
+        settings: false
+      },
+      forms: {
+        f1: { view: true, fill: true, manage: false },
+        f2: { view: true, fill: true, manage: false },
+      },
+      operations: {
+        create: true,
+        edit: true,
+        delete: false,
+        enable: true,
+        disable: false,
+        export: true,
+        batchDelete: false,
+        importData: false
+      },
+      orgScope: 'dept_sub',
+      tagControl: {
+        enabled: true,
+        matchMode: 'any',
+        byChargeDepts: false,
+        bySalesRegions: false,
+        byFactories: true,
+        byStores: false
+      },
+      fieldPermissions: {}
+    },
+    {
+      id: 'filler',
+      name: '终端填报员',
+      code: 'FORM_FILLER',
+      desc: '仅支持填报并查看本人提交的历史记录，无全局管理和批量操作权限。',
+      isSystem: true,
+      userCount: 124,
+      menus: {
+        dashboard: true,
+        projects: true,
+        designer: false,
+        dataManagement: false,
+        insights: false,
+        workflow: true,
+        settings: false
+      },
+      forms: {
+        f1: { view: true, fill: true, manage: false },
+        f2: { view: true, fill: true, manage: false },
+      },
+      operations: {
+        create: true,
+        edit: true,
+        delete: false,
+        enable: false,
+        disable: false,
+        export: false,
+        batchDelete: false,
+        importData: false
+      },
+      orgScope: 'self',
+      tagControl: {
+        enabled: false,
+        matchMode: 'any',
+        byChargeDepts: false,
+        bySalesRegions: false,
+        byFactories: false,
+        byStores: false
+      },
+      fieldPermissions: {}
+    }
   ]);
 
-  const onAddMember = (m: Omit<TeamMember, 'id' | 'createdAt' | 'status'>) => {
+  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([
+    { 
+      id: '1', 
+      workNo: 'EMP-1001',
+      name: '小鲤', 
+      role: '超级管理员', 
+      roleId: 'superadmin',
+      deptId: 'd3', 
+      email: 'xiaoli@architect.com', 
+      phone: '13800138001',
+      status: 'Active', 
+      createdAt: '2024-01-10',
+      chargeDepts: ['d3', 'd-head'],
+      salesRegions: ['华东大区', '华南大区'],
+      factories: ['华东一号智能制造基地'],
+      stores: ['上海南京路旗舰店']
+    },
+    { 
+      id: '2', 
+      workNo: 'EMP-1002',
+      name: '陈莎拉', 
+      role: '表单设计人', 
+      roleId: 'designer',
+      deptId: 'd4', 
+      email: 'sarah@architect.com', 
+      phone: '13800138002',
+      status: 'Active', 
+      createdAt: '2024-01-15',
+      chargeDepts: ['d4'],
+      salesRegions: ['华东大区'],
+      factories: [],
+      stores: []
+    },
+    { 
+      id: '3', 
+      workNo: 'EMP-1003',
+      name: '米高·贝克', 
+      role: '终端填报员', 
+      roleId: 'filler',
+      deptId: 'd3-1', 
+      email: 'michael@architect.com', 
+      phone: '13800138003',
+      status: 'Active', 
+      createdAt: '2024-02-01',
+      chargeDepts: [],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    { 
+      id: '4', 
+      workNo: 'EMP-1004',
+      name: '财务主管', 
+      role: '超级管理员', 
+      roleId: 'superadmin',
+      deptId: 'd7', 
+      email: 'finance@architect.com', 
+      phone: '13800138004',
+      status: 'Active', 
+      createdAt: '2024-02-10',
+      chargeDepts: ['d7'],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    { 
+      id: '5', 
+      workNo: 'EMP-1005',
+      name: 'HR 管理员', 
+      role: '超级管理员', 
+      roleId: 'superadmin',
+      deptId: 'd6', 
+      email: 'hr@architect.com', 
+      phone: '13800138005',
+      status: 'Active', 
+      createdAt: '2024-02-15',
+      chargeDepts: ['d6'],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    { 
+      id: '6', 
+      workNo: 'EMP-1006',
+      name: '广州市场负责人', 
+      role: '销售区域主管', 
+      roleId: 'sales_lead',
+      deptId: 'd-mkt-gd-gz', 
+      email: 'gz_mkt@architect.com', 
+      phone: '13800138006',
+      status: 'Active', 
+      createdAt: '2024-03-01',
+      chargeDepts: ['d-mkt-gd-gz', 'd-mkt-gd-sz'],
+      salesRegions: ['华南大区'],
+      factories: [],
+      stores: ['广州天河直营店', '深圳南山万象城店']
+    },
+    { 
+      id: '7', 
+      workNo: 'EMP-1007',
+      name: '深圳业务主管', 
+      role: '销售区域主管', 
+      roleId: 'sales_lead',
+      deptId: 'd-mkt-gd-sz', 
+      email: 'sz_mkt@architect.com', 
+      phone: '13800138007',
+      status: 'Active', 
+      createdAt: '2024-03-05',
+      chargeDepts: ['d-mkt-gd-sz'],
+      salesRegions: ['华南大区'],
+      factories: [],
+      stores: ['深圳南山万象城店']
+    },
+    { 
+      id: '8', 
+      workNo: 'EMP-1008',
+      name: '华东工厂厂长', 
+      role: '工厂生产主管', 
+      roleId: 'factory_lead',
+      deptId: 'd-fac-hd1', 
+      email: 'hd_factory@architect.com', 
+      phone: '13800138008',
+      status: 'Active', 
+      createdAt: '2024-03-10',
+      chargeDepts: ['d-fac-hd1'],
+      salesRegions: ['华东大区'],
+      factories: ['华东一号智能制造基地'],
+      stores: []
+    },
+    { 
+      id: '9', 
+      workNo: 'EMP-1009',
+      name: 'zsx', 
+      role: '表单设计人', 
+      roleId: 'designer',
+      deptId: 'd3', 
+      email: 'zsx@architect.com', 
+      phone: '13800138009',
+      status: 'Active', 
+      createdAt: '2024-03-12',
+      chargeDepts: ['d3'],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    { 
+      id: '10', 
+      workNo: 'EMP-1010',
+      name: '陈晓冰', 
+      role: '表单设计人', 
+      roleId: 'designer',
+      deptId: 'd4', 
+      email: 'chenxiaobing@architect.com', 
+      phone: '13800138010',
+      status: 'Active', 
+      createdAt: '2024-03-15',
+      chargeDepts: ['d4'],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    { 
+      id: '11', 
+      workNo: 'EMP-1011',
+      name: '梁文瑾', 
+      role: '工厂生产主管', 
+      roleId: 'factory_lead',
+      deptId: 'd-fac-hd1', 
+      email: 'liangwenjin@architect.com', 
+      phone: '13800138011',
+      status: 'Active', 
+      createdAt: '2024-03-18',
+      chargeDepts: ['d-fac-hd1', 'd-fac-hn'],
+      salesRegions: [],
+      factories: ['华东一号智能制造基地', '华南精密电子生产工厂'],
+      stores: []
+    },
+  ]);
+
+  const onAddMember = (m: Omit<TeamMember, 'id' | 'createdAt'>) => {
     const newMember: TeamMember = { 
       ...m, 
       id: `u-${Date.now()}`, 
-      status: 'Pending', 
+      status: m.status || 'Active', 
       createdAt: new Date().toISOString().split('T')[0] 
     };
     setTeamMembers(prev => [...prev, newMember]);
-    showNotification(`已添加成员：${m.name}`);
+    showNotification(`已通过自定义表单成功添加用户：${m.name}`);
   };
 
   const onUpdateMember = (m: TeamMember) => {
     setTeamMembers(prev => prev.map(member => member.id === m.id ? m : member));
-    showNotification(`已更新成员信息：${m.name}`);
+    showNotification(`已更新用户信息：${m.name}`);
   };
 
   const onDeleteMember = (id: string) => {
     setTeamMembers(prev => prev.filter(m => m.id !== id));
-    showNotification('已移除成员');
+    showNotification('已删除用户');
   };
 
-  const onAddDept = (parentId: string | null, name: string) => {
-    const newDept: OrgNode = { id: `d-${Date.now()}`, name };
+  const onAddDept = (parentId: string | null, name: string, extra?: Partial<OrgNode>) => {
+    const newDept: OrgNode = { 
+      id: `d-${Date.now()}`, 
+      name,
+      code: extra?.code || `ORG-${Math.floor(1000 + Math.random() * 9000)}`,
+      leader: extra?.leader || '未指定',
+      phone: extra?.phone,
+      email: extra?.email,
+      sortOrder: extra?.sortOrder || 1,
+      status: extra?.status || 'Active',
+      type: extra?.type || 'dept',
+      description: extra?.description,
+      children: []
+    };
     const updateTree = (nodes: OrgNode[]): OrgNode[] => {
       if (!parentId) return [...nodes, newDept];
       return nodes.map(node => {
@@ -5857,14 +5917,14 @@ const ArchitectApp: React.FC = () => {
       });
     };
     setOrgData(prev => updateTree(prev));
-    showNotification(`已添加部门：${name}`);
+    showNotification(`已通过自定义表单成功创建组织单元：${name}`);
   };
 
-  const onUpdateDept = (id: string, name: string) => {
+  const onUpdateDept = (id: string, name: string, extra?: Partial<OrgNode>) => {
     const updateTree = (nodes: OrgNode[]): OrgNode[] => {
       return nodes.map(node => {
         if (node.id === id) {
-          return { ...node, name };
+          return { ...node, name, ...(extra || {}) };
         }
         if (node.children) {
           return { ...node, children: updateTree(node.children) };
@@ -5873,7 +5933,7 @@ const ArchitectApp: React.FC = () => {
       });
     };
     setOrgData(prev => updateTree(prev));
-    showNotification(`已更新部门名称：${name}`);
+    showNotification(`已更新组织单元信息：${name}`);
   };
 
   const onDeleteDept = (id: string) => {
@@ -5886,7 +5946,7 @@ const ArchitectApp: React.FC = () => {
       });
     };
     setOrgData(prev => removeFromTree(prev));
-    showNotification('已删除部门');
+    showNotification('已删除组织单元');
   };
   const [selectedProjectId, setSelectedProjectId] = React.useState<string>(mockProjects[1].id);
   const [projectDetailsId, setProjectDetailsId] = React.useState<string | null>(null);
@@ -5982,7 +6042,7 @@ const ArchitectApp: React.FC = () => {
 
   // Permissions State
   const [selectedRole, setSelectedRole] = React.useState<string>('编辑');
-  const roles = ['管理员', '编辑', '查看者', '经理', '部门成员'];
+  const legacyRoleNames = ['管理员', '编辑', '查看者', '经理', '部门成员'];
   
   const [funcPerms, setFuncPerms] = React.useState<Record<string, string[]>>({
     '管理员': ['manage', 'design', 'fill', 'view', 'export', 'delete', 'config'],
@@ -6044,8 +6104,9 @@ const ArchitectApp: React.FC = () => {
       { id: '2', type: 'date', label: '出生日期', required: false, width: '1/1' },
     ];
     const nodes = (formId && workflowNodesMap[formId]) ? [...workflowNodesMap[formId]] : [
-      { id: 'node-1', type: 'start', label: '流程开始', description: '表单提交自动触发', targets: ['node-2'] },
-      { id: 'node-2', type: 'end', label: '流程结束', targets: [] },
+      { id: 'node-1', type: 'start', label: '开始', description: '表单提交自动触发', targets: ['node-2'] },
+      { id: 'node-2', type: 'approval', label: '主管审批', description: '直属主管审核', targets: ['node-3'] },
+      { id: 'node-3', type: 'end', label: '结束', description: '流程流转归档', targets: [] },
     ];
     
     setFormFields(fields);
@@ -6054,6 +6115,8 @@ const ArchitectApp: React.FC = () => {
     setEditorTab('design');
     setSelectedFieldId(null);
     setSelectedNodeId(null);
+    setSelectedBranchId(null);
+    setSelectedBranchNodeId(null);
   };
 
   const saveCurrentForm = () => {
@@ -6116,43 +6179,175 @@ const ArchitectApp: React.FC = () => {
     setFormFields(formFields.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
+  const [branchInsertMenu, setBranchInsertMenu] = React.useState<string | null>(null);
+
   const addWorkflowNode = (type: WorkflowNode['type']) => {
-    const newNode: WorkflowNode = {
-      id: `node-${Math.random().toString(36).substr(2, 9)}`,
-      type,
-      label: `新建 ${type} 环节`,
-      description: '在属性面板中配置此环节',
-      targets: [],
-      config: type === 'approval' ? { 
+    let nodeConfig: WorkflowNode['config'] = {};
+    let label = `新建 ${type} 环节`;
+    let desc = '在属性面板中配置此环节';
+
+    if (type === 'approval') {
+      label = '审批环节';
+      desc = '由指定责任人处理审核';
+      nodeConfig = { 
         assigneeType: 'initiator', 
         approvalType: 'OR', 
         timeout: 24,
-        actions: ['approve', 'reject', 'transfer'] 
-      } : (type === 'condition' ? { expression: 'true' } : {})
+        actions: ['agree', 'reject', 'transfer'] 
+      };
+    } else if (type === 'gateway_exclusive' || type === 'condition') {
+      label = '排它网关 (条件分支)';
+      desc = '根据条件互斥路由，仅执行首个命中的分支';
+      nodeConfig = {
+        gatewayType: 'exclusive',
+        branches: [
+          {
+            id: `b-${Date.now()}-1`,
+            name: '条件分支 1',
+            conditions: [{ id: `c-${Date.now()}-1`, field: '创建人所属组织', operator: '属于', value: '集团/总部/市场部' }],
+            nodes: [
+              { id: `cnode-${Date.now()}-1`, type: 'approval', label: '市场部主管审批', description: '部门主管审核', targets: [], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } }
+            ]
+          },
+          {
+            id: `b-${Date.now()}-2`,
+            name: '默认分支',
+            isDefault: true,
+            conditions: [],
+            nodes: [
+              { id: `cnode-${Date.now()}-2`, type: 'approval', label: '总经办常规审批', description: '兜底常规审核', targets: [], config: { assigneeType: 'user', assigneeValue: '小鲤', approvalType: 'OR' } }
+            ]
+          }
+        ]
+      };
+    } else if (type === 'gateway_parallel' || type === 'parallel') {
+      label = '并行网关 (并行分支)';
+      desc = '所有分支同时触发并行流转，并在汇聚点汇合';
+      nodeConfig = {
+        gatewayType: 'parallel',
+        parallelJoinMode: 'AND',
+        branches: [
+          {
+            id: `b-${Date.now()}-p1`,
+            name: '并行分支 1 (生产/技术)',
+            nodes: [
+              { id: `cnode-${Date.now()}-p1`, type: 'approval', label: '工厂厂长核验', description: '技术与生产核验', targets: [], config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'AND' } }
+            ]
+          },
+          {
+            id: `b-${Date.now()}-p2`,
+            name: '并行分支 2 (财务预算)',
+            nodes: [
+              { id: `cnode-${Date.now()}-p2`, type: 'approval', label: '财务主管会签', description: '预算与合规复核', targets: [], config: { assigneeType: 'user', assigneeValue: '陈莎拉', approvalType: 'OR' } }
+            ]
+          }
+        ]
+      };
+    } else if (type === 'notification') {
+      label = '通知节点';
+      desc = '流程流转时自动发送消息通知';
+    } else if (type === 'cc') {
+      label = '抄送节点';
+      desc = '流程流转时知会抄送相关人员';
+    }
+
+    const newNode: WorkflowNode = {
+      id: `node-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      label,
+      description: desc,
+      targets: [],
+      config: nodeConfig
     };
     
-    // Auto-connect if there's a selected node
     if (selectedNodeId) {
       setWorkflowNodes(nodes => nodes.map(n => n.id === selectedNodeId ? { ...n, targets: [...n.targets, newNode.id] } : n));
     }
 
     setWorkflowNodes(nodes => [...nodes, newNode]);
     setSelectedNodeId(newNode.id);
+    setSelectedBranchId(null);
+    setSelectedBranchNodeId(null);
   };
 
   const insertWorkflowNode = (prevId: string, type: WorkflowNode['type']) => {
+    let nodeConfig: WorkflowNode['config'] = {};
+    let label = `新建 ${type} 环节`;
+    let desc = '在属性面板中配置此环节';
+
+    if (type === 'approval') {
+      label = '审批环节';
+      desc = '由指定责任人处理审核';
+      nodeConfig = { 
+        assigneeType: 'role', 
+        assigneeValue: '部门经理',
+        approvalType: 'OR', 
+        timeout: 24,
+        actions: ['agree', 'reject', 'transfer'] 
+      };
+    } else if (type === 'gateway_exclusive' || type === 'condition') {
+      label = '排它网关 (条件分支)';
+      desc = '根据条件互斥路由，仅执行首个命中的分支';
+      nodeConfig = {
+        gatewayType: 'exclusive',
+        branches: [
+          {
+            id: `b-${Date.now()}-1`,
+            name: '条件分支 1',
+            conditions: [{ id: `c-${Date.now()}-1`, field: '创建人所属组织', operator: '属于', value: '集团/总部/市场部' }],
+            nodes: [
+              { id: `cnode-${Date.now()}-1`, type: 'approval', label: '市场部主管审批', description: '部门主管审核', targets: [], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } }
+            ]
+          },
+          {
+            id: `b-${Date.now()}-2`,
+            name: '默认分支',
+            isDefault: true,
+            conditions: [],
+            nodes: [
+              { id: `cnode-${Date.now()}-2`, type: 'approval', label: '总经办常规审批', description: '兜底常规审核', targets: [], config: { assigneeType: 'user', assigneeValue: '小鲤', approvalType: 'OR' } }
+            ]
+          }
+        ]
+      };
+    } else if (type === 'gateway_parallel' || type === 'parallel') {
+      label = '并行网关 (并行分支)';
+      desc = '所有分支同时触发并行流转，并在汇聚点汇合';
+      nodeConfig = {
+        gatewayType: 'parallel',
+        parallelJoinMode: 'AND',
+        branches: [
+          {
+            id: `b-${Date.now()}-p1`,
+            name: '并行分支 1 (生产/技术)',
+            nodes: [
+              { id: `cnode-${Date.now()}-p1`, type: 'approval', label: '工厂厂长核验', description: '技术与生产核验', targets: [], config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'AND' } }
+            ]
+          },
+          {
+            id: `b-${Date.now()}-p2`,
+            name: '并行分支 2 (财务预算)',
+            nodes: [
+              { id: `cnode-${Date.now()}-p2`, type: 'approval', label: '财务主管会签', description: '预算与合规复核', targets: [], config: { assigneeType: 'user', assigneeValue: '陈莎拉', approvalType: 'OR' } }
+            ]
+          }
+        ]
+      };
+    } else if (type === 'notification') {
+      label = '通知节点';
+      desc = '流程流转时自动发送消息通知';
+    } else if (type === 'cc') {
+      label = '抄送节点';
+      desc = '流程流转时知会抄送相关人员';
+    }
+
     const newNode: WorkflowNode = {
       id: `node-${Math.random().toString(36).substr(2, 9)}`,
       type,
-      label: `新插 ${type} 环节`,
-      description: '在属性面板中配置此环节',
+      label,
+      description: desc,
       targets: [],
-      config: type === 'approval' ? { 
-        assigneeType: 'initiator', 
-        approvalType: 'OR', 
-        timeout: 24,
-        actions: ['approve', 'reject', 'transfer'] 
-      } : (type === 'condition' ? { expression: 'true' } : {})
+      config: nodeConfig
     };
 
     setWorkflowNodes(nodes => {
@@ -6164,15 +6359,15 @@ const ArchitectApp: React.FC = () => {
       newNode.targets = originalTargets;
 
       const newNodes = [...nodes];
-      // Update the previous node's target to point to the new node
       newNodes[prevIndex] = { ...prevNode, targets: [newNode.id] };
-      // Insert the new node immediately after the previous node in the array
       newNodes.splice(prevIndex + 1, 0, newNode);
       
       return newNodes;
     });
 
     setSelectedNodeId(newNode.id);
+    setSelectedBranchId(null);
+    setSelectedBranchNodeId(null);
   };
 
   const updateWorkflowNode = (id: string, updates: Partial<WorkflowNode>) => {
@@ -6181,11 +6376,297 @@ const ArchitectApp: React.FC = () => {
 
   const removeWorkflowNode = (id: string) => {
     setWorkflowNodes(workflowNodes.filter(n => n.id !== id));
-    if (selectedNodeId === id) setSelectedNodeId(null);
+    if (selectedNodeId === id) {
+      setSelectedNodeId(null);
+      setSelectedBranchId(null);
+      setSelectedBranchNodeId(null);
+    }
+  };
+
+  // Gateway and Branch Management
+  const addBranchToGateway = (nodeId: string) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      const isParallel = n.type === 'gateway_parallel' || n.type === 'parallel' || n.config?.gatewayType === 'parallel';
+      const branchIndex = currentBranches.length + 1;
+      const newBranchId = `b-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
+      
+      const newBranch: WorkflowBranchRule = {
+        id: newBranchId,
+        name: isParallel ? `并行分支 ${branchIndex}` : `条件分支 ${branchIndex}`,
+        conditions: isParallel ? [] : [
+          { id: `c-${Date.now()}`, field: '创建人所属组织', operator: '属于', value: '集团/总部' }
+        ],
+        nodes: [
+          {
+            id: `cnode-${Date.now()}`,
+            type: 'approval',
+            label: isParallel ? '并行审批人' : '分支审批人',
+            description: '分支内审批处理',
+            targets: [],
+            config: {
+              assigneeType: 'user',
+              assigneeValue: '陈晓冰',
+              approvalType: 'OR'
+            }
+          }
+        ]
+      };
+
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: [...currentBranches, newBranch]
+        }
+      };
+    }));
+    showNotification('已添加新分支');
+  };
+
+  const removeBranchFromGateway = (nodeId: string, branchId: string) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      if (currentBranches.length <= 2) {
+        showNotification('网关至少需要保留 2 条分支');
+        return n;
+      }
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.filter(b => b.id !== branchId)
+        }
+      };
+    }));
+    if (selectedBranchId === branchId) {
+      setSelectedBranchId(null);
+      setSelectedBranchNodeId(null);
+    }
+    showNotification('已删除分支');
+  };
+
+  const updateBranchInGateway = (nodeId: string, branchId: string, updates: Partial<WorkflowBranchRule>) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.map(b => b.id === branchId ? { ...b, ...updates } : b)
+        }
+      };
+    }));
+  };
+
+  const toggleGatewayType = (nodeId: string, newType: 'exclusive' | 'parallel') => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const isNowParallel = newType === 'parallel';
+      return {
+        ...n,
+        type: isNowParallel ? 'gateway_parallel' : 'gateway_exclusive',
+        label: isNowParallel ? '并行网关 (并行分支)' : '排它网关 (条件分支)',
+        description: isNowParallel ? '所有分支同时触发并行流转' : '根据条件互斥路由，仅执行首个命中的分支',
+        config: {
+          ...n.config,
+          gatewayType: newType,
+          parallelJoinMode: isNowParallel ? (n.config?.parallelJoinMode || 'AND') : undefined,
+          branches: (n.config?.branches || []).map((b, i) => ({
+            ...b,
+            name: isNowParallel ? (b.name.replace('条件', '并行') || `并行分支 ${i + 1}`) : (b.name.replace('并行', '条件') || `条件分支 ${i + 1}`)
+          }))
+        }
+      };
+    }));
+    showNotification(`已切换为${newType === 'parallel' ? '并行网关' : '排它网关'}`);
+  };
+
+  const addNodeToBranch = (nodeId: string, branchId: string, type: 'approval' | 'notification' | 'cc') => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      const newChildId = `cnode-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
+      const newChildNode: WorkflowNode = {
+        id: newChildId,
+        type,
+        label: type === 'approval' ? '审批环节' : type === 'notification' ? '通知节点' : '抄送节点',
+        description: '分支子环节',
+        targets: [],
+        config: type === 'approval' ? {
+          assigneeType: 'user',
+          assigneeValue: '陈晓冰',
+          approvalType: 'OR'
+        } : {}
+      };
+
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.map(b => {
+            if (b.id !== branchId) return b;
+            const existingNodes = b.nodes || (b.childNode ? [{
+              id: b.childNode.id,
+              type: b.childNode.type,
+              label: b.childNode.label,
+              description: '',
+              targets: [],
+              config: {
+                assigneeType: b.childNode.assigneeType,
+                assigneeValue: b.childNode.assigneeName,
+                approvalType: b.childNode.approvalType
+              }
+            } as WorkflowNode] : []);
+
+            return {
+              ...b,
+              nodes: [...existingNodes, newChildNode]
+            };
+          })
+        }
+      };
+    }));
+    showNotification('已在分支中添加环节');
+  };
+
+  const removeNodeFromBranch = (nodeId: string, branchId: string, childNodeId: string) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.map(b => {
+            if (b.id !== branchId) return b;
+            const existingNodes = b.nodes || [];
+            if (existingNodes.length <= 1) {
+              showNotification('分支中至少需保留 1 个处理环节');
+              return b;
+            }
+            return {
+              ...b,
+              nodes: existingNodes.filter(c => c.id !== childNodeId)
+            };
+          })
+        }
+      };
+    }));
+    if (selectedBranchNodeId === childNodeId) {
+      setSelectedBranchNodeId(null);
+    }
+  };
+
+  const updateNodeInBranch = (nodeId: string, branchId: string, childNodeId: string, updates: Partial<WorkflowNode>) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.map(b => {
+            if (b.id !== branchId) return b;
+            const existingNodes = b.nodes || (b.childNode ? [{
+              id: b.childNode.id,
+              type: b.childNode.type,
+              label: b.childNode.label,
+              description: '',
+              targets: [],
+              config: {
+                assigneeType: b.childNode.assigneeType,
+                assigneeValue: b.childNode.assigneeName,
+                approvalType: b.childNode.approvalType
+              }
+            } as WorkflowNode] : []);
+
+            return {
+              ...b,
+              nodes: existingNodes.map(c => c.id === childNodeId ? { ...c, ...updates } : c)
+            };
+          })
+        }
+      };
+    }));
+  };
+
+  const addConditionToBranch = (nodeId: string, branchId: string) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.map(b => {
+            if (b.id !== branchId) return b;
+            const newCond: WorkflowConditionItem = {
+              id: `c-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+              field: '创建人所属组织',
+              operator: '属于',
+              value: '集团/总部/市场部'
+            };
+            return {
+              ...b,
+              conditions: [...(b.conditions || []), newCond]
+            };
+          })
+        }
+      };
+    }));
+    showNotification('已添加条件规则');
+  };
+
+  const updateConditionInBranch = (nodeId: string, branchId: string, conditionId: string, updates: Partial<WorkflowConditionItem>) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.map(b => {
+            if (b.id !== branchId) return b;
+            return {
+              ...b,
+              conditions: (b.conditions || []).map(c => c.id === conditionId ? { ...c, ...updates } : c)
+            };
+          })
+        }
+      };
+    }));
+  };
+
+  const removeConditionFromBranch = (nodeId: string, branchId: string, conditionId: string) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      const currentBranches = n.config?.branches || [];
+      return {
+        ...n,
+        config: {
+          ...n.config,
+          branches: currentBranches.map(b => {
+            if (b.id !== branchId) return b;
+            return {
+              ...b,
+              conditions: (b.conditions || []).filter(c => c.id !== conditionId)
+            };
+          })
+        }
+      };
+    }));
+    showNotification('已移除条件规则');
   };
 
   const selectedField = formFields.find(f => f.id === selectedFieldId);
   const selectedNode = workflowNodes.find(n => n.id === selectedNodeId);
+  const selectedBranch = selectedNode?.config?.branches?.find(b => b.id === selectedBranchId);
+  const selectedBranchNode = selectedBranch?.nodes?.find(n => n.id === selectedBranchNodeId) || 
+    (selectedBranch?.childNode?.id === selectedBranchNodeId ? (selectedBranch?.childNode as any) : null);
 
   if (view === 'editor') {
     return (
@@ -6290,63 +6771,16 @@ const ArchitectApp: React.FC = () => {
 
         <div className="flex flex-1 overflow-hidden">
           {/* Editor Sidebar - Components / Nodes */}
-          {(editorTab !== 'page' && editorTab !== 'preview' && editorTab !== 'publish') && (
+          {(editorTab !== 'page' && editorTab !== 'preview' && editorTab !== 'publish' && editorTab !== 'data') && (
             <aside className="w-72 bg-white border-r border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
             <div className="p-6 border-b border-outline-variant flex items-center">
               <span className="font-bold tracking-tight text-sm">
-                {editorTab === 'workflow' ? '流程组件' : editorTab === 'page' ? '页面配置' : editorTab === 'publish' ? '发布渠道' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'data' ? '数据中心' : editorTab === 'preview' ? '预览模式' : '组件库'}
+                {editorTab === 'workflow' ? '流程组件' : editorTab === 'page' ? '页面配置' : editorTab === 'publish' ? '发布渠道' : editorTab === 'simulate' ? '仿真洞察' : editorTab === 'preview' ? '预览模式' : '组件库'}
               </span>
             </div>
           
           <div className="p-6 flex-1 overflow-y-auto space-y-6">
-            {editorTab === 'data' ? (
-              <div className="space-y-6">
-                <div className="bg-primary/5 rounded-2xl p-6 border border-primary/10">
-                   <div className="flex items-center gap-2 mb-3">
-                     <FileSearch className="w-4 h-4 text-primary" />
-                     <span className="text-xs font-bold text-primary">数据摘要</span>
-                   </div>
-                   <div className="space-y-3">
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="text-outline uppercase">总数据量</span>
-                        <span className="text-on-surface">{submissions.length} 条</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="text-outline uppercase">今日新增</span>
-                        <span className="text-on-surface">2 条</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="text-outline uppercase">处理中</span>
-                        <span className="text-on-surface">{submissions.filter(s => s.status === '处理中').length} 条</span>
-                      </div>
-                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">视图配置</h3>
-                  <div className="space-y-2">
-                    <button className="w-full flex items-center justify-between p-3 rounded-xl border border-primary bg-primary/5 transition-all text-xs font-bold">
-                      <span>默认视图</span>
-                      <CheckCircle2 className="w-3 h-3 text-primary" />
-                    </button>
-                    <button className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant hover:border-outline transition-all text-xs font-bold text-on-surface-variant">
-                      <span>待我审批</span>
-                      <span className="px-1.5 py-0.5 bg-error text-white text-[8px] rounded-full">12</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t border-outline-variant">
-                   <div className="flex items-center justify-between">
-                     <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">导出队列</h3>
-                     <RefreshCw className="w-3 h-3 text-outline cursor-pointer hover:rotate-180 transition-all duration-500" />
-                   </div>
-                   <div className="p-3 bg-surface rounded-xl border border-outline-variant border-dashed">
-                      <p className="text-[10px] text-outline font-medium text-center">暂无进行中的导出任务</p>
-                   </div>
-                </div>
-              </div>
-            ) : editorTab === 'workflow' ? (
+            {editorTab === 'workflow' ? (
               <div>
                 <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">流程组件</h3>
                 <div className="grid grid-cols-1 gap-2">
@@ -6559,7 +6993,7 @@ const ArchitectApp: React.FC = () => {
                     {/* Page Internal Sidebar */}
                     <div className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0 pt-4">
                       {[
-                        { id: 'basic', label: '基础配置', icon: Settings, desc: '页面标题、时间控制、限制控制' },
+                        { id: 'basic', label: '基础配置', icon: Settings, desc: '页面标题、时间控制、限制控制、附件存储' },
                         { id: 'notification', label: '消息通知', icon: Bell, desc: '站内信、短信、邮件通知模板' },
                         { id: 'print', label: '打印设置', icon: Printer, desc: '管理、查看和编辑打印模板' },
                         { id: 'button_config', label: '按钮配置', icon: Sliders, desc: '自定义及配置列表与表单填报页按钮选项' },
@@ -6832,6 +7266,358 @@ const ArchitectApp: React.FC = () => {
                                 );
                               })}
                             </div>
+                          </div>
+
+                          {/* 6. Attachment Storage Control (附件存储控制) */}
+                          <div className="space-y-5 pt-6 border-t border-dashed border-outline-variant">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-on-surface">6. 附件存储控制</span>
+                                <span className="text-[10px] text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded font-bold">文件生命周期</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {attachmentStorageType === 'permanent' ? (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                    <HardDrive className="w-3 h-3" />
+                                    永久存储 · 无过期限制
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    保存 {attachmentRetentionDays} 天后自动清理
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-outline font-medium -mt-2">
+                              管控该表单提交时上传的各类附件（图片、文档、影音等）在企业云端的存储有效期，可选择永久持久化归档或指定周期后由系统自动定时清理销毁。
+                            </p>
+
+                            {/* Storage Policy Mode Radio Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Option 1: Permanent */}
+                              <div 
+                                onClick={() => setAttachmentStorageType('permanent')}
+                                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-4 ${
+                                  attachmentStorageType === 'permanent'
+                                    ? 'bg-emerald-50/40 border-emerald-500 shadow-xs'
+                                    : 'bg-white border-outline-variant hover:border-slate-300'
+                                }`}
+                              >
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                                        attachmentStorageType === 'permanent' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'
+                                      }`}>
+                                        <HardDrive className="w-4 h-4" />
+                                      </div>
+                                      <div>
+                                        <h4 className="text-xs font-black text-slate-900">永久存储</h4>
+                                        <span className="text-[10px] text-slate-400 font-bold">Permanent Storage</span>
+                                      </div>
+                                    </div>
+                                    <input
+                                      type="radio"
+                                      name="attachmentStorageType"
+                                      checked={attachmentStorageType === 'permanent'}
+                                      onChange={() => setAttachmentStorageType('permanent')}
+                                      className="w-4 h-4 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                    />
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                                    提交的所有附件永久保存在企业私有对象存储库中，不设有效期，支持随时下载、查阅及长效审计追溯。
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200/60">
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-100/70 text-emerald-800">全周期归档</span>
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">合同与凭据推荐</span>
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">永不过期</span>
+                                </div>
+                              </div>
+
+                              {/* Option 2: Temporary with Auto-Clean */}
+                              <div 
+                                onClick={() => setAttachmentStorageType('temporary')}
+                                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-4 ${
+                                  attachmentStorageType === 'temporary'
+                                    ? 'bg-amber-50/40 border-amber-500 shadow-xs'
+                                    : 'bg-white border-outline-variant hover:border-slate-300'
+                                }`}
+                              >
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                                        attachmentStorageType === 'temporary' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'
+                                      }`}>
+                                        <Clock className="w-4 h-4" />
+                                      </div>
+                                      <div>
+                                        <h4 className="text-xs font-black text-slate-900">只存储一段时间（过期系统自动清理）</h4>
+                                        <span className="text-[10px] text-slate-400 font-bold">Auto-Expire & Cleanup</span>
+                                      </div>
+                                    </div>
+                                    <input
+                                      type="radio"
+                                      name="attachmentStorageType"
+                                      checked={attachmentStorageType === 'temporary'}
+                                      onChange={() => setAttachmentStorageType('temporary')}
+                                      className="w-4 h-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                    />
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                                    附件自提交之日起仅保留指定的周期，到达有效期限后由系统后端定时调度无痕销毁清理，释放存储空间并保障隐私合规。
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200/60">
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-100/70 text-amber-800">容量自动释放</span>
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">日常打卡/报备适用</span>
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">合规防泄漏</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Detailed Auto-Cleanup Parameters (when temporary is selected) */}
+                            {attachmentStorageType === 'temporary' && (
+                              <div className="p-6 bg-surface border border-outline-variant rounded-2xl space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                {/* 1. Retention Days Config */}
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-black uppercase text-outline tracking-wider block">
+                                      附件有效存储期限 (天数)
+                                    </label>
+                                    <span className="text-xs font-black text-primary">
+                                      {attachmentRetentionDays} 天有效
+                                    </span>
+                                  </div>
+
+                                  {/* Preset Buttons */}
+                                  <div className="flex flex-wrap gap-2">
+                                    {[
+                                      { label: '7 天 (短期)', days: 7 },
+                                      { label: '15 天 (半月)', days: 15 },
+                                      { label: '30 天 (1个月)', days: 30 },
+                                      { label: '90 天 (1季度)', days: 90 },
+                                      { label: '180 天 (半年)', days: 180 },
+                                      { label: '365 天 (1年)', days: 365 },
+                                      { label: '自定义天数', days: -1 },
+                                    ].map((preset) => {
+                                      const isSelected = preset.days === -1
+                                        ? attachmentRetentionPreset === 'custom'
+                                        : (attachmentRetentionPreset !== 'custom' && attachmentRetentionDays === preset.days);
+                                      return (
+                                        <button
+                                          key={preset.label}
+                                          type="button"
+                                          onClick={() => {
+                                            if (preset.days === -1) {
+                                              setAttachmentRetentionPreset('custom');
+                                            } else {
+                                              setAttachmentRetentionPreset(String(preset.days));
+                                              setAttachmentRetentionDays(preset.days);
+                                            }
+                                          }}
+                                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                                            isSelected 
+                                              ? 'bg-primary text-white border-primary shadow-xs' 
+                                              : 'bg-white border-outline-variant text-slate-700 hover:bg-slate-50'
+                                          }`}
+                                        >
+                                          {preset.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Custom Input */}
+                                  {attachmentRetentionPreset === 'custom' && (
+                                    <div className="flex items-center gap-3 max-w-sm pt-2">
+                                      <div className="relative flex-1">
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          max={3650}
+                                          value={attachmentRetentionDays}
+                                          onChange={(e) => {
+                                            const val = parseInt(e.target.value) || 1;
+                                            setAttachmentRetentionDays(Math.max(1, Math.min(3650, val)));
+                                          }}
+                                          className="w-full bg-white border border-outline-variant rounded-xl px-3 py-2 pr-12 text-xs font-bold focus:ring-2 focus:ring-primary/20 text-slate-800"
+                                          placeholder="输入天数 (1-3650)"
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                                          天
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-outline font-medium">支持 1 ~ 3650 天</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* 2. Cleanup Scope */}
+                                <div className="space-y-3 pt-4 border-t border-slate-200/60">
+                                  <label className="text-[10px] font-black uppercase text-outline tracking-wider block">
+                                    过期清理范围策略
+                                  </label>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer select-none transition-all ${
+                                      attachmentCleanScope === 'all'
+                                        ? 'bg-white border-primary shadow-xs ring-1 ring-primary/20'
+                                        : 'bg-white/60 border-outline-variant hover:bg-white'
+                                    }`}>
+                                      <input
+                                        type="radio"
+                                        name="cleanScope"
+                                        checked={attachmentCleanScope === 'all'}
+                                        onChange={() => setAttachmentCleanScope('all')}
+                                        className="w-4 h-4 text-primary mt-0.5 cursor-pointer"
+                                      />
+                                      <div className="space-y-0.5">
+                                        <span className="text-xs font-bold text-slate-900 block">全量附件统一清理</span>
+                                        <span className="text-[10px] text-slate-500 font-medium block">
+                                          无论表单审批是否通过，所有提交关联的附件到期后全部自动化彻底清理。
+                                        </span>
+                                      </div>
+                                    </label>
+
+                                    <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer select-none transition-all ${
+                                      attachmentCleanScope === 'unapproved'
+                                        ? 'bg-white border-primary shadow-xs ring-1 ring-primary/20'
+                                        : 'bg-white/60 border-outline-variant hover:bg-white'
+                                    }`}>
+                                      <input
+                                        type="radio"
+                                        name="cleanScope"
+                                        checked={attachmentCleanScope === 'unapproved'}
+                                        onChange={() => setAttachmentCleanScope('unapproved')}
+                                        className="w-4 h-4 text-primary mt-0.5 cursor-pointer"
+                                      />
+                                      <div className="space-y-0.5">
+                                        <span className="text-xs font-bold text-slate-900 block">豁免已归档审批附件</span>
+                                        <span className="text-[10px] text-slate-500 font-medium block">
+                                          已终审办结或标记归档的附件永久保留，仅自动清理驳回、废弃或草稿流程中的临时文件。
+                                        </span>
+                                      </div>
+                                    </label>
+                                  </div>
+                                </div>
+
+                                {/* 3. Notifications & Audit */}
+                                <div className="space-y-4 pt-4 border-t border-slate-200/60">
+                                  <label className="text-[10px] font-black uppercase text-outline tracking-wider block">
+                                    清理前预警与审计存根
+                                  </label>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Warning Notification Switch */}
+                                    <div className="p-4 bg-white rounded-xl border border-outline-variant space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <Bell className="w-4 h-4 text-amber-500" />
+                                          <span className="text-xs font-bold text-slate-900">到期前预警提醒</span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setAttachmentAutoNotify(!attachmentAutoNotify)}
+                                          className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${
+                                            attachmentAutoNotify ? 'bg-primary' : 'bg-slate-200'
+                                          }`}
+                                        >
+                                          <span className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 transform ${
+                                            attachmentAutoNotify ? 'translate-x-4' : 'translate-x-0'
+                                          }`} />
+                                        </button>
+                                      </div>
+                                      <p className="text-[10px] text-slate-500 font-medium">
+                                        在系统定时清理前派发站内信/邮件给填报人与表单管理员，避免误删未备份的附件。
+                                      </p>
+                                      {attachmentAutoNotify && (
+                                        <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                                          <span className="text-[10px] text-slate-600 font-bold">提前预警天数:</span>
+                                          {[1, 3, 7].map((d) => (
+                                            <button
+                                              key={d}
+                                              type="button"
+                                              onClick={() => setAttachmentNotifyDaysAhead(d)}
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                                                attachmentNotifyDaysAhead === d
+                                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                              }`}
+                                            >
+                                              提前 {d} 天
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Audit Stub */}
+                                    <div className="p-4 bg-white rounded-xl border border-outline-variant space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <Shield className="w-4 h-4 text-emerald-500" />
+                                          <span className="text-xs font-bold text-slate-900">保留审计存根 (Tombstone)</span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setAttachmentKeepAuditStub(!attachmentKeepAuditStub)}
+                                          className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${
+                                            attachmentKeepAuditStub ? 'bg-primary' : 'bg-slate-200'
+                                          }`}
+                                        >
+                                          <span className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 transform ${
+                                            attachmentKeepAuditStub ? 'translate-x-4' : 'translate-x-0'
+                                          }`} />
+                                        </button>
+                                      </div>
+                                      <p className="text-[10px] text-slate-500 font-medium">
+                                        清理文件二进制实体后，仍保留原文件名、文件指纹（SHA-256）、大小及清理时间戳，确保企业审计合规可追溯。
+                                      </p>
+                                      <div className="flex items-center gap-1.5 text-[9px] text-emerald-700 font-bold pt-1 border-t border-slate-100">
+                                        <Check className="w-3 h-3 text-emerald-500" />
+                                        符合电子政务与企业数据留痕规范
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 4. Live Visual Timeline */}
+                                <div className="p-4 bg-slate-900 text-white rounded-xl space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                                      <History className="w-3.5 h-3.5 text-amber-400" />
+                                      <span>生命周期流转图例预览</span>
+                                    </div>
+                                    <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                      自动清理模拟
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
+                                    <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                                      <div className="text-[9px] font-bold text-slate-400">步骤 1 · 上传存入</div>
+                                      <div className="font-bold text-slate-100 mt-1">Day 0 提交完成</div>
+                                      <div className="text-[9px] text-slate-400 mt-0.5">附件加密存入企业对象存储库</div>
+                                    </div>
+                                    <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                                      <div className="text-[9px] font-bold text-amber-400">步骤 2 · 预警通知</div>
+                                      <div className="font-bold text-slate-100 mt-1">
+                                        {attachmentAutoNotify ? `Day ${Math.max(1, attachmentRetentionDays - attachmentNotifyDaysAhead)} 预警` : '未开启预警'}
+                                      </div>
+                                      <div className="text-[9px] text-slate-400 mt-0.5">
+                                        {attachmentAutoNotify ? `提前 ${attachmentNotifyDaysAhead} 天发送备份下载提醒` : '直接进入到期清理'}
+                                      </div>
+                                    </div>
+                                    <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                                      <div className="text-[9px] font-bold text-red-400">步骤 3 · 系统定时销毁</div>
+                                      <div className="font-bold text-slate-100 mt-1">Day {attachmentRetentionDays} 自动清理</div>
+                                      <div className="text-[9px] text-slate-400 mt-0.5">定时任务无痕物理擦除释放容量</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -7718,200 +8504,464 @@ const ArchitectApp: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center">
-                    {workflowNodes.map((node, index) => {
-                      const isBranching = node.type === 'condition';
-                      return (
-                        <React.Fragment key={node.id}>
-                          <motion.div 
-                            layoutId={node.id}
-                            onClick={() => setSelectedNodeId(node.id)}
-                            className={`w-full max-w-sm sleek-card p-6 border-2 transition-all cursor-pointer group relative ${
-                              selectedNodeId === node.id 
-                                ? 'border-blue-600 ring-4 ring-blue-500/20 shadow-2xl shadow-blue-500/10 -translate-y-0.5 bg-blue-50/20' 
-                                : 'border-outline-variant hover:border-blue-300'
-                            }`}
-                          >
-                            {selectedNodeId === node.id && (
-                              <div className="absolute -top-3 -right-3 bg-blue-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
-                                <Check className="w-3 h-3 stroke-[3]" />
-                                已选中
-                              </div>
-                            )}
-                            <div className="flex items-center gap-4">
-                              <div className={`p-3 rounded-xl ${
-                                node.type === 'start' ? 'bg-green-100 text-green-700' :
-                                node.type === 'approval' ? 'bg-amber-100 text-amber-700' :
-                                node.type === 'notification' ? 'bg-blue-100 text-blue-700' :
-                                node.type === 'condition' ? 'bg-indigo-100 text-indigo-700' :
-                                node.type === 'cc' ? 'bg-surface-container text-on-surface-variant' :
-                                node.type === 'end' ? 'bg-on-surface text-white' : 'bg-surface text-on-surface'
-                              }`}>
-                                {node.type === 'start' && <CircleDot className="w-5 h-5" />}
-                                {node.type === 'approval' && <ShieldCheck className="w-5 h-5" />}
-                                {node.type === 'notification' && <Mail className="w-5 h-5" />}
-                                {node.type === 'condition' && <Workflow className="w-5 h-5" />}
-                                {node.type === 'cc' && <Share2 className="w-5 h-5" />}
-                                {node.type === 'end' && <Save className="w-5 h-5" />}
-                              </div>
-                              <div className="flex-1">
-                                <h4 className="font-extrabold text-sm tracking-tight">{node.label}</h4>
-                                <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">{node.description}</p>
-                              </div>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); removeWorkflowNode(node.id); }}
-                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-error/5 hover:text-error rounded transition-all"
+                  <div className="w-full bg-[#f8fafc] border border-slate-200/90 rounded-3xl p-8 md:p-12 relative overflow-x-auto shadow-inner flex flex-col items-center select-none"
+                    style={{ 
+                      backgroundImage: 'radial-gradient(#cbd5e1 1.2px, transparent 1.2px)', 
+                      backgroundSize: '24px 24px' 
+                    }}
+                  >
+                    <div className="flex flex-col items-center min-w-max pb-16">
+                      {workflowNodes.map((node, index) => {
+                        const isGateway = node.type === 'gateway_exclusive' || node.type === 'gateway_parallel' || node.type === 'condition' || node.type === 'parallel' || (node.config?.branches && node.config.branches.length > 0);
+                        const isParallel = node.type === 'gateway_parallel' || node.type === 'parallel' || node.config?.gatewayType === 'parallel';
+                        const branches = node.config?.branches || [];
+
+                        return (
+                          <React.Fragment key={node.id}>
+                            {!isGateway ? (
+                              /* Standard Linear Node */
+                              <motion.div
+                                layoutId={node.id}
+                                onClick={() => {
+                                  setSelectedNodeId(node.id);
+                                  setSelectedBranchId(null);
+                                  setSelectedBranchNodeId(null);
+                                }}
+                                className={`w-full max-w-sm bg-white rounded-2xl p-6 border transition-all cursor-pointer group relative shadow-xs ${
+                                  selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
+                                    ? 'border-primary ring-4 ring-primary/20 shadow-lg -translate-y-0.5' 
+                                    : 'border-outline-variant hover:border-primary/40'
+                                }`}
                               >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                            
-                            {node.type === 'approval' && (
-                              <div className="mt-4 pt-4 border-t border-dashed border-outline-variant space-y-2.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 overflow-hidden">
-                                    <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-                                    <span className="text-[11px] font-extrabold text-primary truncate">
-                                      {node.config?.assigneeType === 'user' && `固定人员: ${node.config?.assigneeValue || '未指定'}`}
-                                      {node.config?.assigneeType === 'role' && `角色: ${node.config?.assigneeValue || '未指定'}`}
-                                      {node.config?.assigneeType === 'dept' && `部门负责人: ${node.config?.assigneeValue || '未指定'}`}
-                                      {node.config?.assigneeType === 'initiator' && '发起人复核数据'}
-                                      {node.config?.assigneeType === 'manager' && `直属主管: ${node.config?.assigneeValue || '直属一级主管'}`}
-                                      {!node.config?.assigneeType && '未配置审批人'}
-                                    </span>
+                                {selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId && (
+                                  <div className="absolute -top-3 -right-3 bg-primary text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
+                                    <Check className="w-3 h-3 stroke-[3]" />
+                                    已选中
                                   </div>
-                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
-                                    node.config?.approvalType === 'AND' ? 'bg-indigo-100 text-indigo-700' :
-                                    node.config?.approvalType === 'SEQUENTIAL' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-800'
+                                )}
+                                <div className="flex items-center gap-4">
+                                  <div className={`p-3 rounded-xl ${
+                                    node.type === 'start' ? 'bg-emerald-100 text-emerald-700' :
+                                    node.type === 'end' ? 'bg-slate-100 text-slate-700' :
+                                    node.type === 'approval' ? 'bg-amber-100 text-amber-700' :
+                                    node.type === 'notification' ? 'bg-blue-100 text-blue-700' :
+                                    node.type === 'cc' ? 'bg-purple-100 text-purple-700' : 'bg-surface text-on-surface'
                                   }`}>
-                                    {node.config?.approvalType === 'AND' ? '会签 (全员)' :
-                                     node.config?.approvalType === 'SEQUENTIAL' ? '依次审批 (按级)' : '或签 (一人同意)'}
-                                  </span>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                  <div className="flex gap-1">
-                                    {(node.config?.actions || ['approve', 'reject', 'transfer', 'return']).map(act => (
-                                      <span key={act} className="text-[9px] font-bold bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded border border-outline-variant/60">
-                                        {act === 'approve' ? '通过' : act === 'reject' ? '拒绝' : act === 'transfer' ? '转交' : act === 'return' ? '退回' : act}
-                                      </span>
-                                    ))}
+                                    {node.type === 'start' && <Play className="w-5 h-5" />}
+                                    {node.type === 'end' && <CheckCircle2 className="w-5 h-5" />}
+                                    {node.type === 'approval' && <ShieldCheck className="w-5 h-5" />}
+                                    {node.type === 'notification' && <Mail className="w-5 h-5" />}
+                                    {node.type === 'cc' && <Share2 className="w-5 h-5" />}
                                   </div>
-                                  
-                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${node.config?.commentRequirement === 'optional' ? 'bg-surface text-outline border border-outline-variant' : 'bg-primary/10 text-primary'}`}>
-                                    意见:{node.config?.commentRequirement === 'optional' ? '选填' : '必填'}
-                                  </span>
-
-                                  <span className="text-[9px] font-bold bg-surface text-outline px-1.5 py-0.5 rounded border border-outline-variant">
-                                    为空:{
-                                      node.config?.advanced?.emptyAssigneeAction === 'terminate_error' ? '终止报错' :
-                                      node.config?.advanced?.emptyAssigneeAction === 'auto_pass' ? '自动通过' :
-                                      node.config?.advanced?.emptyAssigneeAction === 'pause_admin' ? '挂起管理员' : '转指定人'
-                                    }
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-
-                            {isBranching && (
-                              <div className="mt-4 pt-4 border-t border-dashed border-outline-variant space-y-2">
-                                <div className="flex justify-between items-center text-[10px] font-bold text-outline uppercase tracking-widest">
-                                  <span>路由条件分支</span>
-                                  <span className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                                    {(node.config?.branches?.length || 2)} 条条件分支
-                                  </span>
-                                </div>
-                                <div className="space-y-1">
-                                  {(node.config?.branches || [
-                                    { id: 'b1', name: '分支 1', fieldId: 'amount', operator: '大于', value: '1000' },
-                                    { id: 'b2', name: '默认分支', fieldId: '', operator: '其他', value: '默认路径' }
-                                  ]).map((branch, bIdx) => (
-                                    <div key={branch.id || bIdx} className="flex items-center justify-between text-[10px] font-mono bg-surface p-1.5 rounded-lg border border-outline-variant">
-                                      <span className="font-bold text-on-surface">{branch.name || `分支 ${bIdx + 1}`}:</span>
-                                      <span className="text-primary truncate max-w-[180px]">
-                                        {branch.fieldId ? `${branch.fieldId} ${branch.operator} ${branch.value}` : '其他默认条件'}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </motion.div>
-                          
-                          {index < workflowNodes.length - 1 && !isBranching && (
-                            <div className="h-12 w-0.5 bg-outline-variant relative my-2 group/connector">
-                               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all z-20">
-                                  <div className="relative">
-                                    <button 
-                                      onClick={() => setShowInsertNodeMenu(showInsertNodeMenu === node.id ? null : node.id)}
-                                      className={`w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all ${showInsertNodeMenu === node.id ? 'bg-error text-white rotate-45' : 'bg-primary text-white opacity-0 group-hover/connector:opacity-100'}`}
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-extrabold text-sm tracking-tight text-slate-800 truncate">{node.label}</h4>
+                                    <p className="text-[10px] text-on-surface-variant font-medium mt-0.5 truncate">
+                                      {node.config?.assigneeValue ? `处理人: ${node.config.assigneeValue}` : (node.description || '无操作描述')}
+                                    </p>
+                                  </div>
+                                  {node.type !== 'start' && node.type !== 'end' && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); removeWorkflowNode(node.id); }}
+                                      className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-error/5 hover:text-error rounded transition-all text-slate-400"
+                                      title="删除节点"
                                     >
-                                       <Plus className="w-4 h-4" />
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </motion.div>
+                            ) : (
+                              /* Gateway Node with Branches */
+                              <div className="w-full flex flex-col items-center my-1 select-none">
+                                {/* 1. Top Gateway Split Card */}
+                                <motion.div 
+                                  layoutId={node.id}
+                                  onClick={() => {
+                                    setSelectedNodeId(node.id);
+                                    setSelectedBranchId(null);
+                                    setSelectedBranchNodeId(null);
+                                  }}
+                                  className={`group relative flex items-center justify-between gap-4 px-6 py-4 bg-white rounded-2xl border transition-all cursor-pointer shadow-sm min-w-[380px] max-w-lg ${
+                                    selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
+                                      ? 'border-primary ring-4 ring-primary/20 shadow-lg -translate-y-0.5'
+                                      : isParallel 
+                                        ? 'border-indigo-200 hover:border-indigo-400 bg-gradient-to-r from-indigo-50/60 via-white to-indigo-50/60' 
+                                        : 'border-amber-200 hover:border-amber-400 bg-gradient-to-r from-amber-50/60 via-white to-amber-50/60'
+                                  }`}
+                                >
+                                  {selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId && (
+                                    <div className="absolute -top-2.5 -right-2 bg-primary text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
+                                      <Check className="w-3 h-3 stroke-[3]" /> 网关已选中
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-center gap-3.5 min-w-0">
+                                    {/* Diamond Badge */}
+                                    <div className={`w-9 h-9 rotate-45 rounded-lg flex items-center justify-center shrink-0 shadow-xs border ${
+                                      isParallel 
+                                        ? 'bg-indigo-600 text-white border-indigo-700' 
+                                        : 'bg-amber-500 text-white border-amber-600'
+                                    }`}>
+                                      <div className="-rotate-45 flex items-center justify-center">
+                                        {isParallel ? <GitFork className="w-4 h-4" /> : <GitBranch className="w-4 h-4" />}
+                                      </div>
+                                    </div>
+
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="font-black text-xs text-slate-800 tracking-tight truncate">{node.label}</h4>
+                                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${
+                                          isParallel ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-800'
+                                        }`}>
+                                          {isParallel ? '并行网关' : '排它网关'}
+                                        </span>
+                                      </div>
+                                      <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                                        {isParallel ? '多分支同时并行触发流转' : '依据规则互斥流转首个命中分支'}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Quick Actions */}
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      type="button"
+                                      title={isParallel ? "切换为排它网关 (条件互斥)" : "切换为并行网关 (多路并行)"}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleGatewayType(node.id, isParallel ? 'exclusive' : 'parallel');
+                                      }}
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold border flex items-center gap-1 transition-all cursor-pointer ${
+                                        isParallel
+                                          ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                                          : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                                      }`}
+                                    >
+                                      <ArrowLeftRight className="w-3 h-3" />
+                                      <span>{isParallel ? '转排它' : '转并行'}</span>
                                     </button>
 
-                                    <AnimatePresence>
-                                      {showInsertNodeMenu === node.id && (
-                                        <motion.div 
-                                          initial={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
-                                          animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
-                                          exit={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
-                                          className="absolute top-8 left-1/2 bg-white rounded-xl shadow-2xl border border-outline-variant p-1.5 z-30 flex gap-1 min-w-[200px]"
-                                        >
-                                           {[
-                                             { type: 'approval' as const, icon: ShieldCheck, label: '审批' },
-                                             { type: 'notification' as const, icon: Mail, label: '通知' },
-                                             { type: 'cc' as const, icon: Share2, label: '抄送' },
-                                             { type: 'condition' as const, icon: Workflow, label: '条件' },
-                                           ].map((item) => (
-                                             <button
-                                               key={item.type}
-                                               onClick={() => {
-                                                 insertWorkflowNode(node.id, item.type);
-                                                 setShowInsertNodeMenu(null);
-                                               }}
-                                               className="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-primary/5 transition-all group/item"
-                                             >
-                                               <div className="p-1.5 bg-surface rounded-md group-hover/item:bg-primary/10 transition-colors">
-                                                 <item.icon className="w-3.5 h-3.5 text-outline group-hover/item:text-primary" />
-                                               </div>
-                                               <span className="text-[9px] font-bold whitespace-nowrap">{item.label}</span>
-                                             </button>
-                                           ))}
-                                        </motion.div>
-                                      )}
-                                    </AnimatePresence>
-                                  </div>
-                               </div>
-                              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 border-r-2 border-b-2 border-outline-variant rotate-45"></div>
-                            </div>
-                          )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addBranchToGateway(node.id);
+                                      }}
+                                      className="px-2.5 py-1 bg-slate-100 hover:bg-primary hover:text-white text-slate-700 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1 border border-slate-200 cursor-pointer"
+                                      title="添加新分支"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>添加分支</span>
+                                    </button>
 
-                          {isBranching && (
-                            <div className="h-16 w-full flex justify-center relative my-4">
-                               <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-px border-l-2 border-dashed border-outline-variant"></div>
-                               <div className="flex gap-40 relative z-10 pt-8">
-                                  <div className="flex flex-col items-center gap-2">
-                                     <div className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20">正确路径</div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeWorkflowNode(node.id);
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 hover:text-red-600 rounded text-slate-400 transition-all cursor-pointer"
+                                      title="删除此网关"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
-                                  <div className="flex flex-col items-center gap-2">
-                                     <div className="text-[10px] font-bold text-outline bg-surface px-2 py-0.5 rounded border border-outline-variant">错误路径</div>
-                                  </div>
-                               </div>
-                            </div>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
+                                </motion.div>
 
-                  <div className="flex justify-center pt-8">
-                     <button 
-                       onClick={() => addWorkflowNode('approval')}
-                       className="px-6 py-4 bg-white border-2 border-dashed border-outline-variant rounded-2xl text-[10px] font-bold uppercase tracking-widest text-outline hover:border-primary hover:text-primary transition-all flex items-center gap-2 group shadow-sm hover:shadow-lg"
-                     >
-                       <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" /> 
-                       编排新区块
-                     </button>
+                                {/* Vertical line to branching rails */}
+                                <div className="w-0.5 h-6 bg-slate-300"></div>
+
+                                {/* 2. Branch Columns Section */}
+                                <div className="relative flex flex-col items-center w-full px-4">
+                                  <div className="flex items-start justify-center gap-8 min-w-max relative pt-3 pb-3">
+                                    {branches.map((branch, bIdx) => {
+                                      const branchChildNodes = branch.nodes || (branch.childNode ? [{
+                                        id: branch.childNode.id,
+                                        type: branch.childNode.type,
+                                        label: branch.childNode.label,
+                                        description: '',
+                                        targets: [],
+                                        config: {
+                                          assigneeType: branch.childNode.assigneeType,
+                                          assigneeValue: branch.childNode.assigneeName,
+                                          approvalType: branch.childNode.approvalType
+                                        }
+                                      } as WorkflowNode] : []);
+
+                                      const isBranchSelected = selectedNodeId === node.id && selectedBranchId === branch.id && !selectedBranchNodeId;
+
+                                      return (
+                                        <div key={branch.id} className="flex flex-col items-center relative min-w-[220px] max-w-[260px]">
+                                          {/* Connecting Line from Top Rail */}
+                                          <div className="w-0.5 h-4 bg-slate-300"></div>
+
+                                          {/* Branch Header Card */}
+                                          <div
+                                            onClick={() => {
+                                              setSelectedNodeId(node.id);
+                                              setSelectedBranchId(branch.id);
+                                              setSelectedBranchNodeId(null);
+                                            }}
+                                            className={`w-full bg-white rounded-xl p-3.5 border transition-all cursor-pointer shadow-xs group/branch relative ${
+                                              isBranchSelected
+                                                ? 'border-primary ring-2 ring-primary/30 shadow-md bg-primary/5'
+                                                : isParallel 
+                                                  ? 'border-indigo-200/90 hover:border-indigo-400' 
+                                                  : 'border-amber-200/90 hover:border-amber-400'
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="font-extrabold text-xs text-slate-800 truncate">
+                                                {branch.name}
+                                              </span>
+                                              <div className="flex items-center gap-1 shrink-0">
+                                                {!isParallel && (
+                                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                                    branch.isDefault ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'
+                                                  }`}>
+                                                    {branch.isDefault ? '默认' : '条件'}
+                                                  </span>
+                                                )}
+                                                {isParallel && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                                                    并行
+                                                  </span>
+                                                )}
+                                                {branches.length > 2 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      removeBranchFromGateway(node.id, branch.id);
+                                                    }}
+                                                    className="opacity-0 group-hover/branch:opacity-100 p-0.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all cursor-pointer"
+                                                    title="删除分支"
+                                                  >
+                                                    <X className="w-3 h-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {/* Branch Rule Condition Preview */}
+                                            {!isParallel && (
+                                              <div className="mt-1 text-[10px] text-slate-500 font-medium truncate">
+                                                {branch.isDefault ? '兜底分支（其他条件不满足时走此项）' : (
+                                                  branch.conditions && branch.conditions.length > 0 
+                                                    ? branch.conditions.map(c => `${c.field} ${c.operator} ${c.value}`).join(' & ') 
+                                                    : '点击配置命中条件'
+                                                )}
+                                              </div>
+                                            )}
+                                            {isParallel && (
+                                              <div className="mt-1 text-[10px] text-indigo-600 font-medium">
+                                                独立并行处理通路
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Connecting Line to Child Nodes */}
+                                          <div className="w-0.5 h-4 bg-slate-300"></div>
+
+                                          {/* Child Nodes Stack in this Branch */}
+                                          <div className="w-full flex flex-col items-center gap-2.5">
+                                            {branchChildNodes.map((child, cIdx) => {
+                                              const isChildSelected = selectedNodeId === node.id && selectedBranchId === branch.id && selectedBranchNodeId === child.id;
+
+                                              return (
+                                                <React.Fragment key={child.id}>
+                                                  <div
+                                                    onClick={() => {
+                                                      setSelectedNodeId(node.id);
+                                                      setSelectedBranchId(branch.id);
+                                                      setSelectedBranchNodeId(child.id);
+                                                    }}
+                                                    className={`w-full bg-white rounded-xl p-3 border transition-all cursor-pointer shadow-xs relative group/cnode ${
+                                                      isChildSelected
+                                                        ? 'border-primary ring-2 ring-primary/30 shadow-md -translate-y-0.5'
+                                                        : 'border-slate-200 hover:border-primary/40'
+                                                    }`}
+                                                  >
+                                                    <div className="flex items-center gap-2.5">
+                                                      <div className={`p-1.5 rounded-lg shrink-0 ${
+                                                        child.type === 'approval' ? 'bg-amber-100 text-amber-700' :
+                                                        child.type === 'notification' ? 'bg-blue-100 text-blue-700' :
+                                                        'bg-purple-100 text-purple-700'
+                                                      }`}>
+                                                        {child.type === 'approval' && <ShieldCheck className="w-3.5 h-3.5" />}
+                                                        {child.type === 'notification' && <Mail className="w-3.5 h-3.5" />}
+                                                        {child.type === 'cc' && <Share2 className="w-3.5 h-3.5" />}
+                                                      </div>
+                                                      <div className="flex-1 min-w-0">
+                                                        <div className="text-xs font-bold text-slate-800 truncate">{child.label}</div>
+                                                        <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                                                          {child.config?.assigneeValue || '待指定处理人'}
+                                                          {child.config?.approvalType === 'AND' ? ' · 会签' : child.config?.approvalType === 'SEQUENTIAL' ? ' · 依次' : ' · 或签'}
+                                                        </div>
+                                                      </div>
+                                                      {branchChildNodes.length > 1 && (
+                                                        <button
+                                                          type="button"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            removeNodeFromBranch(node.id, branch.id, child.id);
+                                                          }}
+                                                          className="opacity-0 group-hover/cnode:opacity-100 p-1 text-slate-400 hover:text-red-500 rounded cursor-pointer"
+                                                          title="删除环节"
+                                                        >
+                                                          <Trash2 className="w-3 h-3" />
+                                                        </button>
+                                                      )}
+                                                    </div>
+                                                  </div>
+
+                                                  {cIdx < branchChildNodes.length - 1 && (
+                                                    <div className="w-0.5 h-3 bg-slate-300"></div>
+                                                  )}
+                                                </React.Fragment>
+                                              );
+                                            })}
+
+                                            {/* Plus button to append child node into this branch */}
+                                            <div className="flex flex-col items-center pt-1">
+                                              <div className="w-0.5 h-2 bg-slate-300"></div>
+                                              <div className="relative">
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setBranchInsertMenu(branchInsertMenu === `${node.id}_${branch.id}` ? null : `${node.id}_${branch.id}`);
+                                                  }}
+                                                  className="w-5 h-5 rounded-full bg-slate-100 hover:bg-primary hover:text-white text-slate-500 border border-slate-300 flex items-center justify-center text-xs transition-all cursor-pointer shadow-2xs"
+                                                  title="在此分支添加环节"
+                                                >
+                                                  <Plus className="w-3 h-3" />
+                                                </button>
+                                                {branchInsertMenu === `${node.id}_${branch.id}` && (
+                                                  <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-30 flex gap-1 min-w-[180px]">
+                                                    {[
+                                                      { type: 'approval' as const, label: '审批', icon: ShieldCheck },
+                                                      { type: 'cc' as const, label: '抄送', icon: Share2 },
+                                                      { type: 'notification' as const, label: '通知', icon: Mail }
+                                                    ].map(item => (
+                                                      <button
+                                                        key={item.type}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          addNodeToBranch(node.id, branch.id, item.type);
+                                                          setBranchInsertMenu(null);
+                                                        }}
+                                                        className="flex-1 flex flex-col items-center gap-1 p-1.5 rounded-lg hover:bg-primary/10 text-slate-700 hover:text-primary transition-all text-[9px] font-bold cursor-pointer"
+                                                      >
+                                                        <item.icon className="w-3.5 h-3.5" />
+                                                        <span>{item.label}</span>
+                                                      </button>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Connecting Line to Bottom Rail */}
+                                          <div className="w-0.5 h-4 bg-slate-300"></div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Vertical stem into joiner pill */}
+                                <div className="w-0.5 h-3 bg-slate-300"></div>
+
+                                {/* 3. Gateway Joiner / Convergence Node */}
+                                <div 
+                                  onClick={() => {
+                                    setSelectedNodeId(node.id);
+                                    setSelectedBranchId(null);
+                                    setSelectedBranchNodeId(null);
+                                  }}
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all cursor-pointer shadow-2xs ${
+                                    selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
+                                      ? 'border-primary ring-2 ring-primary/30 shadow-md bg-primary/5'
+                                      : isParallel
+                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  <GitMerge className="w-3.5 h-3.5" />
+                                  <span className="text-[10px] font-black">
+                                    {isParallel 
+                                      ? `并行汇聚 (${node.config?.parallelJoinMode === 'OR' ? '任一分支通过即可' : '全部分支通过汇合'})` 
+                                      : '分支汇合点'}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Plus Button between main workflow steps */}
+                            {index < workflowNodes.length - 1 && (
+                              <div className="flex flex-col items-center relative my-0">
+                                <div className="w-0.5 h-6 bg-slate-300"></div>
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowInsertNodeMenu(showInsertNodeMenu === node.id ? null : node.id);
+                                    }}
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-xs transition-all z-20 cursor-pointer ${
+                                      showInsertNodeMenu === node.id
+                                        ? 'bg-red-500 text-white rotate-45 scale-110'
+                                        : 'bg-slate-200 text-slate-500 hover:bg-primary hover:text-white'
+                                    }`}
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <AnimatePresence>
+                                    {showInsertNodeMenu === node.id && (
+                                      <motion.div
+                                        initial={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
+                                        animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
+                                        exit={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
+                                        className="absolute top-8 left-1/2 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-30 flex gap-1 min-w-[300px]"
+                                      >
+                                        {[
+                                          { type: 'approval' as const, icon: ShieldCheck, label: '审批' },
+                                          { type: 'gateway_exclusive' as const, icon: GitBranch, label: '排它网关' },
+                                          { type: 'gateway_parallel' as const, icon: GitFork, label: '并行网关' },
+                                          { type: 'notification' as const, icon: Mail, label: '通知' },
+                                          { type: 'cc' as const, icon: Share2, label: '抄送' },
+                                        ].map((item) => (
+                                          <button
+                                            key={item.type}
+                                            type="button"
+                                            onClick={() => {
+                                              insertWorkflowNode(node.id, item.type);
+                                              setShowInsertNodeMenu(null);
+                                            }}
+                                            className="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-primary/10 transition-all group/item cursor-pointer"
+                                          >
+                                            <div className="p-1.5 bg-slate-100 rounded-md group-hover/item:bg-primary/20 transition-colors">
+                                              <item.icon className="w-3.5 h-3.5 text-slate-600 group-hover/item:text-primary" />
+                                            </div>
+                                            <span className="text-[9px] font-bold whitespace-nowrap text-slate-700">{item.label}</span>
+                                          </button>
+                                        ))}
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                                <div className="w-0.5 h-6 bg-slate-300"></div>
+                              </div>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -8079,84 +9129,214 @@ const ArchitectApp: React.FC = () => {
                     <div className="space-y-6">
                       <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
                         <div>
-                          <h3 className="font-bold flex items-center gap-2 text-lg mb-4 cursor-default">
-                             <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                               <LayoutGrid className="w-4 h-4 text-primary" />
-                             </div>
-                             数据管理页访问链接
-                          </h3>
-                          <div className="space-y-6">
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">默认链接</label>
-                              <div className="flex gap-2">
-                                <input readOnly value={publishLinks.page} className="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none" />
-                                <div className="flex gap-2">
-                                  <button onClick={() => { navigator.clipboard.writeText(publishLinks.page); showNotification('链接已复制'); }} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
-                                  <button onClick={() => showNotification('正在下载二维码...')} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
-                                  <a href={publishLinks.page} target="_blank" rel="noreferrer" className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></a>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">自定义链接</label>
-                              <div className="flex gap-2">
-                                <div className="flex items-center gap-2 bg-surface border border-outline-variant rounded-xl px-4 py-3 flex-1">
-                                  <span className="text-xs text-outline font-mono">architect.com/p/</span>
-                                  <input 
-                                    placeholder="输入自定义路径" 
-                                    value={customLinks.page}
-                                    onChange={(e) => setCustomLinks({...customLinks, page: e.target.value})}
-                                    className="bg-transparent text-xs font-bold font-mono outline-none flex-1" 
-                                  />
-                                </div>
-                                <div className="flex gap-2">
-                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
-                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
-                                  <button className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></button>
-                                </div>
-                              </div>
-                            </div>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold flex items-center gap-2 text-lg cursor-default text-on-surface">
+                               <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                                 <FormInput className="w-4 h-4 text-primary" />
+                               </div>
+                               表单填写链接
+                            </h3>
+                            <span className="text-[10px] font-black bg-primary/10 text-primary px-2.5 py-1 rounded-full uppercase tracking-wider">
+                              外网公网直通
+                            </span>
                           </div>
-                        </div>
-                      </section>
 
-                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-8">
-                        <div>
-                          <h3 className="font-bold flex items-center gap-2 text-lg mb-4 cursor-default">
-                             <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                               <FormInput className="w-4 h-4 text-primary" />
-                             </div>
-                             表单填写链接
-                          </h3>
                           <div className="space-y-6">
+                            {/* 默认链接 */}
                             <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-outline uppercase tracking-widest">默认链接</label>
+                              <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-bold text-outline uppercase tracking-widest">默认链接</label>
+                                <span className="text-[11px] text-outline">任何持有此链接的用户均可进入填写</span>
+                              </div>
                               <div className="flex gap-2">
-                                <input readOnly value={publishLinks.form} className="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none" />
+                                <input readOnly value={publishLinks.form} className="flex-1 bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none text-on-surface" />
                                 <div className="flex gap-2">
-                                  <button onClick={() => { navigator.clipboard.writeText(publishLinks.form); showNotification('链接已复制'); }} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
-                                  <button onClick={() => showNotification('正在下载二维码...')} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
-                                  <a href={publishLinks.form} target="_blank" rel="noreferrer" className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></a>
+                                  <button onClick={() => { navigator.clipboard.writeText(publishLinks.form); showNotification('表单填写链接已复制'); }} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制链接"><Copy className="w-4 h-4" /></button>
+                                  <button onClick={() => showNotification('正在生成并下载表单二维码...')} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
+                                  <button 
+                                    type="button"
+                                    onClick={() => {
+                                      setVisitorPasswordInput('');
+                                      setVisitorPasswordError('');
+                                      setVisitorVerified(!enablePasswordControl);
+                                      setVisitorSubmitSuccess(false);
+                                      setIsVisitorModalOpen(true);
+                                    }} 
+                                    className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20 flex items-center gap-1.5 text-xs font-bold" 
+                                    title={enablePasswordControl ? "访问填写链接（需输入4位密码）" : "访问/测试表单填写"}
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                    <span>预览访问</span>
+                                  </button>
                                 </div>
                               </div>
                             </div>
+
+                            {/* 自定义链接 */}
                             <div className="space-y-2">
                               <label className="text-[10px] font-bold text-outline uppercase tracking-widest">自定义链接</label>
                               <div className="flex gap-2">
                                 <div className="flex items-center gap-2 bg-surface border border-outline-variant rounded-xl px-4 py-3 flex-1">
                                   <span className="text-xs text-outline font-mono">architect.com/f/</span>
                                   <input 
-                                    placeholder="输入自定义路径" 
+                                    placeholder="输入自定义路径，例如 recruit-2026" 
                                     value={customLinks.form}
                                     onChange={(e) => setCustomLinks({...customLinks, form: e.target.value})}
-                                    className="bg-transparent text-xs font-bold font-mono outline-none flex-1" 
+                                    className="bg-transparent text-xs font-bold font-mono outline-none flex-1 text-on-surface" 
                                   />
                                 </div>
                                 <div className="flex gap-2">
-                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制"><Copy className="w-4 h-4" /></button>
-                                  <button className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
-                                  <button className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20" title="预览"><ExternalLink className="w-4 h-4" /></button>
+                                  <button onClick={() => { navigator.clipboard.writeText(`https://architect.com/f/${customLinks.form || 'survey'}`); showNotification('自定义链接已复制'); }} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="复制自定义链接"><Copy className="w-4 h-4" /></button>
+                                  <button onClick={() => showNotification('正在生成自定义链接二维码...')} className="p-3 bg-surface hover:bg-surface-container rounded-xl transition-all border border-outline-variant" title="二维码"><QrCode className="w-4 h-4" /></button>
+                                  <button 
+                                    type="button"
+                                    onClick={() => {
+                                      setVisitorPasswordInput('');
+                                      setVisitorPasswordError('');
+                                      setVisitorVerified(!enablePasswordControl);
+                                      setVisitorSubmitSuccess(false);
+                                      setIsVisitorModalOpen(true);
+                                    }} 
+                                    className="p-3 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all border border-primary/20 flex items-center gap-1.5 text-xs font-bold" 
+                                    title={enablePasswordControl ? "访问自定义链接（需输入4位密码）" : "访问/测试表单填写"}
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                    <span>预览访问</span>
+                                  </button>
                                 </div>
+                              </div>
+                            </div>
+
+                            {/* 密码访问控制区域 */}
+                            <div className="pt-4 border-t border-outline-variant">
+                              <div className="bg-surface-container-low/40 rounded-2xl p-5 border border-outline-variant/80 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${enablePasswordControl ? 'bg-primary text-white shadow-sm' : 'bg-surface-container text-outline'}`}>
+                                      {enablePasswordControl ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="text-sm font-black text-on-surface">启用访问密码控制</h4>
+                                        {enablePasswordControl ? (
+                                          <span className="text-[10px] font-black bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            已启用 4 位密码保护
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-bold bg-slate-500/10 text-outline px-2 py-0.5 rounded-full">
+                                            未启用（免密公开）
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[11px] text-outline mt-0.5">
+                                        启用后系统生成一个 4 位字符密码。用户访问启用了密码控制的链接时，需要先录入密码进行验证方可填写提交。
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Toggle switch */}
+                                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={enablePasswordControl} 
+                                      onChange={(e) => handleTogglePasswordControl(e.target.checked)} 
+                                      className="sr-only peer" 
+                                    />
+                                    <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                  </label>
+                                </div>
+
+                                {/* 密码启用时的详情卡片 */}
+                                {enablePasswordControl && (
+                                  <motion.div 
+                                    initial={{ opacity: 0, y: -6 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-white rounded-xl p-4 border border-primary/20 shadow-sm space-y-3"
+                                  >
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                                          <KeyRound className="w-4 h-4 text-primary" />
+                                          <span>表单填写访问密码（4 位字符）：</span>
+                                        </div>
+                                        <p className="text-[10px] text-outline">用户点击表单链接时，必须输入此 4 位密码才可解锁填报页面</p>
+                                      </div>
+
+                                      <div className="flex items-center gap-2">
+                                        {/* 4位密码字符方格展示 */}
+                                        <div className="flex items-center gap-1.5 bg-surface-container-low px-3 py-1.5 rounded-xl border border-primary/30">
+                                          {formPassword.split('').map((char, idx) => (
+                                            <span 
+                                              key={idx} 
+                                              className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-primary/20 text-sm font-black font-mono text-primary shadow-xs"
+                                            >
+                                              {char}
+                                            </span>
+                                          ))}
+                                        </div>
+
+                                        {/* 刷新重新生成按钮 */}
+                                        <button
+                                          type="button"
+                                          onClick={handleRegeneratePassword}
+                                          className="p-2.5 bg-surface hover:bg-surface-container text-on-surface rounded-xl border border-outline-variant transition-all hover:text-primary"
+                                          title="重新生成 4 位字符密码"
+                                        >
+                                          <RefreshCw className="w-4 h-4" />
+                                        </button>
+
+                                        {/* 复制密码按钮 */}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(formPassword);
+                                            showNotification(`密码已复制：${formPassword}`);
+                                          }}
+                                          className="px-3.5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-xs font-black transition-all flex items-center gap-1.5"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                          <span>复制密码</span>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* 快捷操作与验证模拟 */}
+                                    <div className="pt-2 border-t border-outline-variant/40 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                      <div className="flex items-center gap-2 text-outline">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                        <span>已生效：访问者需录入此 4 位密码核验后方可填写</span>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const shareText = `【表单填写链接】${publishLinks.form}\n【访问验证密码】${formPassword}\n（请在打开页面后输入此 4 位密码进入填报）`;
+                                            navigator.clipboard.writeText(shareText);
+                                            showNotification('已复制表单链接与 4 位密码！可直接发送给填报人员');
+                                          }}
+                                          className="text-primary hover:underline font-bold flex items-center gap-1"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" /> 一键复制链接与密码
+                                        </button>
+                                        <span className="text-outline/40">|</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setVisitorPasswordInput('');
+                                            setVisitorPasswordError('');
+                                            setVisitorVerified(false);
+                                            setVisitorSubmitSuccess(false);
+                                            setIsVisitorModalOpen(true);
+                                          }}
+                                          className="text-secondary hover:underline font-bold flex items-center gap-1"
+                                        >
+                                          <ExternalLink className="w-3.5 h-3.5" /> 模拟访客录入密码验证
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -8164,260 +9344,197 @@ const ArchitectApp: React.FC = () => {
                       </section>
 
                       <div className="flex justify-end p-4">
-                         <button onClick={() => showNotification('访问限制已生效')} className="px-12 py-4 bg-primary text-white rounded-2xl font-extrabold shadow-xl shadow-primary/20 hover:scale-105 transition-all">确认并发布</button>
+                         <button 
+                           onClick={() => showNotification(enablePasswordControl ? `公开发布设置已生效！已启用 4 位密码访问控制（密码：${formPassword}）` : '公开发布设置已生效！已开放免密填写')} 
+                           className="px-12 py-4 bg-primary text-white rounded-2xl font-extrabold shadow-xl shadow-primary/20 hover:scale-105 transition-all"
+                         >
+                           确认并发布
+                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {/* 发布到工作台 card */}
+                      {/* 设置发布位置 card */}
                       <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
                             <h3 className="font-black text-base flex items-center gap-2.5 cursor-default text-on-surface">
-                              <Briefcase className="w-5 h-5 text-primary" />
-                              发布到工作台
+                              <FolderTree className="w-5 h-5 text-primary" />
+                              设置发布位置
                             </h3>
                             <span className="text-[10px] font-black bg-primary/10 text-primary px-2.5 py-1 rounded-full uppercase tracking-wider">
-                              工作台导航集成
+                              工作台入口挂载
                             </span>
                          </div>
                          <p className="text-xs text-outline font-medium">
-                           配置将此表单的成员填报端、以及管理员数据查询端直接整合进工作台左侧或顶部系统业务菜单中，功能终端用户一键触达。
+                           配置将当前设计的表单入口发布到指定的工作台位置，支持置于一级目录（轻应用首页）或二级目录（某个应用下）。
                          </p>
 
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
-                           {/* (1) 数据管理页面发布位置 */}
+                         <div className="pt-2">
                            <div className="space-y-4">
-                             <div className="flex items-center gap-2">
-                               <div className="w-1.5 h-4 bg-primary rounded-full" />
-                               <span className="text-sm font-black text-on-surface">数据管理页面发布位置</span>
-                             </div>
-                             <p className="text-[11px] text-outline leading-relaxed">
-                               控制“数据管理（后台明细查看）”页面在工作台显示时的组织架构隶属关系。
-                             </p>
-
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                               {/* Option 1: As Sub-item */}
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                               {/* Option 1: Level 1 - Light App Home */}
                                <button
                                  type="button"
-                                 onClick={() => setPublishDataPagePosition('sub')}
-                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
-                                   publishDataPagePosition === 'sub'
-                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
+                                 onClick={() => setPublishLocationType('root')}
+                                 className={`flex flex-col items-start p-5 border rounded-2xl text-left transition-all ${
+                                   publishLocationType === 'root'
+                                     ? 'border-primary bg-primary/5 shadow-md shadow-primary/5 ring-1 ring-primary'
                                      : 'border-outline-variant bg-white hover:bg-surface-container-low'
                                  }`}
                                >
-                                 <div className="flex items-center justify-between w-full mb-3">
-                                   <span className="text-xs font-black text-on-surface">作为当前应用下级</span>
+                                 <div className="flex items-center justify-between w-full mb-2">
+                                   <div className="flex items-center gap-2">
+                                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${publishLocationType === 'root' ? 'bg-primary text-white' : 'bg-surface-container text-outline'}`}>
+                                       <Home className="w-4 h-4" />
+                                     </div>
+                                     <span className="text-xs font-black text-on-surface">一级目录（轻应用首页）</span>
+                                   </div>
                                    <input
                                      type="radio"
-                                     checked={publishDataPagePosition === 'sub'}
-                                     onChange={() => setPublishDataPagePosition('sub')}
-                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
+                                     name="publishLocationRadio"
+                                     checked={publishLocationType === 'root'}
+                                     onChange={() => setPublishLocationType('root')}
+                                     className="w-4 h-4 text-primary cursor-pointer accent-primary"
                                    />
                                  </div>
-                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
-                                   <div className="flex items-center gap-1 font-bold">
-                                      <Briefcase className="w-3 h-3 text-primary" />
-                                      <span>[应用] 当前系统集</span>
+                                 <p className="text-[11px] text-outline mb-3 leading-relaxed">
+                                   直接作为独立一级应用入口发布至工作台轻应用首页大厅与常用导航，所有授权成员打开工作台即可直达填报。
+                                 </p>
+
+                                 {/* 层级示意 */}
+                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/80 rounded-xl p-3 space-y-1.5 font-mono text-[10px] text-outline">
+                                   <div className="flex items-center gap-1.5 text-outline">
+                                      <Briefcase className="w-3.5 h-3.5 text-primary" />
+                                      <span>工作台 / 轻应用首页</span>
                                    </div>
-                                   <div className="pl-3.5 border-l border-outline-variant flex items-center gap-1 font-black text-on-surface">
-                                      <Database className="w-3 h-3 text-secondary" />
-                                      <span>数据管理明细</span>
+                                   <div className="pl-4 border-l-2 border-primary flex items-center gap-1.5 font-black text-primary">
+                                      <FormInput className="w-3.5 h-3.5 text-primary" />
+                                      <span>【{tempFormName || '当前设计表单'}】（一级入口）</span>
                                    </div>
                                  </div>
                                </button>
 
-                               {/* Option 2: Parallel */}
+                               {/* Option 2: Level 2 - Specific App */}
                                <button
                                  type="button"
-                                 onClick={() => setPublishDataPagePosition('parallel')}
-                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
-                                   publishDataPagePosition === 'parallel'
-                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
+                                 onClick={() => setPublishLocationType('sub')}
+                                 className={`flex flex-col items-start p-5 border rounded-2xl text-left transition-all ${
+                                   publishLocationType === 'sub'
+                                     ? 'border-primary bg-primary/5 shadow-md shadow-primary/5 ring-1 ring-primary'
                                      : 'border-outline-variant bg-white hover:bg-surface-container-low'
                                  }`}
                                >
-                                 <div className="flex items-center justify-between w-full mb-3">
-                                   <span className="text-xs font-black text-on-surface">与当前应用平级</span>
+                                 <div className="flex items-center justify-between w-full mb-2">
+                                   <div className="flex items-center gap-2">
+                                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${publishLocationType === 'sub' ? 'bg-primary text-white' : 'bg-surface-container text-outline'}`}>
+                                       <FolderTree className="w-4 h-4" />
+                                     </div>
+                                     <span className="text-xs font-black text-on-surface">二级目录（某个应用下）</span>
+                                   </div>
                                    <input
                                      type="radio"
-                                     checked={publishDataPagePosition === 'parallel'}
-                                     onChange={() => setPublishDataPagePosition('parallel')}
-                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
+                                     name="publishLocationRadio"
+                                     checked={publishLocationType === 'sub'}
+                                     onChange={() => setPublishLocationType('sub')}
+                                     className="w-4 h-4 text-primary cursor-pointer accent-primary"
                                    />
                                  </div>
-                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
-                                   <div className="flex items-center gap-1 font-bold">
-                                      <Briefcase className="w-3 h-3 text-outline" />
-                                      <span>[应用] 当前系统集</span>
+                                 <p className="text-[11px] text-outline mb-3 leading-relaxed">
+                                   归属于企业指定的业务主应用或模块分组，作为该应用下的二级子功能或业务数据填报单据。
+                                 </p>
+
+                                 {/* 层级示意 */}
+                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/80 rounded-xl p-3 space-y-1.5 font-mono text-[10px] text-outline">
+                                   <div className="flex items-center gap-1.5 text-outline">
+                                      <Briefcase className="w-3.5 h-3.5 text-outline" />
+                                      <span>轻应用首页 / [{publishTargetApp}]</span>
                                    </div>
-                                   <div className="flex items-center gap-1 font-black text-on-surface mt-1">
-                                      <Database className="w-3 h-3 text-secondary" />
-                                      <span>[导航项] 数据管理明细</span>
+                                   <div className="pl-4 border-l-2 border-secondary flex items-center gap-1.5 font-black text-secondary">
+                                      <FormInput className="w-3.5 h-3.5 text-secondary" />
+                                      <span>【{tempFormName || '当前设计表单'}】（二级子项）</span>
                                    </div>
                                  </div>
                                </button>
                              </div>
-                           </div>
 
-                           {/* (2) 表单填写页面发布位置 */}
-                           <div className="space-y-4">
-                             <div className="flex items-center gap-2">
-                               <div className="w-1.5 h-4 bg-primary rounded-full" />
-                               <span className="text-sm font-black text-on-surface">表单填写页面发布位置</span>
-                             </div>
-                             <p className="text-[11px] text-outline leading-relaxed">
-                               控制“表单数据填写页”在工作台显示时的组织架构隶属关系。
-                             </p>
-
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                               {/* Option 1: As Sub-item */}
-                               <button
-                                 type="button"
-                                 onClick={() => setPublishFormPagePosition('sub')}
-                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
-                                   publishFormPagePosition === 'sub'
-                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
-                                     : 'border-outline-variant bg-white hover:bg-surface-container-low'
-                                 }`}
+                             {/* 二级目录配置展开项：选择挂载的具体应用 */}
+                             {publishLocationType === 'sub' && (
+                               <motion.div
+                                 initial={{ opacity: 0, y: -6 }}
+                                 animate={{ opacity: 1, y: 0 }}
+                                 className="bg-surface-container-low/30 border border-outline-variant rounded-2xl p-5 space-y-4 mt-2"
                                >
-                                 <div className="flex items-center justify-between w-full mb-3">
-                                   <span className="text-xs font-black text-on-surface">作为当前应用下级</span>
+                                 <div className="flex items-center justify-between">
+                                   <div>
+                                     <h4 className="text-xs font-black text-on-surface flex items-center gap-1.5">
+                                       <FolderTree className="w-3.5 h-3.5 text-primary" />
+                                       选择目标父级应用（二级目录归属）
+                                     </h4>
+                                     <p className="text-[11px] text-outline mt-0.5">请选择将当前表单入口挂载到哪个业务系统或应用分组下：</p>
+                                   </div>
+                                   <span className="text-[10px] font-bold text-outline">当前选定：<span className="text-primary font-black">{publishTargetApp}</span></span>
+                                 </div>
+
+                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                   {[
+                                     { name: '人力资源管理系统 (HRMS)', category: '人事综合', icon: Users },
+                                     { name: '财务与费用报销中心', category: '财务核算', icon: BarChart3 },
+                                     { name: '综合行政与后勤服务', category: '日常行政', icon: Briefcase },
+                                     { name: 'IT技术与研发协同', category: '敏捷研发', icon: Layers },
+                                     { name: '客户关系与业务跟进', category: 'CRM营销', icon: MessageSquare },
+                                     { name: '供应链与仓储资产中心', category: '供应链', icon: Building2 }
+                                   ].map((appItem) => {
+                                     const isSelected = publishTargetApp === appItem.name;
+                                     const AppIcon = appItem.icon;
+                                     return (
+                                       <button
+                                         key={appItem.name}
+                                         type="button"
+                                         onClick={() => {
+                                           setPublishTargetApp(appItem.name);
+                                           setCustomTargetApp('');
+                                         }}
+                                         className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
+                                           isSelected
+                                             ? 'border-primary bg-primary/10 text-primary font-bold shadow-xs'
+                                             : 'border-outline-variant/70 bg-white hover:bg-surface-container-low text-on-surface'
+                                         }`}
+                                       >
+                                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-primary text-white' : 'bg-surface-container text-outline'}`}>
+                                           <AppIcon className="w-3.5 h-3.5" />
+                                         </div>
+                                         <div className="min-w-0 flex-1">
+                                           <div className="text-xs font-black truncate">{appItem.name}</div>
+                                           <div className="text-[9px] text-outline truncate">{appItem.category}</div>
+                                         </div>
+                                       </button>
+                                     );
+                                   })}
+                                 </div>
+
+                                 {/* 自定义应用输入 */}
+                                 <div className="pt-2 flex items-center gap-3">
+                                   <label className="text-xs font-bold text-outline shrink-0">或自定义上级应用：</label>
                                    <input
-                                     type="radio"
-                                     checked={publishFormPagePosition === 'sub'}
-                                     onChange={() => setPublishFormPagePosition('sub')}
-                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
+                                     type="text"
+                                     value={customTargetApp}
+                                     onChange={(e) => {
+                                       setCustomTargetApp(e.target.value);
+                                       if (e.target.value.trim()) {
+                                         setPublishTargetApp(e.target.value.trim());
+                                       }
+                                     }}
+                                     placeholder="输入自定义业务应用或分组名称，如：供应链质量把控平台"
+                                     className="flex-1 bg-white border border-outline-variant rounded-xl px-3.5 py-2 text-xs font-bold text-on-surface outline-none focus:border-primary transition-all"
                                    />
                                  </div>
-                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
-                                   <div className="flex items-center gap-1 font-bold">
-                                      <Briefcase className="w-3 h-3 text-primary" />
-                                      <span>[应用] 当前系统集</span>
-                                   </div>
-                                   <div className="pl-3.5 border-l border-outline-variant flex items-center gap-1 font-black text-on-surface">
-                                      <FormInput className="w-3 h-3 text-secondary" />
-                                      <span>表单填报中心</span>
-                                   </div>
-                                 </div>
-                               </button>
-
-                               {/* Option 2: Parallel */}
-                               <button
-                                 type="button"
-                                 onClick={() => setPublishFormPagePosition('parallel')}
-                                 className={`flex flex-col items-start p-4 border rounded-2xl text-left transition-all ${
-                                   publishFormPagePosition === 'parallel'
-                                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
-                                     : 'border-outline-variant bg-white hover:bg-surface-container-low'
-                                 }`}
-                               >
-                                 <div className="flex items-center justify-between w-full mb-3">
-                                   <span className="text-xs font-black text-on-surface">与当前应用平级</span>
-                                   <input
-                                     type="radio"
-                                     checked={publishFormPagePosition === 'parallel'}
-                                     onChange={() => setPublishFormPagePosition('parallel')}
-                                     className="w-3.5 h-3.5 text-primary cursor-pointer accent-primary"
-                                   />
-                                 </div>
-                                 <div className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5 font-mono text-[9px] text-outline">
-                                   <div className="flex items-center gap-1 font-bold">
-                                      <Briefcase className="w-3 h-3 text-outline" />
-                                      <span>[应用] 当前系统集</span>
-                                   </div>
-                                   <div className="flex items-center gap-1 font-black text-on-surface mt-1">
-                                      <FormInput className="w-3 h-3 text-secondary" />
-                                      <span>[导航项] 表单填报中心</span>
-                                   </div>
-                                 </div>
-                               </button>
-                             </div>
+                               </motion.div>
+                             )}
                            </div>
                          </div>
                       </section>
 
-                      <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
-                         <div className="flex items-center justify-between border-b border-outline-variant pb-4">
-                            <h3 className="font-bold flex items-center gap-2 cursor-default"><Building2 className="w-5 h-5 text-primary" /> 数据管理页面权限</h3>
-                            <button className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest">清空所选</button>
-                         </div>
 
-                         <div className="flex flex-col gap-6">
-                           {/* 规则组合逻辑 */}
-                           <div className="border border-outline-variant rounded-2xl p-6 bg-surface-container-low/20 space-y-6">
-                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-outline-variant/60">
-                               <div className="space-y-1">
-                                 <h4 className="text-xs font-extrabold text-on-surface flex items-center gap-1.5 cursor-default">
-                                   规则组合逻辑
-                                 </h4>
-                                 <p className="text-[10px] text-outline">组合逻辑仅适用于“组织范围”和“指定角色”</p>
-                               </div>
-
-                               <div className="flex bg-white px-3 py-2 rounded-xl border border-outline-variant flex-wrap items-center gap-3">
-                                 <span className="text-[10px] font-extrabold text-on-surface-variant">条件逻辑:</span>
-                                 <div className="flex gap-4">
-                                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                                     <input 
-                                       type="radio" 
-                                       name="pageMatchMode" 
-                                       checked={pageMatchMode === 'all'} 
-                                       onChange={() => setPageMatchMode('all')}
-                                       className="w-3.5 h-3.5 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
-                                     />
-                                     <span className="text-[11px] font-extrabold text-on-surface">所有条件必须同时满足</span>
-                                     <span className="text-[9px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-mono font-bold">AND</span>
-                                   </label>
-                                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                                     <input 
-                                       type="radio" 
-                                       name="pageMatchMode" 
-                                       checked={pageMatchMode === 'any'} 
-                                       onChange={() => setPageMatchMode('any')}
-                                       className="w-3.5 h-3.5 text-primary focus:ring-primary border-outline-variant cursor-pointer accent-primary"
-                                     />
-                                     <span className="text-[11px] font-extrabold text-on-surface">任意满足其中一个条件</span>
-                                     <span className="text-[9px] text-outline px-1.5 py-0.5 bg-outline-variant/20 rounded font-mono font-bold">OR</span>
-                                   </label>
-                                 </div>
-                               </div>
-                             </div>
-
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-3">
-                                   <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">组织范围</label>
-                                   <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                      <Building2 className="w-4 h-4 text-outline" /> <span>选择部门 / 组织</span>
-                                   </div>
-                                </div>
-                                <div className="space-y-3">
-                                   <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">指定角色</label>
-                                   <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                      <UserCog className="w-4 h-4 text-outline" /> <span>选择权限角色</span>
-                                   </div>
-                                </div>
-                             </div>
-                           </div>
-
-                           {/* 具体人员 追加项 */}
-                           <div className="border border-outline-variant bg-surface-container-low/20 rounded-2xl p-6 flex flex-col justify-between space-y-6">
-                             <div className="space-y-1">
-                               <div className="flex items-center justify-between gap-2">
-                                 <h4 className="text-xs font-extrabold text-on-surface">具体人员</h4>
-                                 <span className="text-[9px] font-extrabold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">追加项</span>
-                               </div>
-                               <p className="text-[10px] text-outline leading-tight">作为特准追加项，不受组织和角色的规则组合逻辑限制，可直接赋予选定的人员访问权限。</p>
-                             </div>
-
-                             <div className="space-y-3">
-                                <label className="text-[10px] font-bold text-outline border-b border-outline-variant block pb-1">直接指定具体人</label>
-                                <div className="flex items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl text-xs font-bold cursor-pointer hover:border-primary transition-all">
-                                   <Users className="w-4 h-4 text-outline" /> <span>选择具体用户</span>
-                                </div>
-                             </div>
-                           </div>
-                         </div>
-                      </section>
 
                       <section className="bg-white p-8 rounded-3xl border border-outline-variant shadow-sm space-y-6">
                          <div className="flex items-center justify-between border-b border-outline-variant pb-4">
@@ -8502,220 +9619,437 @@ const ArchitectApp: React.FC = () => {
                       </section>
 
                       <div className="flex justify-end p-4">
-                         <button onClick={() => showNotification('访问限制已生效')} className="px-12 py-4 bg-primary text-white rounded-2xl font-extrabold shadow-xl shadow-primary/20 hover:scale-105 transition-all">确认并发布</button>
+                         <button 
+                           onClick={() => showNotification(`内部发布设置已生效！表单入口已配置至：${publishLocationType === 'root' ? '一级目录（轻应用首页）' : `二级目录（${publishTargetApp}）`}`)} 
+                           className="px-12 py-4 bg-primary text-white rounded-2xl font-extrabold shadow-xl shadow-primary/20 hover:scale-105 transition-all"
+                         >
+                           确认并发布
+                         </button>
                       </div>
                     </div>
                   )}
                 </motion.div>
               )}
-              {editorTab === 'data' && (
-                <div className="max-w-7xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              {editorTab === 'data' && (() => {
+                const submittedCount = submissions.length;
+                const pendingCount = Math.max(0, totalRequiredSubmissions - submittedCount);
+                const progressPercent = totalRequiredSubmissions > 0 
+                  ? Math.min(100, Math.round((submittedCount / totalRequiredSubmissions) * 100)) 
+                  : 100;
+                const approvedCount = submissions.filter(s => s.status === '已通过').length;
+                const inProgressCount = submissions.filter(s => s.status === '处理中').length;
+                const rejectedCount = submissions.filter(s => s.status === '已驳回').length;
+
+                const filteredSubmissions = submissions
+                  .filter(s => 
+                    (filterStatus === 'All' || s.status === filterStatus) &&
+                    (s.submitter.includes(searchQuery) || s.id.includes(searchQuery) || (s.data.dept && String(s.data.dept).includes(searchQuery)))
+                  )
+                  .sort((a, b) => new Date(b.submitTime).getTime() - new Date(a.submitTime).getTime());
+
+                return (
+                  <div className="w-full max-w-7xl mx-auto space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Header Bar */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-outline-variant shadow-sm">
                       <div>
-                        <h2 className="text-2xl font-extrabold tracking-tight">数据管理</h2>
-                        <p className="text-sm text-on-surface-variant font-medium">查看并管理表单提交的所有实例记录</p>
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-xl font-black text-on-surface tracking-tight">
+                            {tempFormName || '企业通用填报表单'} · 数据中心
+                          </h2>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                            实时统计
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant font-medium mt-1">
+                          实时监控当前表单的填报进度、完成率与填报实例详细记录
+                        </p>
                       </div>
-                      <div className="flex items-center gap-3">
-                         <div className="flex items-center gap-2 p-1 bg-surface-container rounded-xl border border-outline-variant">
-                             <button 
-                               onClick={() => setIsDataMasked(true)}
-                               className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${isDataMasked ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
-                             >
-                               <ShieldCheck className="w-3 h-3" /> 脱敏模式
-                             </button>
-                             <button 
-                               onClick={() => setIsDataMasked(false)}
-                               className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${!isDataMasked ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
-                             >
-                               <Eye className="w-3 h-3" /> 原始模式
-                             </button>
-                         </div>
-                         <button 
-                           onClick={handleExport}
-                           className="px-4 py-1.5 bg-primary text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-primary-hover transition-all flex items-center gap-1.5 cursor-pointer"
-                         >
-                           <Download className="w-3 h-3" /> 导出 Excel
-                         </button>
-                      </div>
-                   </div>
 
-                   {/* Toolbar */}
-                   <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl border border-outline-variant shadow-sm">
-                      <div className="flex flex-1 items-center gap-4 w-full sm:w-auto">
-                         <div className="relative flex-1 max-w-sm">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
-                            <input 
-                               type="text"
-                               placeholder="搜索提交人或关键词..."
-                               value={searchQuery}
-                               onChange={(e) => setSearchQuery(e.target.value)}
-                               className="w-full pl-10 pr-4 py-2 bg-surface border border-outline-variant rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
-                            />
-                         </div>
-                         <div className="flex items-center gap-2">
-                             <Filter className="w-4 h-4 text-outline" />
-                             <select 
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="bg-transparent text-xs font-bold focus:outline-none cursor-pointer border border-outline-variant px-3 py-2 rounded-xl"
-                             >
-                                <option value="All">所有状态</option>
-                                <option value="已通过">已通过</option>
-                                <option value="处理中">处理中</option>
-                                <option value="已驳回">已驳回</option>
-                                <option value="草稿">草稿</option>
-                             </select>
-                         </div>
+                      <div className="flex items-center flex-wrap gap-2.5">
+                        <button
+                          onClick={handleQuickAddSubmission}
+                          className="px-3.5 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-primary/20"
+                          title="随机新增一条模拟填报记录，查看进度实时变化"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> 模拟填报一条
+                        </button>
+
+                        <div className="flex items-center gap-1 p-1 bg-surface-container rounded-xl border border-outline-variant">
+                          <button 
+                            onClick={() => setIsDataMasked(true)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${isDataMasked ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" /> 脱敏模式
+                          </button>
+                          <button 
+                            onClick={() => setIsDataMasked(false)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${!isDataMasked ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                          >
+                            <Eye className="w-3.5 h-3.5" /> 原始模式
+                          </button>
+                        </div>
+
+                        <button 
+                          onClick={handleExport}
+                          className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-hover transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" /> 导出 Excel
+                        </button>
                       </div>
-                      <div className="flex items-center gap-3">
-                         {selectedSubmissions.length > 0 ? (
-                           <>
-                             <span className="text-xs font-bold text-primary">已选择 {selectedSubmissions.length} 项</span>
-                             <button 
+                    </div>
+
+                    {/* 上部：一行统计数据 (Top Statistics Row) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Card 1: 需填报表单总数 */}
+                      <div className="bg-white p-5 rounded-2xl border border-outline-variant shadow-sm hover:border-outline transition-all flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-on-surface-variant">需填报表单总数</span>
+                          <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center border border-slate-200">
+                            <ClipboardList className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-baseline gap-1.5">
+                          <span className="text-3xl font-black text-on-surface tracking-tight">
+                            {totalRequiredSubmissions}
+                          </span>
+                          <span className="text-xs font-bold text-on-surface-variant">份</span>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-outline-variant/60 flex items-center justify-between text-[11px] text-on-surface-variant">
+                          <span className="font-medium">目标配额基准</span>
+                          <div className="flex items-center gap-1">
+                            {[20, 50, 100].map(targetVal => (
+                              <button
+                                key={targetVal}
                                 onClick={() => {
-                                  if (confirm('确认批量删除选中的记录吗？此操作不可逆。')) {
-                                    setSubmissions(prev => prev.filter(s => !selectedSubmissions.includes(s.id)));
-                                    setSelectedSubmissions([]);
-                                    showNotification('批量删除成功');
-                                  }
+                                  setTotalRequiredSubmissions(targetVal);
+                                  showNotification(`已调整需填报表单总数为 ${targetVal} 份`);
                                 }}
-                                className="flex items-center gap-2 px-4 py-2 bg-error/10 text-error rounded-xl font-bold text-xs hover:bg-error/20 transition-all border border-error/20"
-                             >
-                                <Trash2 className="w-4 h-4" /> 批量删除
-                             </button>
-                           </>
-                         ) : (
-                           <div className="text-xs text-outline font-medium">选择多项可进行批量操作</div>
-                         )}
-                      </div>
-                   </div>
-
-                   {/* Table */}
-                   <div className="bg-white rounded-3xl border border-outline-variant shadow-sm overflow-hidden">
-                      <table className="w-full text-left border-collapse">
-                         <thead>
-                            <tr className="bg-surface border-b border-outline-variant">
-                               <th className="p-4 px-6 w-12">
-                                  <input 
-                                     type="checkbox" 
-                                     className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
-                                     checked={selectedSubmissions.length === submissions.length && submissions.length > 0}
-                                     onChange={(e) => {
-                                        if (e.target.checked) setSelectedSubmissions(submissions.map(s => s.id));
-                                        else setSelectedSubmissions([]);
-                                     }}
-                                  />
-                               </th>
-                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">提交 ID</th>
-                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">提交人</th>
-                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">
-                                  <div className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors">
-                                    提交时间 <ArrowUpDown className="w-3 h-3" />
-                                  </div>
-                               </th>
-                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none">关键详情</th>
-                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none text-center">状态</th>
-                               <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-widest leading-none text-right">操作</th>
-                            </tr>
-                         </thead>
-                         <tbody>
-                            {submissions
-                              .filter(s => 
-                                (filterStatus === 'All' || s.status === filterStatus) &&
-                                (s.submitter.includes(searchQuery) || s.id.includes(searchQuery))
-                              )
-                              .sort((a, b) => new Date(b.submitTime).getTime() - new Date(a.submitTime).getTime())
-                              .map((sub, idx) => (
-                               <tr key={sub.id} className="border-b border-outline-variant hover:bg-surface/50 transition-colors group">
-                                  <td className="p-4 px-6">
-                                     <input 
-                                        type="checkbox" 
-                                        className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
-                                        checked={selectedSubmissions.includes(sub.id)}
-                                        onChange={(e) => {
-                                           if (e.target.checked) setSelectedSubmissions([...selectedSubmissions, sub.id]);
-                                           else setSelectedSubmissions(selectedSubmissions.filter(id => id !== sub.id));
-                                        }}
-                                     />
-                                  </td>
-                                  <td className="p-4">
-                                     <span className="text-xs font-mono font-bold text-on-surface">{sub.id}</span>
-                                  </td>
-                                  <td className="p-4">
-                                     <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
-                                          {sub.submitter.charAt(0)}
-                                        </div>
-                                        <span className="text-xs font-bold text-on-surface">{maskData(sub.submitter, 'name')}</span>
-                                     </div>
-                                  </td>
-                                  <td className="p-4">
-                                     <span className="text-xs font-medium text-on-surface-variant flex items-center gap-1.5">
-                                        <Clock className="w-3 h-3" /> {sub.submitTime}
-                                     </span>
-                                  </td>
-                                  <td className="p-4">
-                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-bold">金额: ¥{sub.data.amount?.toLocaleString()}</span>
-                                        <span className="text-[10px] text-outline font-bold uppercase tracking-tighter">部门: {sub.data.dept}</span>
-                                     </div>
-                                  </td>
-                                  <td className="p-4 text-center">
-                                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${
-                                        sub.status === '已通过' ? 'bg-green-100 text-green-700' :
-                                        sub.status === '已驳回' ? 'bg-red-100 text-red-700' :
-                                        sub.status === '处理中' ? 'bg-blue-100 text-blue-700' :
-                                        'bg-surface-container text-on-surface-variant'
-                                     }`}>
-                                        {sub.status}
-                                     </span>
-                                  </td>
-                                  <td className="p-4 text-right">
-                                     <div className="flex items-center justify-end gap-2">
-                                        <button 
-                                          onClick={() => setViewingSubmission(sub)}
-                                          className="p-2 hover:bg-primary/10 text-primary rounded-lg transition-all"
-                                          title="查看详情"
-                                        >
-                                           <Eye className="w-4 h-4" />
-                                        </button>
-                                        <button 
-                                          className="p-2 hover:bg-error/10 text-error rounded-lg transition-all"
-                                          title="删除"
-                                          onClick={() => {
-                                            if (confirm('确认删除此条记录吗？')) {
-                                              setSubmissions(prev => prev.filter(s => s.id !== sub.id));
-                                              showNotification('记录已删除');
-                                            }
-                                          }}
-                                        >
-                                           <Trash2 className="w-4 h-4" />
-                                        </button>
-                                     </div>
-                                  </td>
-                               </tr>
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                  totalRequiredSubmissions === targetVal 
+                                    ? 'bg-primary text-white' 
+                                    : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant'
+                                }`}
+                              >
+                                {targetVal}
+                              </button>
                             ))}
-                         </tbody>
-                      </table>
-                      {submissions.length === 0 && (
-                         <div className="p-20 text-center">
-                            <Database className="w-12 h-12 text-outline-variant mx-auto mb-4" />
-                            <h4 className="text-lg font-bold text-outline">暂无提交数据</h4>
-                            <p className="text-sm text-outline-variant">当前表单尚未产生任何实例记录</p>
-                         </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 2: 已填报表单数 */}
+                      <div className="bg-white p-5 rounded-2xl border border-outline-variant shadow-sm hover:border-emerald-300 transition-all flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-emerald-800">已填报表单数</span>
+                          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-baseline gap-1.5">
+                          <span className="text-3xl font-black text-emerald-600 tracking-tight">
+                            {submittedCount}
+                          </span>
+                          <span className="text-xs font-bold text-emerald-700/60">份</span>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-outline-variant/60 flex items-center justify-between text-[11px] text-on-surface-variant">
+                          <span className="font-medium">已入库记录</span>
+                          <span className="font-bold text-emerald-700">
+                            办结 {approvedCount} · 审核中 {inProgressCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card 3: 待填报表单数 */}
+                      <div className="bg-white p-5 rounded-2xl border border-outline-variant shadow-sm hover:border-amber-300 transition-all flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-amber-800">待填报表单数</span>
+                          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-baseline gap-1.5">
+                          <span className="text-3xl font-black text-amber-600 tracking-tight">
+                            {pendingCount}
+                          </span>
+                          <span className="text-xs font-bold text-amber-700/60">份</span>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-outline-variant/60 flex items-center justify-between text-[11px] text-on-surface-variant">
+                          <span className="font-medium">缺口比例 {totalRequiredSubmissions > 0 ? Math.round((pendingCount / totalRequiredSubmissions) * 100) : 0}%</span>
+                          <button
+                            onClick={() => {
+                              showNotification(`已成功向 ${pendingCount} 位待填报人员发送催办提醒通知`);
+                            }}
+                            className="text-[10px] font-bold text-amber-700 hover:text-amber-800 bg-amber-100/70 hover:bg-amber-100 px-2 py-0.5 rounded transition-all"
+                          >
+                            一键催办
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Card 4: 填报进度 */}
+                      <div className="bg-white p-5 rounded-2xl border border-outline-variant shadow-sm hover:border-primary/40 transition-all flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-primary">填报进度</span>
+                          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
+                            <TrendingUp className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-3xl font-black text-primary tracking-tight">
+                              {progressPercent}%
+                            </span>
+                            <span className="text-[11px] font-bold text-on-surface-variant">
+                              {submittedCount} / {totalRequiredSubmissions}
+                            </span>
+                          </div>
+                          {/* Progress Track */}
+                          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mt-2 p-0.5 border border-slate-200/50">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-700 ${progressPercent >= 100 ? 'bg-emerald-500' : 'bg-primary'}`}
+                              style={{ width: `${progressPercent}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-outline-variant/60 flex items-center justify-between text-[11px] text-on-surface-variant">
+                          <span className="font-medium">完成态势</span>
+                          <span className={`font-bold ${progressPercent >= 100 ? 'text-emerald-600' : progressPercent >= 50 ? 'text-primary' : 'text-amber-600'}`}>
+                            {progressPercent >= 100 ? '全额达成' : progressPercent >= 50 ? '推进顺利' : '持续催办中'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 下部：当前表单的填报数据列表 (Bottom Submissions Table List) */}
+                    <div className="bg-white rounded-3xl border border-outline-variant shadow-sm overflow-hidden">
+                      {/* Section Header & Search Toolbar */}
+                      <div className="p-5 border-b border-outline-variant flex flex-col sm:flex-row gap-4 items-center justify-between bg-surface/30">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                          <h3 className="text-sm font-extrabold text-on-surface flex items-center gap-2">
+                            当前表单填报数据列表
+                          </h3>
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[11px] font-bold">
+                            共 {filteredSubmissions.length} 条
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                          <div className="relative flex-1 sm:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-outline" />
+                            <input 
+                              type="text"
+                              placeholder="搜索提交人、单号或部门..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="w-full pl-9 pr-4 py-1.5 bg-white border border-outline-variant rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1.5 bg-white border border-outline-variant px-2.5 py-1 rounded-xl">
+                            <Filter className="w-3.5 h-3.5 text-outline" />
+                            <select 
+                              value={filterStatus}
+                              onChange={(e) => setFilterStatus(e.target.value)}
+                              className="bg-transparent text-xs font-bold focus:outline-none cursor-pointer text-on-surface"
+                            >
+                              <option value="All">全部状态</option>
+                              <option value="已通过">已通过</option>
+                              <option value="处理中">处理中</option>
+                              <option value="已驳回">已驳回</option>
+                              <option value="草稿">草稿</option>
+                            </select>
+                          </div>
+
+                          {selectedSubmissions.length > 0 && (
+                            <button 
+                              onClick={() => {
+                                if (confirm(`确认批量删除选中的 ${selectedSubmissions.length} 条记录吗？此操作不可撤销。`)) {
+                                  setSubmissions(prev => prev.filter(s => !selectedSubmissions.includes(s.id)));
+                                  setSelectedSubmissions([]);
+                                  showNotification('批量删除成功');
+                                }
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 text-error rounded-xl font-bold text-xs hover:bg-error/20 transition-all border border-error/20"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> 删除 ({selectedSubmissions.length})
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Submissions Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-surface border-b border-outline-variant">
+                              <th className="p-4 px-6 w-12">
+                                <input 
+                                  type="checkbox" 
+                                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                  checked={selectedSubmissions.length === submissions.length && submissions.length > 0}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setSelectedSubmissions(submissions.map(s => s.id));
+                                    else setSelectedSubmissions([]);
+                                  }}
+                                />
+                              </th>
+                              <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-wider leading-none">提交单号</th>
+                              <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-wider leading-none">填报人员</th>
+                              <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-wider leading-none">
+                                <div className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors">
+                                  提交时间 <ArrowUpDown className="w-3 h-3" />
+                                </div>
+                              </th>
+                              <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-wider leading-none">关键填报详情</th>
+                              <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-wider leading-none text-center">流程状态</th>
+                              <th className="p-4 text-[10px] font-bold text-outline uppercase tracking-wider leading-none text-right pr-6">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredSubmissions.map((sub) => (
+                              <tr key={sub.id} className="border-b border-outline-variant hover:bg-surface/50 transition-colors group">
+                                <td className="p-4 px-6">
+                                  <input 
+                                    type="checkbox" 
+                                    className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                                    checked={selectedSubmissions.includes(sub.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) setSelectedSubmissions([...selectedSubmissions, sub.id]);
+                                      else setSelectedSubmissions(selectedSubmissions.filter(id => id !== sub.id));
+                                    }}
+                                  />
+                                </td>
+                                <td className="p-4">
+                                  <span className="text-xs font-mono font-bold text-on-surface">{sub.id}</span>
+                                </td>
+                                <td className="p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                                      {sub.submitter.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-bold text-on-surface">
+                                        {maskData(sub.submitter, 'name')}
+                                      </div>
+                                      {sub.data.phone && (
+                                        <div className="text-[10px] text-outline font-medium">
+                                          {maskData(String(sub.data.phone), 'phone')}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <span className="text-xs font-medium text-on-surface-variant flex items-center gap-1.5">
+                                    <Clock className="w-3 h-3 text-outline" /> {sub.submitTime}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <div className="flex flex-col gap-0.5">
+                                    {sub.data.amount !== undefined && (
+                                      <span className="text-xs font-bold text-on-surface">
+                                        金额: ¥{Number(sub.data.amount).toLocaleString()}
+                                      </span>
+                                    )}
+                                    {sub.data.dept && (
+                                      <span className="text-[10px] text-outline font-medium">
+                                        部门: {sub.data.dept}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-4 text-center">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                    sub.status === '已通过' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                    sub.status === '已驳回' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                                    sub.status === '处理中' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                    'bg-surface-container text-on-surface-variant border border-outline-variant'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      sub.status === '已通过' ? 'bg-emerald-500' :
+                                      sub.status === '已驳回' ? 'bg-rose-500' :
+                                      sub.status === '处理中' ? 'bg-blue-500' : 'bg-slate-400'
+                                    }`} />
+                                    {sub.status}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-right pr-6">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button 
+                                      onClick={() => setViewingSubmission(sub)}
+                                      className="p-1.5 hover:bg-primary/10 text-primary rounded-lg transition-all"
+                                      title="查看填报详情与审核轨迹"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      className="p-1.5 hover:bg-error/10 text-error rounded-lg transition-all"
+                                      title="删除记录"
+                                      onClick={() => {
+                                        if (confirm(`确认删除单号 ${sub.id} 的填报记录吗？`)) {
+                                          setSubmissions(prev => prev.filter(s => s.id !== sub.id));
+                                          showNotification('填报记录已删除');
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {filteredSubmissions.length === 0 && (
+                        <div className="p-16 text-center">
+                          <Database className="w-12 h-12 text-outline-variant mx-auto mb-3" />
+                          <h4 className="text-base font-bold text-on-surface">暂无匹配的填报数据</h4>
+                          <p className="text-xs text-outline font-medium mt-1">未找到符合搜索条件或当前状态的填报记录</p>
+                          {(searchQuery || filterStatus !== 'All') && (
+                            <button
+                              onClick={() => {
+                                setSearchQuery('');
+                                setFilterStatus('All');
+                              }}
+                              className="mt-4 px-3.5 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-xl hover:bg-primary/20 transition-all"
+                            >
+                              重置筛选条件
+                            </button>
+                          )}
+                        </div>
                       )}
                       
-                      <div className="p-4 px-6 bg-surface border-t border-outline-variant flex items-center justify-between">
-                         <div className="text-[10px] font-bold text-outline uppercase">显示 1 到 {submissions.length} 条，共 {submissions.length} 条记录</div>
-                         <div className="flex gap-2">
-                            <button className="p-2 rounded-lg border border-outline-variant bg-white disabled:opacity-50"><ChevronLeft className="w-4 h-4" /></button>
-                            <button className="px-3 py-1 rounded-lg border border-primary bg-primary/5 text-xs font-bold text-primary">1</button>
-                            <button className="p-2 rounded-lg border border-outline-variant bg-white disabled:opacity-50"><ChevronRight className="w-4 h-4" /></button>
-                         </div>
+                      {/* Pagination Footer */}
+                      <div className="p-4 px-6 bg-surface border-t border-outline-variant flex flex-col sm:flex-row gap-3 items-center justify-between">
+                        <div className="text-[11px] font-bold text-outline">
+                          显示 1 到 {filteredSubmissions.length} 条，共 {submissions.length} 条记录
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button className="p-1.5 rounded-lg border border-outline-variant bg-white disabled:opacity-50 hover:bg-surface transition-colors cursor-pointer">
+                            <ChevronLeft className="w-4 h-4 text-on-surface" />
+                          </button>
+                          <button className="px-3 py-1 rounded-lg border border-primary bg-primary text-white text-xs font-bold shadow-sm">
+                            1
+                          </button>
+                          <button className="p-1.5 rounded-lg border border-outline-variant bg-white disabled:opacity-50 hover:bg-surface transition-colors cursor-pointer">
+                            <ChevronRight className="w-4 h-4 text-on-surface" />
+                          </button>
+                        </div>
                       </div>
-                   </div>
-                </div>
-              )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {editorTab === 'preview' && (
                 <div className="w-full flex flex-col items-center">
@@ -8828,11 +10162,13 @@ const ArchitectApp: React.FC = () => {
         {/* Right Sidebar - Properties */}
         {(editorTab !== 'publish' && editorTab !== 'data' && editorTab !== 'simulate' && editorTab !== 'page' && editorTab !== 'preview') && (
           <aside className="w-80 bg-white border-l border-outline-variant flex flex-col shrink-0 text-on-surface select-none">
-            <div className="p-6 border-b border-outline-variant flex items-center gap-2">
-              <Settings className="w-4 h-4 text-outline" />
-              <span className="font-bold tracking-tight text-sm">
-                {editorTab === 'workflow' ? '节点配置' : '字段属性'}
-              </span>
+            <div className="p-6 border-b border-outline-variant flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-outline" />
+                <span className="font-bold tracking-tight text-sm">
+                  {editorTab === 'workflow' ? '节点配置' : '字段属性'}
+                </span>
+              </div>
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
@@ -9028,23 +10364,384 @@ const ArchitectApp: React.FC = () => {
                     </div>
                   )}
 
-                {selectedNode.type === 'condition' && (
-                  <div className="space-y-6 pt-6 border-t border-outline-variant animate-in slide-in-from-bottom-2">
-                     <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">评估表达式</label>
-                        <div className="relative group">
-                           <div className="absolute top-3 left-3 w-4 h-4 text-primary opacity-20"><Activity className="w-full h-full" /></div>
-                           <textarea 
-                              placeholder="例如：amount > 5000"
-                              value={selectedNode.config?.expression || ''}
-                              onChange={(e) => updateWorkflowNode(selectedNode.id, { config: { ...selectedNode.config, expression: e.target.value } })}
-                              className="w-full bg-on-surface text-green-400 font-mono text-[11px] p-4 pl-10 rounded-2xl min-h-[120px] focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all border border-outline-variant shadow-inner leading-relaxed"
-                           />
+                  {(selectedNode.type === 'condition' || selectedNode.type === 'gateway_exclusive' || selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel') && (
+                    <div className="space-y-6 pt-6 border-t border-outline-variant animate-in slide-in-from-bottom-2">
+                      {/* Gateway Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {(selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel') ? (
+                            <GitFork className="w-4 h-4 text-indigo-500" />
+                          ) : (
+                            <GitBranch className="w-4 h-4 text-amber-500" />
+                          )}
+                          <label className="text-xs font-bold">
+                            {(selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel')
+                              ? '并行网关配置'
+                              : '排它网关与分支路由'}
+                          </label>
                         </div>
-                        <p className="text-[10px] text-outline font-medium">使用 JavaScript 语法进行数据对比。</p>
-                     </div>
-                  </div>
-                )}
+                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                          (selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel')
+                            ? 'bg-indigo-100 text-indigo-700'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {(selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel')
+                            ? '并行网关'
+                            : '排它网关'}
+                        </span>
+                      </div>
+
+                      {/* Gateway Type Switcher */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">网关类型切换</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleGatewayType(selectedNode.id, 'exclusive')}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                              !(selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel')
+                                ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-200 text-amber-900 font-bold'
+                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <GitBranch className="w-3.5 h-3.5" />
+                              <span>排它网关</span>
+                            </div>
+                            <p className="text-[9px] mt-0.5 opacity-80">满足首个条件即流转</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleGatewayType(selectedNode.id, 'parallel')}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                              (selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel')
+                                ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200 text-indigo-900 font-bold'
+                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <GitFork className="w-3.5 h-3.5" />
+                              <span>并行网关</span>
+                            </div>
+                            <p className="text-[9px] mt-0.5 opacity-80">多条分支同时流转</p>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Parallel Join Rule */}
+                      {(selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel') && (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">并行汇聚模式 (Join Rule)</label>
+                          <select 
+                            value={selectedNode.config?.parallelJoinMode || 'AND'}
+                            onChange={(e) => updateWorkflowNode(selectedNode.id, {
+                              config: {
+                                ...selectedNode.config,
+                                parallelJoinMode: e.target.value as any
+                              }
+                            })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                          >
+                            <option value="AND">AND 全部汇聚（所有分支完成方可通过）</option>
+                            <option value="OR">OR 竞速汇聚（任一分支完成即可流转）</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Branch List Manager */}
+                      <div className="space-y-3 pt-3 border-t border-outline-variant">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest block leading-none">
+                            包含分支 ({(selectedNode.config?.branches || []).length})
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => addBranchToGateway(selectedNode.id)}
+                            className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" /> 添加分支
+                          </button>
+                        </div>
+
+                        <div className="space-y-3">
+                          {(selectedNode.config?.branches || []).map((branch, bIdx) => {
+                            const isParallel = selectedNode.type === 'gateway_parallel' || selectedNode.type === 'parallel' || selectedNode.config?.gatewayType === 'parallel';
+                            const isExpanded = selectedBranchId === branch.id;
+                            return (
+                              <div key={branch.id || bIdx} className={`rounded-xl border transition-all ${isExpanded ? 'bg-primary/5 border-primary shadow-xs' : 'bg-slate-50 border-slate-200'}`}>
+                                <div 
+                                  onClick={() => setSelectedBranchId(isExpanded ? null : branch.id)}
+                                  className="p-3 flex items-center justify-between cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                      {bIdx + 1}
+                                    </div>
+                                    <span className="font-bold text-xs text-slate-800 truncate">{branch.name}</span>
+                                    <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded ${
+                                      isParallel ? 'bg-indigo-100 text-indigo-700' : branch.isDefault ? 'bg-slate-200 text-slate-700' : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {isParallel ? '并行' : branch.isDefault ? '默认' : '条件'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-slate-500 font-medium">{(branch.nodes || []).length} 节点</span>
+                                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180 text-primary' : ''}`} />
+                                  </div>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="p-3 pt-0 border-t border-slate-200/60 space-y-4 animate-in slide-in-from-top-1">
+                                    <div className="space-y-2 pt-2">
+                                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">分支名称</label>
+                                      <input 
+                                        type="text" 
+                                        value={branch.name}
+                                        onChange={(e) => updateBranchInGateway(selectedNode.id, branch.id, { name: e.target.value })}
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold"
+                                        placeholder="分支名称"
+                                      />
+                                    </div>
+
+                                    {!isParallel && (
+                                      <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                          <label className="text-xs font-bold text-slate-800">设为默认兜底分支</label>
+                                          <input 
+                                            type="checkbox" 
+                                            checked={!!branch.isDefault}
+                                            onChange={(e) => updateBranchInGateway(selectedNode.id, branch.id, { isDefault: e.target.checked })}
+                                            className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                                          />
+                                        </div>
+
+                                        {!branch.isDefault && (
+                                          <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[10px] font-bold text-slate-600">路由匹配条件</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const currentConds = branch.conditions || [];
+                                                  const newCond = {
+                                                    id: `c-${Date.now()}`,
+                                                    field: '创建人所属组织',
+                                                    operator: '属于',
+                                                    value: '集团/总部'
+                                                  };
+                                                  updateBranchInGateway(selectedNode.id, branch.id, {
+                                                    conditions: [...currentConds, newCond]
+                                                  });
+                                                }}
+                                                className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
+                                              >
+                                                <Plus className="w-3 h-3" /> 添加条件
+                                              </button>
+                                            </div>
+
+                                            {(branch.conditions && branch.conditions.length > 0) ? (
+                                              branch.conditions.map((cond, cIndex) => (
+                                                <div key={cond.id || cIndex} className="p-2.5 bg-white border border-slate-200 rounded-lg space-y-2">
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="text-[9px] font-bold text-slate-500">条件 {cIndex + 1}</span>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const updated = branch.conditions?.filter((_, i) => i !== cIndex) || [];
+                                                        updateBranchInGateway(selectedNode.id, branch.id, { conditions: updated });
+                                                      }}
+                                                      className="text-slate-400 hover:text-red-500 p-0.5 cursor-pointer"
+                                                    >
+                                                      <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                  </div>
+
+                                                  <select
+                                                    value={cond.field}
+                                                    onChange={(e) => {
+                                                      const updated = [...(branch.conditions || [])];
+                                                      updated[cIndex] = { ...updated[cIndex], field: e.target.value };
+                                                      updateBranchInGateway(selectedNode.id, branch.id, { conditions: updated });
+                                                    }}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs font-bold cursor-pointer"
+                                                  >
+                                                    <option value="创建人所属组织">创建人所属组织</option>
+                                                    <option value="申请金额">申请金额 (元)</option>
+                                                    <option value="请假天数">请假天数</option>
+                                                    <option value="项目类型">项目类型</option>
+                                                  </select>
+
+                                                  <div className="grid grid-cols-2 gap-1.5">
+                                                    <select
+                                                      value={cond.operator}
+                                                      onChange={(e) => {
+                                                        const updated = [...(branch.conditions || [])];
+                                                        updated[cIndex] = { ...updated[cIndex], operator: e.target.value };
+                                                        updateBranchInGateway(selectedNode.id, branch.id, { conditions: updated });
+                                                      }}
+                                                      className="bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs font-bold cursor-pointer"
+                                                    >
+                                                      <option value="属于">属于</option>
+                                                      <option value="等于">等于 (=)</option>
+                                                      <option value="不等于">不等于 (≠)</option>
+                                                      <option value="大于">大于 (&gt;)</option>
+                                                      <option value="大于等于">大于等于 (&ge;)</option>
+                                                      <option value="小于">小于 (&lt;)</option>
+                                                    </select>
+
+                                                    <input 
+                                                      type="text"
+                                                      value={cond.value}
+                                                      onChange={(e) => {
+                                                        const updated = [...(branch.conditions || [])];
+                                                        updated[cIndex] = { ...updated[cIndex], value: e.target.value };
+                                                        updateBranchInGateway(selectedNode.id, branch.id, { conditions: updated });
+                                                      }}
+                                                      placeholder="判定值"
+                                                      className="bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs font-bold"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              ))
+                                            ) : (
+                                              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800 font-medium">
+                                                暂无匹配条件，请添加条件或设为默认分支。
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Branch Nodes Management */}
+                                    <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold text-slate-600">分支内节点</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => addNodeToBranch(selectedNode.id, branch.id, 'approval')}
+                                          className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
+                                        >
+                                          <Plus className="w-3 h-3" /> 添加节点
+                                        </button>
+                                      </div>
+
+                                      <div className="space-y-1.5">
+                                        {(branch.nodes || []).map((nodeItem, nIdx) => (
+                                          <div 
+                                            key={nodeItem.id}
+                                            className="p-2 bg-white border border-slate-200 rounded-lg space-y-1.5"
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-1.5 min-w-0">
+                                                <span className="text-[9px] font-bold text-primary px-1 py-0.5 bg-primary/10 rounded">
+                                                  {nIdx + 1}
+                                                </span>
+                                                <span className="text-xs font-bold text-slate-800 truncate">{nodeItem.label}</span>
+                                              </div>
+                                              {(branch.nodes?.length || 0) > 1 && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => removeNodeFromBranch(selectedNode.id, branch.id, nodeItem.id)}
+                                                  className="text-slate-400 hover:text-red-500 p-0.5 cursor-pointer"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                </button>
+                                              )}
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-1.5">
+                                              <select
+                                                value={nodeItem.config?.assigneeType || 'user'}
+                                                onChange={(e) => updateNodeInBranch(selectedNode.id, branch.id, nodeItem.id, {
+                                                  config: { ...nodeItem.config, assigneeType: e.target.value as any, assigneeValue: '' }
+                                                })}
+                                                className="bg-slate-50 border border-slate-200 rounded-md p-1.5 text-[10px] font-bold cursor-pointer"
+                                              >
+                                                <option value="user">指定成员</option>
+                                                <option value="role">角色</option>
+                                                <option value="dept">部门负责人</option>
+                                              </select>
+
+                                              <select
+                                                value={nodeItem.config?.assigneeValue || ''}
+                                                onChange={(e) => updateNodeInBranch(selectedNode.id, branch.id, nodeItem.id, {
+                                                  config: { ...nodeItem.config, assigneeValue: e.target.value }
+                                                })}
+                                                className="bg-slate-50 border border-slate-200 rounded-md p-1.5 text-[10px] font-bold cursor-pointer"
+                                              >
+                                                <option value="">指定对象...</option>
+                                                {nodeItem.config?.assigneeType === 'user' && teamMembers.map(m => (
+                                                  <option key={m.id} value={m.name}>{m.name}</option>
+                                                ))}
+                                                {nodeItem.config?.assigneeType === 'role' && allRoles.map(r => (
+                                                  <option key={r} value={r}>{r}</option>
+                                                ))}
+                                                {nodeItem.config?.assigneeType === 'dept' && allDepts.map(d => (
+                                                  <option key={d} value={d}>{d}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {(selectedNode.config?.branches?.length || 0) > 2 && (
+                                      <div className="pt-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => removeBranchFromGateway(selectedNode.id, branch.id)}
+                                          className="w-full py-1.5 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                          删除此分支
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedNode.type === 'notification' && (
+                    <div className="space-y-6 pt-6 border-t border-outline-variant">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Mail className="w-4 h-4 text-blue-500" />
+                        <label className="text-xs font-bold">通知配置</label>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">通知方式</label>
+                        <select className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold">
+                          <option>站内信通知</option>
+                          <option>邮件提醒</option>
+                          <option>企业微信/企微机器人</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedNode.type === 'cc' && (
+                    <div className="space-y-6 pt-6 border-t border-outline-variant">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Share2 className="w-4 h-4 text-purple-500" />
+                        <label className="text-xs font-bold">抄送人配置</label>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">抄送人员</label>
+                        <select className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-xs font-bold">
+                          {teamMembers.map(m => (
+                            <option key={m.id} value={m.name}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
               </div>
             ) : (editorTab === 'design' && selectedField) ? (
               <div key={selectedField.id} className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
@@ -10058,6 +11755,252 @@ const ArchitectApp: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 外部访客填写与4位密码验证模拟弹窗 */}
+      <AnimatePresence>
+        {isVisitorModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-3xl border border-outline-variant shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* 弹窗顶部栏 */}
+              <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between bg-surface/50 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${enablePasswordControl && !visitorVerified ? 'bg-amber-500/10 text-amber-600' : 'bg-primary/10 text-primary'}`}>
+                    {enablePasswordControl && !visitorVerified ? <Lock className="w-4 h-4" /> : <FormInput className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-on-surface">
+                      {tempFormName || '公开表单数据填报'}
+                    </h3>
+                    <p className="text-[10px] text-outline">
+                      {enablePasswordControl && !visitorVerified ? '需要密码验证访问' : '公开访问与数据录入'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsVisitorModalOpen(false)}
+                  className="p-2 hover:bg-surface-container rounded-full text-outline hover:text-on-surface transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* 状态 A: 启用密码控制 且 访客尚未验证通过 */}
+              {enablePasswordControl && !visitorVerified ? (
+                <div className="p-6 sm:p-8 space-y-6">
+                  <div className="text-center space-y-2">
+                    <div className="w-14 h-14 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                      <KeyRound className="w-7 h-7" />
+                    </div>
+                    <h4 className="text-lg font-black text-on-surface">请输入访问密码</h4>
+                    <p className="text-xs text-outline leading-relaxed max-w-xs mx-auto">
+                      当前表单已开启密码控制保护。请录入发起人提供的 4 位字符密码以解锁表单。
+                    </p>
+                  </div>
+
+                  {/* 4位密码录入 */}
+                  <div className="space-y-3">
+                    <div className="flex justify-center">
+                      <input
+                        type="text"
+                        maxLength={4}
+                        autoFocus
+                        value={visitorPasswordInput}
+                        onChange={(e) => {
+                          setVisitorPasswordInput(e.target.value.toUpperCase());
+                          setVisitorPasswordError('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleVerifyVisitorPassword();
+                        }}
+                        placeholder="4位密码"
+                        className="w-48 text-center text-2xl font-black font-mono tracking-[0.4em] py-3.5 px-4 bg-surface border-2 border-outline-variant focus:border-primary rounded-2xl outline-none transition-all placeholder:text-outline/40 uppercase shadow-inner"
+                      />
+                    </div>
+
+                    {visitorPasswordError ? (
+                      <p className="text-center text-xs font-bold text-rose-600">
+                        {visitorPasswordError}
+                      </p>
+                    ) : (
+                      <p className="text-center text-[11px] text-outline">
+                        请输入 4 位字符密码，不区分大小写
+                      </p>
+                    )}
+
+                    {/* 测试辅助提示 */}
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between text-xs text-amber-800">
+                      <span className="text-[11px]">当前设计设定的密码为：<span className="font-mono font-black">{formPassword}</span></span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVisitorPasswordInput(formPassword);
+                          setVisitorPasswordError('');
+                        }}
+                        className="text-primary font-black hover:underline text-[11px] shrink-0 ml-2"
+                      >
+                        一键填入
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 按钮区域 */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsVisitorModalOpen(false)}
+                      className="flex-1 py-3 border border-outline-variant text-on-surface rounded-xl font-bold text-xs hover:bg-surface-container transition-all"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleVerifyVisitorPassword}
+                      className="flex-1 py-3 bg-primary text-white rounded-xl font-extrabold text-xs hover:scale-[1.02] shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>验证并进入</span>
+                    </button>
+                  </div>
+                </div>
+              ) : visitorSubmitSuccess ? (
+                /* 状态 B: 提交成功界面 */
+                <div className="p-8 text-center space-y-6">
+                  <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                    <CheckCircle2 className="w-9 h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h4 className="text-xl font-black text-on-surface">表单提交成功！</h4>
+                    <p className="text-xs text-outline">感谢您的参与，您的填报数据已成功收录并在表单数据管理后台同步展现。</p>
+                  </div>
+
+                  <div className="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/60 text-left space-y-2 text-xs">
+                    <div className="flex justify-between text-outline text-[11px]">
+                      <span>填报状态</span>
+                      <span className="text-emerald-600 font-bold">验证已通过</span>
+                    </div>
+                    <div className="flex justify-between text-outline text-[11px]">
+                      <span>安全凭证</span>
+                      <span className="font-mono text-on-surface">{enablePasswordControl ? `4位密码保护 (${formPassword})` : '公开直通'}</span>
+                    </div>
+                    <div className="flex justify-between text-outline text-[11px]">
+                      <span>同步时间</span>
+                      <span className="font-mono text-on-surface">刚刚</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVisitorFormData({});
+                        setVisitorSubmitSuccess(false);
+                      }}
+                      className="flex-1 py-3 border border-outline-variant text-on-surface rounded-xl font-bold text-xs hover:bg-surface-container transition-all"
+                    >
+                      再填一份
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsVisitorModalOpen(false)}
+                      className="flex-1 py-3 bg-primary text-white rounded-xl font-extrabold text-xs hover:scale-[1.02] shadow-lg shadow-primary/20 transition-all"
+                    >
+                      完成并关闭
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* 状态 C: 表单填写交互界面 */
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  {/* 密码验证通过提示条 */}
+                  {enablePasswordControl && (
+                    <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-2 flex items-center justify-between text-xs text-emerald-700">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>已通过 4 位密码安全核验 ({formPassword})</span>
+                      </div>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-mono">
+                        受保护链接
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 动态表单项列表 */}
+                  <div className="p-6 space-y-4 overflow-y-auto flex-1 max-h-[55vh]">
+                    {(formFields.length > 0 ? formFields : [
+                      { id: 'fullname', label: '姓名 / 申报人', type: 'text', placeholder: '请输入姓名', required: true },
+                      { id: 'phone', label: '手机号码', type: 'phone', placeholder: '请输入11位手机号', required: true },
+                      { id: 'dept', label: '所属部门', type: 'select', placeholder: '请选择部门', required: true, options: ['研发部', '市场部', '人力资源部', '财务部', '综合运营部'] },
+                      { id: 'amount', label: '申报/支出金额 (元)', type: 'number', placeholder: '请输入金额', required: false },
+                      { id: 'notes', label: '备注说明', type: 'textarea', placeholder: '请填写相关补充说明信息...', required: false }
+                    ]).map((field) => (
+                      <div key={field.id} className="space-y-1.5">
+                        <label className="text-xs font-black text-on-surface flex items-center gap-1">
+                          <span>{field.label}</span>
+                          {field.required && <span className="text-rose-500">*</span>}
+                        </label>
+
+                        {field.type === 'textarea' ? (
+                          <textarea
+                            rows={3}
+                            placeholder={field.placeholder || `请输入${field.label}`}
+                            value={visitorFormData[field.id] || ''}
+                            onChange={(e) => setVisitorFormData({ ...visitorFormData, [field.id]: e.target.value })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs text-on-surface outline-none focus:border-primary transition-all resize-none"
+                          />
+                        ) : field.type === 'select' ? (
+                          <select
+                            value={visitorFormData[field.id] || ''}
+                            onChange={(e) => setVisitorFormData({ ...visitorFormData, [field.id]: e.target.value })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs text-on-surface outline-none focus:border-primary transition-all cursor-pointer"
+                          >
+                            <option value="">{field.placeholder || '请选择'}</option>
+                            {(field.options || ['研发部', '市场部', '人力资源部', '财务部']).map((opt: string) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type === 'number' ? 'number' : 'text'}
+                            placeholder={field.placeholder || `请输入${field.label}`}
+                            value={visitorFormData[field.id] || ''}
+                            onChange={(e) => setVisitorFormData({ ...visitorFormData, [field.id]: e.target.value })}
+                            className="w-full bg-surface border border-outline-variant rounded-xl p-3 text-xs text-on-surface outline-none focus:border-primary transition-all"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 底部提交按钮 */}
+                  <div className="p-6 border-t border-outline-variant bg-surface/30 flex gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsVisitorModalOpen(false)}
+                      className="flex-1 py-3 border border-outline-variant text-on-surface rounded-xl font-bold text-xs hover:bg-surface-container transition-all"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitVisitorForm}
+                      className="flex-1 py-3 bg-primary text-white rounded-xl font-extrabold text-xs hover:scale-[1.02] shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>确认提交表单</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
     );
   }
@@ -10163,29 +12106,35 @@ const ArchitectApp: React.FC = () => {
   if (view === 'integrations') {
     return (
       <ConsoleLayout viewToken="integrations" title="系统设置" subtitle="" currentView={view} setView={setView} showNotification={showNotification} notifications={notifications}>
-        <IntegrationsView showNotification={showNotification} setView={setView} />
+        <IntegrationsView showNotification={showNotification} setView={setView} setTeamInitialTab={setTeamInitialTab} />
       </ConsoleLayout>
     );
   }
   if (view === 'team') return (
     <ConsoleLayout 
       viewToken="team" 
-      title="组织人员" 
+      title="组织与权限管理" 
       subtitle="" 
       currentView={view} 
       setView={setView} 
       showNotification={showNotification} 
       notifications={notifications}
+      hideHeader={true}
     >
       <TeamView 
         teamMembers={teamMembers} 
         orgData={orgData}
+        roles={roles}
+        setRoles={setRoles}
         onAddMember={onAddMember}
         onUpdateMember={onUpdateMember}
         onDeleteMember={onDeleteMember}
         onAddDept={onAddDept}
         onUpdateDept={onUpdateDept}
         onDeleteDept={onDeleteDept}
+        savedForms={savedForms}
+        formFieldsMap={formFieldsMap}
+        initialTab={teamInitialTab}
         showNotification={showNotification}
       />
     </ConsoleLayout>
