@@ -39,6 +39,7 @@ import {
   Mail,
   Clock,
   CheckCircle2,
+  AlertCircle,
   RefreshCw,
   FileDown,
   Search,
@@ -137,8 +138,10 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { OrgNode, TeamMember, RoleDefinition } from './components/system-settings/types';
 import { SystemSettingsView } from './components/system-settings/SystemSettingsView';
+import { WorkflowManagementView } from './components/workflow-management/WorkflowManagementView';
+import { ProcessManagementView } from './components/process-management/ProcessManagementView';
 
-type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter';
+type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'processManagement' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter';
 
 interface FormField {
   id: string;
@@ -535,7 +538,7 @@ interface ConsoleLayoutProps {
   title: string;
   subtitle?: string;
   viewToken: ViewType;
-  notifications: Array<{ id: number; text: string }>;
+  notifications: Array<{ id: string; text: string }>;
   currentView: ViewType;
   setView: (view: ViewType) => void;
   showNotification: (text: string) => void;
@@ -659,6 +662,37 @@ interface AppCenterViewProps {
   setSavedForms?: React.Dispatch<React.SetStateAction<SavedForm[]>>;
 }
 
+type WorkflowTabType = 'myTodo' | 'myInitiated' | 'myProcessed' | 'ccToMe' | 'delegation';
+
+interface WorkflowTaskItem {
+  id: string;
+  title: string;
+  formName: string;
+  category: 'myTodo' | 'myInitiated' | 'myProcessed' | 'ccToMe';
+  applicant: string;
+  applicantDept: string;
+  submitTime: string;
+  urgency?: 'high' | 'normal' | 'low';
+  currentStep?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'in_progress' | 'read' | 'unread';
+  summary?: string;
+  amount?: string;
+  formDataPreview?: Record<string, string>;
+  timeline?: Array<{ step: string; actor: string; action: string; time: string; status: 'done' | 'current' | 'wait' }>;
+}
+
+interface DelegationRule {
+  id: string;
+  delegator: string;
+  delegatee: string;
+  delegateeDept: string;
+  startTime: string;
+  endTime: string;
+  scope: string;
+  isEnabled: boolean;
+  notes?: string;
+}
+
 const AppCenterView: React.FC<AppCenterViewProps> = ({
   savedForms,
   projects = [],
@@ -671,6 +705,332 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
   const [activeCategory, setActiveCategory] = React.useState('全部');
   const [favoriteFormIds, setFavoriteFormIds] = React.useState<string[]>(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7']);
   
+  // Workflow center state
+  const [activeWorkflowTab, setActiveWorkflowTab] = React.useState<WorkflowTabType>('myTodo');
+  const [workflowSearch, setWorkflowSearch] = React.useState('');
+  const [selectedTask, setSelectedTask] = React.useState<WorkflowTaskItem | null>(null);
+  const [approvalOpinion, setApprovalOpinion] = React.useState('');
+  const [isDelegationModalOpen, setIsDelegationModalOpen] = React.useState(false);
+
+  // Delegation rule
+  const [delegationRule, setDelegationRule] = React.useState<DelegationRule>({
+    id: 'del-01',
+    delegator: '当前用户 (管理员)',
+    delegatee: '张经理',
+    delegateeDept: '人力资源部',
+    startTime: '2026-09-20',
+    endTime: '2026-10-07',
+    scope: '全部审批流程',
+    isEnabled: true,
+    notes: '国庆假前及外派期间常规业务审批委托代理'
+  });
+
+  // Workflow task items list
+  const [workflowTasks, setWorkflowTasks] = React.useState<WorkflowTaskItem[]>([
+    {
+      id: 'task-todo-1',
+      title: '市场营销部 2026 Q3 线下宣讲会物料采购付款',
+      formName: '采购付款审批单',
+      category: 'myTodo',
+      applicant: '肖主管',
+      applicantDept: '市场拓展部',
+      submitTime: '15分钟前',
+      urgency: 'high',
+      currentStep: '部门主管审批',
+      status: 'pending',
+      amount: '¥ 18,600',
+      summary: '用于华东/华南五城高校秋招宣讲场地物料、展板搭建及定制伴手礼采购。',
+      formDataPreview: {
+        '申请项目': 'Q3线下巡讲场地物料',
+        '付款金额': '¥ 18,600',
+        '收款单位': '创艺会展服务有限公司',
+        '付款方式': '对公转账',
+        '预计使用日期': '2026-10-12'
+      },
+      timeline: [
+        { step: '发起申请', actor: '肖主管', action: '提交表单', time: '今天 09:30', status: 'done' },
+        { step: '部门主管审批', actor: '当前用户', action: '待处理', time: '进行中', status: 'current' },
+        { step: '财务合规会签', actor: '陈莎拉', action: '待处理', time: '-', status: 'wait' },
+        { step: '出纳付款归档', actor: '出纳员', action: '待处理', time: '-', status: 'wait' }
+      ]
+    },
+    {
+      id: 'task-todo-2',
+      title: '研发二组高阶架构师招聘录用审批',
+      formName: '员工录用审批表',
+      category: 'myTodo',
+      applicant: '张经理',
+      applicantDept: '人力资源部',
+      submitTime: '1小时前',
+      urgency: 'normal',
+      currentStep: '业务总监复核',
+      status: 'pending',
+      summary: '候选人已通过三轮技术终面，拟定职级P7，薪资及期权方案已获HRVP预审。',
+      formDataPreview: {
+        '拟录用人员': '林浩然',
+        '应聘岗位': '云原生高阶架构师',
+        '定岗职级': 'P7 / 专家级',
+        '拟入职日期': '2026-10-15'
+      },
+      timeline: [
+        { step: 'HR初审推荐', actor: '张经理', action: '提交录用单', time: '今天 08:45', status: 'done' },
+        { step: '业务总监复核', actor: '当前用户', action: '待处理', time: '进行中', status: 'current' },
+        { step: '总经办审批', actor: '小鲤', action: '待处理', time: '-', status: 'wait' }
+      ]
+    },
+    {
+      id: 'task-todo-3',
+      title: '企业云服务跨可用区升级立项申请',
+      formName: 'IT资源变更立项',
+      category: 'myTodo',
+      applicant: '李专员',
+      applicantDept: '基础架构组',
+      submitTime: '昨天 16:30',
+      urgency: 'normal',
+      currentStep: '技术委员会审批',
+      status: 'pending',
+      amount: '¥ 45,000 /年',
+      summary: '针对核心数据库集群扩容增加多可用区热备，保障99.99%高可用服务水平。',
+      formDataPreview: {
+        '系统名称': '核心业务数据底座',
+        '变更等级': '二级重大变更',
+        '费用预算': '¥ 45,000 /年',
+        '实施窗口期': '2026-09-28 02:00-06:00'
+      },
+      timeline: [
+        { step: '方案申报', actor: '李专员', action: '提交立项', time: '昨天 16:30', status: 'done' },
+        { step: '技术委员会审批', actor: '当前用户', action: '待处理', time: '进行中', status: 'current' },
+        { step: '运维窗口执行', actor: '运维值班组', action: '待处理', time: '-', status: 'wait' }
+      ]
+    },
+    {
+      id: 'task-init-1',
+      title: '2026全员产品发布会差旅及场地租赁费用预支',
+      formName: '差旅预支申请单',
+      category: 'myInitiated',
+      applicant: '当前用户',
+      applicantDept: '总经办',
+      submitTime: '今天 09:20',
+      urgency: 'high',
+      currentStep: '财务总监审核',
+      status: 'in_progress',
+      amount: '¥ 32,000',
+      summary: '包含会务团队差旅差补、展厅早鸟定金及技术演练支持费用。',
+      timeline: [
+        { step: '提交申请', actor: '当前用户', action: '提交表单', time: '今天 09:20', status: 'done' },
+        { step: '分管副总审批', actor: '王副总', action: '已同意', time: '今天 10:15', status: 'done' },
+        { step: '财务总监审核', actor: '陈财务总监', action: '处理中', time: '进行中', status: 'current' }
+      ]
+    },
+    {
+      id: 'task-init-2',
+      title: '新入职员工专用笔记本与扩展坞申领表',
+      formName: 'IT资产申领单',
+      category: 'myInitiated',
+      applicant: '当前用户',
+      applicantDept: '总经办',
+      submitTime: '2026-09-22 17:00',
+      currentStep: '已办结',
+      status: 'approved',
+      summary: '申领MacBook Pro M3 16G 2台，用于第四季度入职专员日常研发办公。',
+      timeline: [
+        { step: '提交申领', actor: '当前用户', action: '提交', time: '2026-09-22 14:00', status: 'done' },
+        { step: 'IT主管审核', actor: 'IT主管', action: '已核准', time: '2026-09-22 15:30', status: 'done' },
+        { step: '资产出库发放', actor: '库房专员', action: '已领取归档', time: '2026-09-22 17:00', status: 'done' }
+      ]
+    },
+    {
+      id: 'task-init-3',
+      title: '部门团队敏捷管理套件软件订阅采购',
+      formName: '办公软件订阅申请',
+      category: 'myInitiated',
+      applicant: '当前用户',
+      applicantDept: '总经办',
+      submitTime: '2026-09-20 14:15',
+      currentStep: '已通过',
+      status: 'approved',
+      amount: '¥ 6,800',
+      summary: '订阅Jira & Confluence云企业版20席位一年期License。'
+    },
+    {
+      id: 'task-init-4',
+      title: '技术团队年度团建活动方案及餐饮预算申请',
+      formName: '团队团建申请',
+      category: 'myInitiated',
+      applicant: '当前用户',
+      applicantDept: '总经办',
+      submitTime: '2026-09-18 10:00',
+      currentStep: '已被驳回',
+      status: 'rejected',
+      amount: '¥ 12,000',
+      summary: '驳回意见：请细化人均预算标准并附明细报价单后重新提报。'
+    },
+    {
+      id: 'task-proc-1',
+      title: '华东区重点客户联合创新方案商务折扣申请',
+      formName: '特批商务折扣申请',
+      category: 'myProcessed',
+      applicant: '王经理',
+      applicantDept: '大客户部',
+      submitTime: '2026-09-23 11:20',
+      currentStep: '审批通过',
+      status: 'approved',
+      summary: '申请给予年度战略合作伙伴8.2折阶梯折扣，经测算毛利符合内控要求。'
+    },
+    {
+      id: 'task-proc-2',
+      title: '测试环境高配GPU算力集群租赁审批',
+      formName: '算力资源采购申请',
+      category: 'myProcessed',
+      applicant: '陈工程师',
+      applicantDept: '算法研发组',
+      submitTime: '2026-09-22 15:40',
+      currentStep: '审批通过',
+      status: 'approved',
+      amount: '¥ 28,000',
+      summary: '用于Q4大模型微调推理实验，已附成本对比及收益评估测算。'
+    },
+    {
+      id: 'task-proc-3',
+      title: '临时外勤出差补卡与工时冲抵审批',
+      formName: '异常考勤申报表',
+      category: 'myProcessed',
+      applicant: '周专员',
+      applicantDept: '交付实施部',
+      submitTime: '2026-09-21 09:50',
+      currentStep: '审批通过',
+      status: 'approved',
+      summary: '赴苏州交付现场驻场两日，附客户访客单及现场打卡水印照。'
+    },
+    {
+      id: 'task-cc-1',
+      title: '2026 Q3 数字化转型季度安全合规审计评估报告',
+      formName: '合规审计结果通报',
+      category: 'ccToMe',
+      applicant: '合规审计部',
+      applicantDept: '风险控制中心',
+      submitTime: '今天 10:00',
+      status: 'unread',
+      summary: '全集团第三季度数据安全、网络等保及特权账号权限抽检已完毕，综合评级A级。'
+    },
+    {
+      id: 'task-cc-2',
+      title: '集团2026秋季校园招聘面试通关及Offer发放名单',
+      formName: '秋招录用名单抄送',
+      category: 'ccToMe',
+      applicant: '组织人事组',
+      applicantDept: '人力资源部',
+      submitTime: '昨天 18:30',
+      status: 'read',
+      summary: '第一批次已发放Offer 38份，已抄送各用人部门总监知悉。'
+    },
+    {
+      id: 'task-cc-3',
+      title: '核心数据库双活灾备演练完成通报',
+      formName: '灾备演练通报',
+      category: 'ccToMe',
+      applicant: '运维保障中心',
+      applicantDept: '信息技术部',
+      submitTime: '2026-09-21 16:00',
+      status: 'read',
+      summary: '容灾演练已于周日顺利完成，RPO=0，RTO<30秒，演练指标全部达标。'
+    }
+  ]);
+
+  // Workflow actions
+  const handleQuickApprove = (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation();
+    setWorkflowTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          category: 'myProcessed' as const,
+          status: 'approved' as const,
+          currentStep: '审批通过',
+          timeline: [
+            ...(t.timeline || []),
+            { step: '当前用户审批', actor: '当前用户', action: '已快捷同意通过', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), status: 'done' as const }
+          ]
+        };
+      }
+      return t;
+    }));
+    showNotification('审批成功：已同意并通过该待办任务！已归入“我处理的”。');
+  };
+
+  const handleOpenTask = (task: WorkflowTaskItem) => {
+    setSelectedTask(task);
+    setApprovalOpinion('');
+  };
+
+  const handleApproveSelectedTask = () => {
+    if (!selectedTask) return;
+    setWorkflowTasks(prev => prev.map(t => {
+      if (t.id === selectedTask.id) {
+        return {
+          ...t,
+          category: 'myProcessed' as const,
+          status: 'approved' as const,
+          currentStep: '审批通过',
+          timeline: [
+            ...(t.timeline || []),
+            { step: '当前用户审批', actor: '当前用户', action: approvalOpinion ? `已同意：${approvalOpinion}` : '已同意并通过', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), status: 'done' as const }
+          ]
+        };
+      }
+      return t;
+    }));
+    showNotification(`审批通过：任务《${selectedTask.title}》已成功办结！`);
+    setSelectedTask(null);
+  };
+
+  const handleRejectSelectedTask = () => {
+    if (!selectedTask) return;
+    setWorkflowTasks(prev => prev.map(t => {
+      if (t.id === selectedTask.id) {
+        return {
+          ...t,
+          category: 'myProcessed' as const,
+          status: 'rejected' as const,
+          currentStep: '已被驳回',
+          timeline: [
+            ...(t.timeline || []),
+            { step: '当前用户审批', actor: '当前用户', action: approvalOpinion ? `已驳回：${approvalOpinion}` : '已驳回', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), status: 'done' as const }
+          ]
+        };
+      }
+      return t;
+    }));
+    showNotification(`已驳回任务《${selectedTask.title}》`);
+    setSelectedTask(null);
+  };
+
+  const handleTransferSelectedTask = () => {
+    if (!selectedTask) return;
+    setWorkflowTasks(prev => prev.map(t => {
+      if (t.id === selectedTask.id) {
+        return {
+          ...t,
+          category: 'myProcessed' as const,
+          status: 'approved' as const,
+          currentStep: '已转办至张经理',
+          timeline: [
+            ...(t.timeline || []),
+            { step: '转办', actor: '当前用户', action: '已转办至张经理接续审批', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), status: 'done' as const }
+          ]
+        };
+      }
+      return t;
+    }));
+    showNotification(`已将任务《${selectedTask.title}》转办给张经理处理！`);
+    setSelectedTask(null);
+  };
+
+  const handleMarkCcAsRead = (taskId: string) => {
+    setWorkflowTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'read' as const } : t));
+    showNotification('已标记为已读');
+  };
+
   // State for active light app filling modal
   const [activeFillForm, setActiveFillForm] = React.useState<SavedForm | null>(null);
   const [fillDevice, setFillDevice] = React.useState<'pc' | 'app'>('pc');
@@ -866,172 +1226,811 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
           </div>
         </div>
 
-        {/* Section 1: 常用应用 */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
-              <h2 className="text-lg font-extrabold text-slate-800">常用应用</h2>
-              <span className="text-xs font-semibold text-slate-400">({favoriteApps.length})</span>
-            </div>
-            <span className="text-xs text-slate-400 font-medium">快捷点击轻应用直接填报</span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-            {favoriteApps.map((form, idx) => {
-              const IconComp = getAppIconComponent(form.icon, form.type);
-              const colorClass = getFormColor(form, idx);
-              const category = getFormCategory(form);
-              const isFav = favoriteFormIds.includes(form.id);
-
-              return (
-                <div 
-                  key={form.id} 
-                  onClick={() => handleOpenFill(form)}
-                  className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
-                >
-                  <button 
-                    onClick={(e) => toggleFavorite(e, form.id)}
-                    className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10 opacity-0 group-hover:opacity-100"
-                    title={isFav ? "取消常用" : "设为常用"}
-                  >
-                    <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
-                  </button>
-
-                  <div className="space-y-3">
-                    <div className={`${colorClass} w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform`}>
-                      <IconComp className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
-                        {form.name}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 font-medium mt-1">
-                        {category}
-                      </p>
-                    </div>
+        {/* 主体两栏布局：左侧流程中心（我的待办、我发起的、我处理的、抄送我的、待办委托） + 右侧应用区域（常用应用与全部应用） */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* 左侧流程协同区域 */}
+          <div className="col-span-12 lg:col-span-5 xl:col-span-4 space-y-4">
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm space-y-4">
+              
+              {/* 流程中心头部 */}
+              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <Workflow className="w-4 h-4" />
                   </div>
-
-                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                    <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程表单' : '普通填报'}</span>
-                    <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">填报 →</span>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-800">流程协同中心</h3>
+                    <p className="text-[11px] text-slate-400 font-medium">高效协同与流程流转</p>
                   </div>
                 </div>
-              );
-            })}
-
-            {/* Add Favorite Button */}
-            <div 
-              onClick={() => showNotification('可在下方“全部应用”中将轻应用取消或标记为常用')}
-              className="bg-slate-50/80 rounded-2xl p-4 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-blue-50/50 hover:border-blue-300 transition-all text-slate-400 hover:text-blue-600 group"
-            >
-              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
-                <Plus className="w-5 h-5" />
+                {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length > 0 && (
+                  <span className="px-2.5 py-1 text-[11px] font-extrabold bg-rose-500 text-white rounded-full shadow-xs animate-pulse">
+                    {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length} 待办
+                  </span>
+                )}
               </div>
-              <span className="text-xs font-bold">常用设置</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Section 2: 全部应用 */}
-        <div className="space-y-6 pt-2">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <LayoutGrid className="w-5 h-5 text-blue-600" />
-                <h2 className="text-lg font-extrabold text-slate-800">全部应用</h2>
-                <span className="text-xs font-semibold text-slate-400">({filteredApps.length})</span>
+              {/* 5个Tab选项卡：我的待办、我发起的、我处理的、抄送我的、待办委托 */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-1.5 p-1 bg-slate-100/90 rounded-2xl text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowTab('myTodo')}
+                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
+                    activeWorkflowTab === 'myTodo'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="我的待办"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>我的待办</span>
+                  {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] flex items-center justify-center font-bold">
+                      {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowTab('myInitiated')}
+                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
+                    activeWorkflowTab === 'myInitiated'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="我发起的"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>我发起的</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
+                    {workflowTasks.filter(t => t.category === 'myInitiated').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowTab('myProcessed')}
+                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
+                    activeWorkflowTab === 'myProcessed'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="我处理的"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>我处理的</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
+                    {workflowTasks.filter(t => t.category === 'myProcessed').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowTab('ccToMe')}
+                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
+                    activeWorkflowTab === 'ccToMe'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="抄送我的"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>抄送我的</span>
+                  {workflowTasks.filter(t => t.category === 'ccToMe' && t.status === 'unread').length > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowTab('delegation')}
+                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
+                    activeWorkflowTab === 'delegation'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="待办委托"
+                >
+                  <Repeat className="w-3.5 h-3.5" />
+                  <span>待办委托</span>
+                  {delegationRule.isEnabled && (
+                    <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 py-0.2 rounded font-bold">
+                      运行
+                    </span>
+                  )}
+                </button>
               </div>
-            </div>
 
-            {/* Category Filter Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar border-b border-slate-200/80">
-              {categories.map(cat => {
-                const isActive = activeCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 relative ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
-                        : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Apps Grid */}
-          {filteredApps.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-              {filteredApps.map((form, idx) => {
-                const IconComp = getAppIconComponent(form.icon, form.type);
-                const colorClass = getFormColor(form, idx);
-                const category = getFormCategory(form);
-                const isFav = favoriteFormIds.includes(form.id);
-
-                return (
-                  <div 
-                    key={form.id} 
-                    onClick={() => handleOpenFill(form)}
-                    className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
-                  >
-                    <button 
-                      onClick={(e) => toggleFavorite(e, form.id)}
-                      className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10"
-                      title={isFav ? "取消常用" : "设为常用"}
+              {/* 搜索栏（委托除外） */}
+              {activeWorkflowTab !== 'delegation' && (
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={workflowSearch}
+                    onChange={(e) => setWorkflowSearch(e.target.value)}
+                    placeholder="按事项标题、发起人或表单搜索..."
+                    className="w-full text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-200/80 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                  {workflowSearch && (
+                    <button
+                      onClick={() => setWorkflowSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                     >
-                      <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
+                      ×
                     </button>
+                  )}
+                </div>
+              )}
 
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
+              {/* 列表内容区 */}
+              {activeWorkflowTab === 'delegation' ? (
+                /* 待办委托专属控制卡片 */
+                <div className="space-y-3.5">
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 border border-blue-100/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${delegationRule.isEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                        <span className="text-xs font-bold text-slate-800">
+                          委托代理服务：{delegationRule.isEnabled ? '已生效运行' : '已暂停'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDelegationRule(prev => {
+                            const next = !prev.isEnabled;
+                            showNotification(next ? '已开启待办委托代理' : '已暂停待办委托代理');
+                            return { ...prev, isEnabled: next };
+                          });
+                        }}
+                        className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${
+                          delegationRule.isEnabled ? 'bg-blue-600' : 'bg-slate-300'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${
+                          delegationRule.isEnabled ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5 text-[11px] text-slate-600 bg-white/80 p-3 rounded-xl border border-blue-100/60">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">委托人：</span>
+                        <span className="font-semibold text-slate-800">{delegationRule.delegator}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">被委托人：</span>
+                        <span className="font-bold text-blue-600">{delegationRule.delegatee} ({delegationRule.delegateeDept})</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">委托时效：</span>
+                        <span className="font-mono text-slate-700">{delegationRule.startTime} 至 {delegationRule.endTime}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">授权范围：</span>
+                        <span className="font-semibold text-slate-800">{delegationRule.scope}</span>
+                      </div>
+                      {delegationRule.notes && (
+                        <div className="pt-1 text-slate-500 border-t border-slate-100 italic">
+                          "{delegationRule.notes}"
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setIsDelegationModalOpen(true)}
+                      className="w-full py-2 bg-white hover:bg-slate-50 text-blue-600 font-bold rounded-xl text-xs border border-blue-200/80 transition-all shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      修改委托规则
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] text-slate-500 leading-relaxed">
+                    💡 提示：开启待办委托后，在生效日期区间内所有流转至您个人名下的审批待办，系统将自动授权被委托人进行协同办理，并在流转日志中完整记载代理记录。
+                  </div>
+                </div>
+              ) : (
+                /* 任务列表滚动区 */
+                <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1 no-scrollbar">
+                  {(() => {
+                    const list = workflowTasks.filter(t => {
+                      if (t.category !== activeWorkflowTab) return false;
+                      if (!workflowSearch.trim()) return true;
+                      const q = workflowSearch.toLowerCase();
+                      return (
+                        t.title.toLowerCase().includes(q) ||
+                        t.formName.toLowerCase().includes(q) ||
+                        t.applicant.toLowerCase().includes(q) ||
+                        t.applicantDept.toLowerCase().includes(q)
+                      );
+                    });
+
+                    if (list.length === 0) {
+                      return (
+                        <div className="py-10 text-center space-y-2">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-600">
+                            {activeWorkflowTab === 'myTodo' ? '暂无待审批的任务，工作井井有条' :
+                             activeWorkflowTab === 'myInitiated' ? '暂无发起的流程任务' :
+                             activeWorkflowTab === 'myProcessed' ? '暂无已处理的历史记录' : '暂无抄送给您的事项'}
+                          </p>
+                          <p className="text-[11px] text-slate-400">后续审批事件将实时同步显示于此</p>
+                        </div>
+                      );
+                    }
+
+                    return list.map((task) => (
+                      <div
+                        key={task.id}
+                        onClick={() => {
+                          if (task.category === 'ccToMe' && task.status === 'unread') {
+                            handleMarkCcAsRead(task.id);
+                          }
+                          handleOpenTask(task);
+                        }}
+                        className="p-3.5 rounded-2xl border border-slate-200/70 hover:border-blue-400 bg-white hover:bg-blue-50/30 transition-all cursor-pointer shadow-xs hover:shadow-md group space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                              {task.formName}
+                            </span>
+                            {task.urgency === 'high' && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-100">
+                                紧急
+                              </span>
+                            )}
+                            {task.category === 'ccToMe' && task.status === 'unread' && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                未读
+                              </span>
+                            )}
+                            {task.amount && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 font-mono">
+                                {task.amount}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                            {task.submitTime}
+                          </span>
+                        </div>
+
+                        <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors leading-snug line-clamp-2">
+                          {task.title}
+                        </h4>
+
+                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+                          <span className="text-slate-500 font-medium truncate max-w-[160px]">
+                            {task.applicant} · {task.applicantDept}
+                          </span>
+
+                          {task.category === 'myTodo' && task.status === 'pending' ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => handleQuickApprove(e, task.id)}
+                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all border border-blue-200"
+                              >
+                                快捷通过
+                              </button>
+                              <span className="text-blue-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                                办理 →
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                              {task.currentStep || (task.status === 'approved' ? '已办结' : task.status === 'rejected' ? '已驳回' : '流转中')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              {/* 底部协同统计条 */}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                <span>待办: {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length}</span>
+                <span>发起: {workflowTasks.filter(t => t.category === 'myInitiated').length}</span>
+                <span>处理: {workflowTasks.filter(t => t.category === 'myProcessed').length}</span>
+                <span>抄送: {workflowTasks.filter(t => t.category === 'ccToMe').length}</span>
+                <span>委托: {delegationRule.isEnabled ? '生效中' : '未开启'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 右侧应用区域：常用应用 与 全部应用 */}
+          <div className="col-span-12 lg:col-span-7 xl:col-span-8 space-y-8">
+            
+            {/* Section 1: 常用应用 */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                  <h2 className="text-lg font-extrabold text-slate-800">常用应用</h2>
+                  <span className="text-xs font-semibold text-slate-400">({favoriteApps.length})</span>
+                </div>
+                <span className="text-xs text-slate-400 font-medium">快捷点击轻应用直接填报</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+                {favoriteApps.map((form, idx) => {
+                  const IconComp = getAppIconComponent(form.icon, form.type);
+                  const colorClass = getFormColor(form, idx);
+                  const category = getFormCategory(form);
+                  const isFav = favoriteFormIds.includes(form.id);
+
+                  return (
+                    <div 
+                      key={form.id} 
+                      onClick={() => handleOpenFill(form)}
+                      className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
+                    >
+                      <button 
+                        onClick={(e) => toggleFavorite(e, form.id)}
+                        className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10 opacity-0 group-hover:opacity-100"
+                        title={isFav ? "取消常用" : "设为常用"}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
+                      </button>
+
+                      <div className="space-y-3">
                         <div className={`${colorClass} w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform`}>
                           <IconComp className="w-6 h-6" />
                         </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
+                            {form.name}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-medium mt-1">
+                            {category}
+                          </p>
+                        </div>
                       </div>
 
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
-                          {form.name}
-                        </h4>
-                        <p className="text-[10px] text-slate-400 font-medium mt-1">
-                          {category}
-                        </p>
+                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程表单' : '普通填报'}</span>
+                        <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">填报 →</span>
                       </div>
                     </div>
+                  );
+                })}
 
-                    <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                      <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程审批' : form.type === 'report' ? '数据报表' : '普通填报'}</span>
-                      <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                        填报 <ChevronRight className="w-3 h-3" />
-                      </span>
-                    </div>
+                {/* Add Favorite Button */}
+                <div 
+                  onClick={() => showNotification('可在下方“全部应用”中将轻应用取消或标记为常用')}
+                  className="bg-slate-50/80 rounded-2xl p-4 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-blue-50/50 hover:border-blue-300 transition-all text-slate-400 hover:text-blue-600 group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                    <Plus className="w-5 h-5" />
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 max-w-md mx-auto space-y-4 my-8 shadow-sm">
-              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-500 border border-blue-100">
-                <FormInput className="w-8 h-8" />
+                  <span className="text-xs font-bold">常用设置</span>
+                </div>
               </div>
-              <h3 className="text-base font-bold text-slate-800">分类「{activeCategory}」下暂无轻应用</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">表单设计人员可以在控制台设计并发布相关分类的表单，发布后将自动在此处展示。</p>
-              <button 
-                onClick={() => setActiveCategory('全部')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
-              >
-                查看全部轻应用
-              </button>
             </div>
-          )}
+
+            {/* Section 2: 全部应用 */}
+            <div className="space-y-6 pt-2">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <LayoutGrid className="w-5 h-5 text-blue-600" />
+                    <h2 className="text-lg font-extrabold text-slate-800">全部应用</h2>
+                    <span className="text-xs font-semibold text-slate-400">({filteredApps.length})</span>
+                  </div>
+                </div>
+
+                {/* Category Filter Tabs */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar border-b border-slate-200/80">
+                  {categories.map(cat => {
+                    const isActive = activeCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveCategory(cat)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 relative ${
+                          isActive 
+                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Apps Grid */}
+              {filteredApps.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+                  {filteredApps.map((form, idx) => {
+                    const IconComp = getAppIconComponent(form.icon, form.type);
+                    const colorClass = getFormColor(form, idx);
+                    const category = getFormCategory(form);
+                    const isFav = favoriteFormIds.includes(form.id);
+
+                    return (
+                      <div 
+                        key={form.id} 
+                        onClick={() => handleOpenFill(form)}
+                        className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
+                      >
+                        <button 
+                          onClick={(e) => toggleFavorite(e, form.id)}
+                          className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10"
+                          title={isFav ? "取消常用" : "设为常用"}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
+                        </button>
+
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className={`${colorClass} w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform`}>
+                              <IconComp className="w-6 h-6" />
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
+                              {form.name}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 font-medium mt-1">
+                              {category}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程审批' : form.type === 'report' ? '数据报表' : '普通填报'}</span>
+                          <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                            填报 <ChevronRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 max-w-md mx-auto space-y-4 my-8 shadow-sm">
+                  <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-500 border border-blue-100">
+                    <FormInput className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-800">分类「{activeCategory}」下暂无轻应用</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">表单设计人员可以在控制台设计并发布相关分类的表单，发布后将自动在此处展示。</p>
+                  <button 
+                    onClick={() => setActiveCategory('全部')}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                  >
+                    查看全部轻应用
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* 流程详情与审批签署弹窗 */}
+      <AnimatePresence>
+        {selectedTask && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm">
+                    <ClipboardList className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-extrabold text-slate-800">{selectedTask.formName}</h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-700">
+                        {selectedTask.currentStep || '流转中'}
+                      </span>
+                      {selectedTask.urgency === 'high' && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-700">
+                          高优先级
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium">发起人: {selectedTask.applicant} · {selectedTask.applicantDept} · 提交时间: {selectedTask.submitTime}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedTask(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-xl transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto space-y-5">
+                <div className="space-y-1.5 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/60">
+                  <h4 className="text-xs font-bold text-slate-700">任务标题</h4>
+                  <p className="text-sm font-bold text-slate-900 leading-snug">{selectedTask.title}</p>
+                  {selectedTask.summary && (
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1">{selectedTask.summary}</p>
+                  )}
+                  {selectedTask.amount && (
+                    <div className="mt-2 text-xs font-bold text-blue-600 flex items-center gap-1">
+                      <span>涉及金额：</span>
+                      <span className="text-base font-black text-blue-700">{selectedTask.amount}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Form Data Preview */}
+                {selectedTask.formDataPreview && (
+                  <div className="space-y-2.5">
+                    <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      核心申报要素
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-white p-3.5 rounded-2xl border border-slate-200/80">
+                      {Object.entries(selectedTask.formDataPreview).map(([k, v]) => (
+                        <div key={k} className="p-2.5 rounded-xl bg-slate-50/60 border border-slate-100">
+                          <span className="text-[11px] font-semibold text-slate-400 block">{k}</span>
+                          <span className="text-xs font-bold text-slate-800 block mt-0.5">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Timeline */}
+                {selectedTask.timeline && selectedTask.timeline.length > 0 && (
+                  <div className="space-y-2.5">
+                    <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                      <History className="w-4 h-4 text-blue-600" />
+                      流转轨迹与审批记录
+                    </h4>
+                    <div className="relative pl-6 space-y-3.5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                      {selectedTask.timeline.map((item, idx) => (
+                        <div key={idx} className="relative flex items-start justify-between text-xs">
+                          <div className={`absolute -left-6 top-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                            item.status === 'done' 
+                              ? 'bg-emerald-500 text-white' 
+                              : item.status === 'current' 
+                              ? 'bg-blue-600 text-white ring-4 ring-blue-100' 
+                              : 'bg-slate-200 text-slate-400'
+                          }`}>
+                            {item.status === 'done' ? '✓' : idx + 1}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800">{item.step} · <span className="font-medium text-slate-500">{item.actor}</span></p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">{item.action}</p>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono">{item.time}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Opinion textarea (if in myTodo) */}
+                {selectedTask.category === 'myTodo' && selectedTask.status === 'pending' && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                      <span>审批签署意见</span>
+                      <span className="text-[11px] text-slate-400 font-normal">选填，将完整记录至流转轨迹中</span>
+                    </label>
+                    <textarea
+                      value={approvalOpinion}
+                      onChange={(e) => setApprovalOpinion(e.target.value)}
+                      placeholder="请输入审批意见（默认为“同意并通过”）..."
+                      rows={3}
+                      className="w-full text-xs p-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none bg-slate-50/50"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 rounded-xl hover:bg-slate-200/60 transition-all"
+                >
+                  关闭
+                </button>
+
+                {selectedTask.category === 'myTodo' && selectedTask.status === 'pending' ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleTransferSelectedTask}
+                      className="px-3.5 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-all shadow-xs"
+                    >
+                      转办他人
+                    </button>
+                    <button
+                      onClick={handleRejectSelectedTask}
+                      className="px-3.5 py-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-xl transition-all shadow-xs"
+                    >
+                      驳回
+                    </button>
+                    <button
+                      onClick={handleApproveSelectedTask}
+                      className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                    >
+                      同意并通过
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setSelectedTask(null)}
+                    className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md"
+                  >
+                    确定
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 待办委托规则配置弹窗 */}
+      <AnimatePresence>
+        {isDelegationModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-lg overflow-hidden flex flex-col"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                    <Repeat className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-800">配置待办委托规则</h3>
+                    <p className="text-[11px] text-slate-400 font-medium">授权代理人协助处理审批事项</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsDelegationModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-xl transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">委托人 (当前账号)</label>
+                  <input 
+                    type="text" 
+                    disabled 
+                    value={delegationRule.delegator} 
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">被委托人姓名 *</label>
+                    <input 
+                      type="text" 
+                      value={delegationRule.delegatee} 
+                      onChange={(e) => setDelegationRule(prev => ({ ...prev, delegatee: e.target.value }))}
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                      placeholder="例如：张经理"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">所属部门</label>
+                    <input 
+                      type="text" 
+                      value={delegationRule.delegateeDept} 
+                      onChange={(e) => setDelegationRule(prev => ({ ...prev, delegateeDept: e.target.value }))}
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                      placeholder="例如：人力资源部"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">生效起始日期</label>
+                    <input 
+                      type="date" 
+                      value={delegationRule.startTime} 
+                      onChange={(e) => setDelegationRule(prev => ({ ...prev, startTime: e.target.value }))}
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">生效截止日期</label>
+                    <input 
+                      type="date" 
+                      value={delegationRule.endTime} 
+                      onChange={(e) => setDelegationRule(prev => ({ ...prev, endTime: e.target.value }))}
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">委托业务范围</label>
+                  <select 
+                    value={delegationRule.scope} 
+                    onChange={(e) => setDelegationRule(prev => ({ ...prev, scope: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium bg-white"
+                  >
+                    <option value="全部审批流程">全部审批流程（包含人事、行政、财务、业务等）</option>
+                    <option value="仅人事考勤流程">仅人事考勤流程（请假、加班、补卡、转正等）</option>
+                    <option value="财务与采购流程">财务与采购流程（报销、付款、领用等）</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">委托说明 / 备注</label>
+                  <textarea 
+                    rows={2}
+                    value={delegationRule.notes || ''} 
+                    onChange={(e) => setDelegationRule(prev => ({ ...prev, notes: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium resize-none"
+                    placeholder="请输入委托原因或备注事项..."
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-blue-50/60 border border-blue-100">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">立即启用此委托代理</span>
+                    <span className="text-[11px] text-slate-500 block">开启后，授权时段内到达您的待办将同步转送至被委托人</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDelegationRule(prev => ({ ...prev, isEnabled: !prev.isEnabled }))}
+                    className={`w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${
+                      delegationRule.isEnabled ? 'bg-blue-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded-full bg-white shadow-xs transition-transform ${
+                      delegationRule.isEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/80">
+                <button
+                  onClick={() => setIsDelegationModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 rounded-xl hover:bg-slate-200/60 transition-all"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => {
+                    setIsDelegationModalOpen(false);
+                    showNotification(`委托规则已保存！被委托人：${delegationRule.delegatee}，状态：${delegationRule.isEnabled ? '生效中' : '未开启'}`);
+                  }}
+                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                >
+                  保存并应用
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Light App Form Filling Modal */}
       <AnimatePresence>
@@ -1270,10 +2269,11 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
     <nav className="flex-1 space-y-1 px-4">
       {[
         { label: '仪表盘', icon: Activity, view: 'dashboard' },
-        { label: '应用管理', icon: FormInput, view: 'projects' },
+        { label: '表单管理', icon: FormInput, view: 'projects' },
+        { label: '流程管理', icon: GitBranch, view: 'processManagement' },
+        { label: '集成管理', icon: Workflow, view: 'workflow' },
         { label: '数据管理', icon: FileSpreadsheet, view: 'dataManagement' },
         { label: '数据洞察', icon: BarChart3, view: 'insights' },
-        { label: '组织与权限', icon: ShieldCheck, view: 'team' },
         { label: '系统设置', icon: Database, view: 'integrations' },
       ].map((item) => (
         <div 
@@ -1412,23 +2412,27 @@ const WorkspaceLayout = ({ children, title, subtitle, viewToken, notifications, 
         </motion.div>
       </AnimatePresence>
       
-      <div className="fixed bottom-8 right-8 space-y-2 z-50 pointer-events-none">
-        <AnimatePresence>
-          {notifications.map(n => (
-            <motion.div
-              key={n.id}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="bg-on-surface text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm pointer-events-auto border border-outline-variant/10"
-            >
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-              {n.text}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      <NotificationToast notifications={notifications} />
     </main>
+  </div>
+);
+
+const NotificationToast = ({ notifications }: { notifications: Array<{ id: string; text: string }> }) => (
+  <div className="fixed bottom-8 right-8 space-y-2 z-50 pointer-events-none">
+    <AnimatePresence>
+      {notifications.map((n, idx) => (
+        <motion.div
+          key={n.id || `notif-${idx}`}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          className="bg-on-surface text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm pointer-events-auto border border-outline-variant/10"
+        >
+          <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+          {n.text}
+        </motion.div>
+      ))}
+    </AnimatePresence>
   </div>
 );
 
@@ -1450,22 +2454,7 @@ const ConsoleLayout = ({ children, title, subtitle, viewToken, notifications, cu
         </motion.div>
       </AnimatePresence>
       
-      <div className="fixed bottom-8 right-8 space-y-2 z-50 pointer-events-none">
-        <AnimatePresence>
-          {notifications.map(n => (
-            <motion.div
-              key={n.id}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="bg-on-surface text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm pointer-events-auto border border-outline-variant/10"
-            >
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-              {n.text}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      <NotificationToast notifications={notifications} />
     </main>
   </div>
 );
@@ -1568,7 +2557,7 @@ const GlobalSettingsModal = ({
     const isDept = defaultField.label.includes('部门') || defaultField.type === 'orgSelect' || defaultField.type === 'select';
     const isAmount = defaultField.label.includes('金额') || defaultField.type === 'number';
     const newRule: TriggerRule = {
-      id: 'tr-' + Date.now(),
+      id: `tr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       fieldId: defaultField.id,
       fieldLabel: defaultField.label,
       operator: isDept ? '属于' : (isAmount ? '大于' : '等于'),
@@ -1607,13 +2596,14 @@ const GlobalSettingsModal = ({
   };
 
   const applyPresetTemplate = (type: 'dept_and_amount' | 'dept_or_amount' | 'high_amount') => {
+    const seed = Date.now();
     if (type === 'dept_and_amount') {
       setConfig(prev => ({
         ...prev,
         triggerMatchMode: 'ALL',
         triggerRules: [
-          { id: 'tr-' + Date.now() + '-1', fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '研发部' },
-          { id: 'tr-' + Date.now() + '-2', fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '1000' }
+          { id: `tr-${seed}-dept-${Math.random().toString(36).substring(2, 7)}`, fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '研发部' },
+          { id: `tr-${seed}-amount-${Math.random().toString(36).substring(2, 7)}`, fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '1000' }
         ]
       }));
       showNotification('已应用模版：部门属于研发部 且 金额大于1000');
@@ -1622,8 +2612,8 @@ const GlobalSettingsModal = ({
         ...prev,
         triggerMatchMode: 'ANY',
         triggerRules: [
-          { id: 'tr-' + Date.now() + '-1', fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '市场部' },
-          { id: 'tr-' + Date.now() + '-2', fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '5000' }
+          { id: `tr-${seed}-dept-${Math.random().toString(36).substring(2, 7)}`, fieldId: 'dept', fieldLabel: '部门', operator: '属于', value: '市场部' },
+          { id: `tr-${seed}-amount-${Math.random().toString(36).substring(2, 7)}`, fieldId: 'amount', fieldLabel: '金额', operator: '大于', value: '5000' }
         ]
       }));
       showNotification('已应用模版：部门属于市场部 或 金额大于5000');
@@ -1632,7 +2622,7 @@ const GlobalSettingsModal = ({
         ...prev,
         triggerMatchMode: 'ALL',
         triggerRules: [
-          { id: 'tr-' + Date.now() + '-1', fieldId: 'amount', fieldLabel: '金额', operator: '大于等于', value: '10000' }
+          { id: `tr-${seed}-high-${Math.random().toString(36).substring(2, 7)}`, fieldId: 'amount', fieldLabel: '金额', operator: '大于等于', value: '10000' }
         ]
       }));
       showNotification('已应用模版：金额大于等于10000（大额申报）');
@@ -2680,7 +3670,7 @@ const ProjectsView = ({
               onClick={() => setShowTemplatesPage(false)}
               className="group flex items-center gap-2 text-xs font-bold text-outline hover:text-primary transition-all mb-2"
             >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 返回应用管理
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 返回表单管理
             </button>
             <h2 className="text-3xl font-extrabold tracking-tight text-on-surface">系统默认模板中心</h2>
             <p className="text-sm text-outline font-medium">挑选适合您业务场景的开箱即用行业级应用模版</p>
@@ -3143,7 +4133,7 @@ const ProjectsView = ({
                 id="back-to-projects-btn"
               >
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                应用管理
+                表单管理
               </button>
               
               <div className="h-4 w-px bg-slate-200" />
@@ -5376,7 +6366,8 @@ const ArchitectApp: React.FC = () => {
     if (l.includes('名') || l.includes('name')) return str.length > 1 ? '*' + str.substring(1) : '*';
     return str;
   };
-  const [notifications, setNotifications] = React.useState<{id: number, text: string}[]>([]);
+  const [notifications, setNotifications] = React.useState<{id: string, text: string}[]>([]);
+  const notificationSeqRef = React.useRef(0);
   
   // Organization and Team State
   const [orgData, setOrgData] = React.useState<OrgNode[]>([
@@ -6079,9 +7070,14 @@ const ArchitectApp: React.FC = () => {
   const allDepts = Array.from(new Set(teamMembers.map(m => m.deptId)));
 
   const showNotification = (text: string) => {
-    const id = Date.now();
-    setNotifications(prev => [...prev, { id, text }]);
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
+    const id = `${Date.now()}-${++notificationSeqRef.current}-${Math.random().toString(36).substring(2, 7)}`;
+    setNotifications(prev => {
+      const filtered = prev.filter(n => n.text !== text);
+      return [...filtered, { id, text }];
+    });
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 3000);
   };
 
   const openEditor = (formId: string | null, type: FormType = 'normal') => {
@@ -6185,6 +7181,7 @@ const ArchitectApp: React.FC = () => {
     let nodeConfig: WorkflowNode['config'] = {};
     let label = `新建 ${type} 环节`;
     let desc = '在属性面板中配置此环节';
+    const uid = () => Math.random().toString(36).substring(2, 6);
 
     if (type === 'approval') {
       label = '审批环节';
@@ -6202,20 +7199,20 @@ const ArchitectApp: React.FC = () => {
         gatewayType: 'exclusive',
         branches: [
           {
-            id: `b-${Date.now()}-1`,
+            id: `b-${Date.now()}-${uid()}-1`,
             name: '条件分支 1',
-            conditions: [{ id: `c-${Date.now()}-1`, field: '创建人所属组织', operator: '属于', value: '集团/总部/市场部' }],
+            conditions: [{ id: `c-${Date.now()}-${uid()}-1`, field: '创建人所属组织', operator: '属于', value: '集团/总部/市场部' }],
             nodes: [
-              { id: `cnode-${Date.now()}-1`, type: 'approval', label: '市场部主管审批', description: '部门主管审核', targets: [], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } }
+              { id: `cnode-${Date.now()}-${uid()}-1`, type: 'approval', label: '市场部主管审批', description: '部门主管审核', targets: [], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } }
             ]
           },
           {
-            id: `b-${Date.now()}-2`,
+            id: `b-${Date.now()}-${uid()}-2`,
             name: '默认分支',
             isDefault: true,
             conditions: [],
             nodes: [
-              { id: `cnode-${Date.now()}-2`, type: 'approval', label: '总经办常规审批', description: '兜底常规审核', targets: [], config: { assigneeType: 'user', assigneeValue: '小鲤', approvalType: 'OR' } }
+              { id: `cnode-${Date.now()}-${uid()}-2`, type: 'approval', label: '总经办常规审批', description: '兜底常规审核', targets: [], config: { assigneeType: 'user', assigneeValue: '小鲤', approvalType: 'OR' } }
             ]
           }
         ]
@@ -6228,17 +7225,17 @@ const ArchitectApp: React.FC = () => {
         parallelJoinMode: 'AND',
         branches: [
           {
-            id: `b-${Date.now()}-p1`,
+            id: `b-${Date.now()}-${uid()}-p1`,
             name: '并行分支 1 (生产/技术)',
             nodes: [
-              { id: `cnode-${Date.now()}-p1`, type: 'approval', label: '工厂厂长核验', description: '技术与生产核验', targets: [], config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'AND' } }
+              { id: `cnode-${Date.now()}-${uid()}-p1`, type: 'approval', label: '工厂厂长核验', description: '技术与生产核验', targets: [], config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'AND' } }
             ]
           },
           {
-            id: `b-${Date.now()}-p2`,
+            id: `b-${Date.now()}-${uid()}-p2`,
             name: '并行分支 2 (财务预算)',
             nodes: [
-              { id: `cnode-${Date.now()}-p2`, type: 'approval', label: '财务主管会签', description: '预算与合规复核', targets: [], config: { assigneeType: 'user', assigneeValue: '陈莎拉', approvalType: 'OR' } }
+              { id: `cnode-${Date.now()}-${uid()}-p2`, type: 'approval', label: '财务主管会签', description: '预算与合规复核', targets: [], config: { assigneeType: 'user', assigneeValue: '陈莎拉', approvalType: 'OR' } }
             ]
           }
         ]
@@ -6274,6 +7271,7 @@ const ArchitectApp: React.FC = () => {
     let nodeConfig: WorkflowNode['config'] = {};
     let label = `新建 ${type} 环节`;
     let desc = '在属性面板中配置此环节';
+    const uid = () => Math.random().toString(36).substring(2, 6);
 
     if (type === 'approval') {
       label = '审批环节';
@@ -6292,20 +7290,20 @@ const ArchitectApp: React.FC = () => {
         gatewayType: 'exclusive',
         branches: [
           {
-            id: `b-${Date.now()}-1`,
+            id: `b-${Date.now()}-${uid()}-1`,
             name: '条件分支 1',
-            conditions: [{ id: `c-${Date.now()}-1`, field: '创建人所属组织', operator: '属于', value: '集团/总部/市场部' }],
+            conditions: [{ id: `c-${Date.now()}-${uid()}-1`, field: '创建人所属组织', operator: '属于', value: '集团/总部/市场部' }],
             nodes: [
-              { id: `cnode-${Date.now()}-1`, type: 'approval', label: '市场部主管审批', description: '部门主管审核', targets: [], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } }
+              { id: `cnode-${Date.now()}-${uid()}-1`, type: 'approval', label: '市场部主管审批', description: '部门主管审核', targets: [], config: { assigneeType: 'role', assigneeValue: '部门经理', approvalType: 'OR' } }
             ]
           },
           {
-            id: `b-${Date.now()}-2`,
+            id: `b-${Date.now()}-${uid()}-2`,
             name: '默认分支',
             isDefault: true,
             conditions: [],
             nodes: [
-              { id: `cnode-${Date.now()}-2`, type: 'approval', label: '总经办常规审批', description: '兜底常规审核', targets: [], config: { assigneeType: 'user', assigneeValue: '小鲤', approvalType: 'OR' } }
+              { id: `cnode-${Date.now()}-${uid()}-2`, type: 'approval', label: '总经办常规审批', description: '兜底常规审核', targets: [], config: { assigneeType: 'user', assigneeValue: '小鲤', approvalType: 'OR' } }
             ]
           }
         ]
@@ -6318,17 +7316,17 @@ const ArchitectApp: React.FC = () => {
         parallelJoinMode: 'AND',
         branches: [
           {
-            id: `b-${Date.now()}-p1`,
+            id: `b-${Date.now()}-${uid()}-p1`,
             name: '并行分支 1 (生产/技术)',
             nodes: [
-              { id: `cnode-${Date.now()}-p1`, type: 'approval', label: '工厂厂长核验', description: '技术与生产核验', targets: [], config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'AND' } }
+              { id: `cnode-${Date.now()}-${uid()}-p1`, type: 'approval', label: '工厂厂长核验', description: '技术与生产核验', targets: [], config: { assigneeType: 'user', assigneeValue: '梁文瑾', approvalType: 'AND' } }
             ]
           },
           {
-            id: `b-${Date.now()}-p2`,
+            id: `b-${Date.now()}-${uid()}-p2`,
             name: '并行分支 2 (财务预算)',
             nodes: [
-              { id: `cnode-${Date.now()}-p2`, type: 'approval', label: '财务主管会签', description: '预算与合规复核', targets: [], config: { assigneeType: 'user', assigneeValue: '陈莎拉', approvalType: 'OR' } }
+              { id: `cnode-${Date.now()}-${uid()}-p2`, type: 'approval', label: '财务主管会签', description: '预算与合规复核', targets: [], config: { assigneeType: 'user', assigneeValue: '陈莎拉', approvalType: 'OR' } }
             ]
           }
         ]
@@ -6396,11 +7394,11 @@ const ArchitectApp: React.FC = () => {
         id: newBranchId,
         name: isParallel ? `并行分支 ${branchIndex}` : `条件分支 ${branchIndex}`,
         conditions: isParallel ? [] : [
-          { id: `c-${Date.now()}`, field: '创建人所属组织', operator: '属于', value: '集团/总部' }
+          { id: `c-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`, field: '创建人所属组织', operator: '属于', value: '集团/总部' }
         ],
         nodes: [
           {
-            id: `cnode-${Date.now()}`,
+            id: `cnode-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             type: 'approval',
             label: isParallel ? '并行审批人' : '分支审批人',
             description: '分支内审批处理',
@@ -8330,7 +9328,7 @@ const ArchitectApp: React.FC = () => {
                                       }
                                       if (eventModalMode === 'create') {
                                         const newRule = {
-                                          id: 'evt-' + Date.now(),
+                                          id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
                                           name: tempEventName,
                                           triggerType: tempEventTrigger,
                                           actionType: tempEventAction,
@@ -10525,7 +11523,7 @@ const ArchitectApp: React.FC = () => {
                                                 onClick={() => {
                                                   const currentConds = branch.conditions || [];
                                                   const newCond = {
-                                                    id: `c-${Date.now()}`,
+                                                    id: `c-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
                                                     field: '创建人所属组织',
                                                     operator: '属于',
                                                     value: '集团/总部'
@@ -11286,7 +12284,7 @@ const ArchitectApp: React.FC = () => {
                     const newVerStr = `v${nextNum.toFixed(1)}.0`;
 
                     const newVerObj: WorkflowVersion = {
-                      id: `ver-${selectedFormId}-${Date.now()}`,
+                      id: `ver-${selectedFormId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
                       formId: selectedFormId,
                       version: newVerStr,
                       versionNum: nextNum,
@@ -11404,7 +12402,7 @@ const ArchitectApp: React.FC = () => {
                                       const newVerStr = `v${nextNum.toFixed(1)}.0`;
 
                                       const rollbackVerObj: WorkflowVersion = {
-                                        id: `ver-${selectedFormId}-${Date.now()}`,
+                                        id: `ver-${selectedFormId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
                                         formId: selectedFormId || 'f1',
                                         version: newVerStr,
                                         versionNum: nextNum,
@@ -12001,6 +12999,7 @@ const ArchitectApp: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+      <NotificationToast notifications={notifications} />
     </div>
     );
   }
@@ -12035,7 +13034,7 @@ const ArchitectApp: React.FC = () => {
     return (
       <ConsoleLayout 
         viewToken="projects" 
-        title={selectedProject ? selectedProject.name : "应用管理"} 
+        title={selectedProject ? selectedProject.name : "表单管理"} 
         subtitle={selectedProject ? `ID: ${selectedProject.id.slice(0, 8)}` : ""}
         notifications={notifications}
         currentView={view}
@@ -12075,6 +13074,44 @@ const ArchitectApp: React.FC = () => {
       />
       <ConfirmDialog confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
     </ConsoleLayout>
+    );
+  }
+  if (view === 'processManagement') {
+    return (
+      <ConsoleLayout 
+        viewToken="processManagement" 
+        title="流程管理" 
+        subtitle="对接三方系统表单字段配置、流程模板设计、实例流转追踪与健康度监控" 
+        currentView={view} 
+        setView={setView} 
+        showNotification={showNotification} 
+        notifications={notifications}
+      >
+        <ProcessManagementView 
+          showNotification={showNotification} 
+          setView={setView} 
+        />
+      </ConsoleLayout>
+    );
+  }
+  if (view === 'workflow') {
+    return (
+      <ConsoleLayout 
+        viewToken="workflow" 
+        title="集成管理" 
+        subtitle="第三方应用表单接入与数据流转中台" 
+        currentView={view} 
+        setView={setView} 
+        showNotification={showNotification} 
+        notifications={notifications}
+      >
+        <WorkflowManagementView 
+          savedForms={savedForms} 
+          projects={projects} 
+          showNotification={showNotification} 
+          setView={setView} 
+        />
+      </ConsoleLayout>
     );
   }
   if (view === 'dataManagement') {
