@@ -246,7 +246,7 @@ export const ProcessManagementView: React.FC<ProcessManagementViewProps> = ({
               流程管理
             </h1>
             <p className="text-sm text-slate-300 leading-relaxed font-normal">
-              面向对接的第三方系统（SAP ERP、用友、CRM、飞书人事、自研中台）提供全生命周期的业务表单字段配置、审批流模板库、实时流转实例跟踪及健康度运维监控。
+              提供全生命周期的业务表单字段配置、审批流模板库、实时流转实例跟踪及健康度运维监控。
             </p>
           </div>
 
@@ -285,7 +285,7 @@ export const ProcessManagementView: React.FC<ProcessManagementViewProps> = ({
               className="px-5 py-2.5 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-extrabold transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 active:scale-95"
             >
               <Plus className="w-4 h-4" />
-              配置对接三方表单字段
+              新增字段映射
             </button>
           </div>
         </div>
@@ -339,7 +339,7 @@ export const ProcessManagementView: React.FC<ProcessManagementViewProps> = ({
             }`}
           >
             <Settings className="w-4 h-4" />
-            流程配置 (对接三方表单字段)
+            流程配置
           </button>
 
           <button
@@ -452,7 +452,7 @@ export const ProcessManagementView: React.FC<ProcessManagementViewProps> = ({
                 className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold transition-all shadow-md shadow-primary/20 flex items-center gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" />
-                新增三方字段映射
+                新增字段映射
               </button>
               <button
                 onClick={() => showNotification(`已保存【${activeConfig?.name}】的全部字段配置及节点权限，即刻生效！`)}

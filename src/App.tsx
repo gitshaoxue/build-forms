@@ -704,6 +704,8 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
 }) => {
   const [activeCategory, setActiveCategory] = React.useState('全部');
   const [favoriteFormIds, setFavoriteFormIds] = React.useState<string[]>(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7']);
+  const [appSearch, setAppSearch] = React.useState('');
+  const [appViewMode, setAppViewMode] = React.useState<'grid' | 'list'>('grid');
   
   // Workflow center state
   const [activeWorkflowTab, setActiveWorkflowTab] = React.useState<WorkflowTabType>('myTodo');
@@ -711,6 +713,7 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
   const [selectedTask, setSelectedTask] = React.useState<WorkflowTaskItem | null>(null);
   const [approvalOpinion, setApprovalOpinion] = React.useState('');
   const [isDelegationModalOpen, setIsDelegationModalOpen] = React.useState(false);
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = React.useState(false);
 
   // Delegation rule
   const [delegationRule, setDelegationRule] = React.useState<DelegationRule>({
@@ -1087,43 +1090,168 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
     return colors[index % colors.length];
   };
 
+  const getAppStyling = (form: SavedForm, index: number) => {
+    const styles = [
+      { 
+        gradient: 'from-blue-600 to-indigo-600', 
+        bgLight: 'bg-blue-50/80', 
+        borderLight: 'border-blue-100', 
+        text: 'text-blue-600', 
+        shadow: 'shadow-blue-500/15',
+        badge: 'bg-blue-50 text-blue-700 border-blue-200/60'
+      },
+      { 
+        gradient: 'from-indigo-600 to-violet-600', 
+        bgLight: 'bg-indigo-50/80', 
+        borderLight: 'border-indigo-100', 
+        text: 'text-indigo-600', 
+        shadow: 'shadow-indigo-500/15',
+        badge: 'bg-indigo-50 text-indigo-700 border-indigo-200/60'
+      },
+      { 
+        gradient: 'from-violet-600 to-purple-600', 
+        bgLight: 'bg-violet-50/80', 
+        borderLight: 'border-violet-100', 
+        text: 'text-violet-600', 
+        shadow: 'shadow-violet-500/15',
+        badge: 'bg-violet-50 text-violet-700 border-violet-200/60'
+      },
+      { 
+        gradient: 'from-emerald-600 to-teal-600', 
+        bgLight: 'bg-emerald-50/80', 
+        borderLight: 'border-emerald-100', 
+        text: 'text-emerald-600', 
+        shadow: 'shadow-emerald-500/15',
+        badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+      },
+      { 
+        gradient: 'from-amber-500 to-orange-600', 
+        bgLight: 'bg-amber-50/80', 
+        borderLight: 'border-amber-100', 
+        text: 'text-amber-600', 
+        shadow: 'shadow-amber-500/15',
+        badge: 'bg-amber-50 text-amber-700 border-amber-200/60'
+      },
+      { 
+        gradient: 'from-rose-500 to-pink-600', 
+        bgLight: 'bg-rose-50/80', 
+        borderLight: 'border-rose-100', 
+        text: 'text-rose-600', 
+        shadow: 'shadow-rose-500/15',
+        badge: 'bg-rose-50 text-rose-700 border-rose-200/60'
+      },
+      { 
+        gradient: 'from-sky-500 to-blue-600', 
+        bgLight: 'bg-sky-50/80', 
+        borderLight: 'border-sky-100', 
+        text: 'text-sky-600', 
+        shadow: 'shadow-sky-500/15',
+        badge: 'bg-sky-50 text-sky-700 border-sky-200/60'
+      },
+      { 
+        gradient: 'from-teal-500 to-emerald-600', 
+        bgLight: 'bg-teal-50/80', 
+        borderLight: 'border-teal-100', 
+        text: 'text-teal-600', 
+        shadow: 'shadow-teal-500/15',
+        badge: 'bg-teal-50 text-teal-700 border-teal-200/60'
+      }
+    ];
+    return styles[index % styles.length];
+  };
+
   // Only published forms are shown as Light Apps in the Workspace
   const publishedForms = React.useMemo(() => {
     return savedForms.filter(f => f.status === 'Published');
   }, [savedForms]);
 
-  // Categories list
-  const categories = [
-    '全部',
-    '最近使用',
-    '综合人事',
-    '问卷调研',
-    '客户服务',
-    '客户管理',
-    '敏捷研发',
-    '财务工具',
-    '综合行政',
-    '项目管理',
-    '培培训学习'
-  ];
+  const pendingTasksCount = React.useMemo(() => {
+    return workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length;
+  }, [workflowTasks]);
 
-  // Favorite apps list
+  const greeting = React.useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 9) return '早上好';
+    if (hour >= 9 && hour < 12) return '上午好';
+    if (hour >= 12 && hour < 14) return '中午好';
+    if (hour >= 14 && hour < 18) return '下午好';
+    return '晚上好';
+  }, []);
+
+  const todayFormatted = React.useMemo(() => {
+    const d = new Date();
+    const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 · ${weekDays[d.getDay()]}`;
+  }, []);
+
+  // Dynamically compute category counts and available categories
+  const { categories, categoryCounts } = React.useMemo(() => {
+    const counts: Record<string, number> = {
+      '全部': publishedForms.length,
+      '最近使用': Math.min(8, publishedForms.length)
+    };
+    const catsSet = new Set<string>();
+    publishedForms.forEach(f => {
+      const cat = getFormCategory(f);
+      counts[cat] = (counts[cat] || 0) + 1;
+      catsSet.add(cat);
+    });
+
+    const standardOrder = ['综合人事', '财务工具', '综合行政', '敏捷研发', '客户管理', '问卷调研', '项目管理', '培训学习', '通用工具'];
+    const dynamicCats: string[] = [];
+    standardOrder.forEach(c => {
+      if (counts[c] !== undefined || catsSet.has(c)) {
+        dynamicCats.push(c);
+      }
+    });
+    catsSet.forEach(c => {
+      if (!dynamicCats.includes(c)) {
+        dynamicCats.push(c);
+      }
+    });
+
+    return {
+      categories: ['全部', '最近使用', ...dynamicCats],
+      categoryCounts: counts
+    };
+  }, [publishedForms, projects]);
+
+  // Favorite apps list (supports filtering by appSearch)
   const favoriteApps = React.useMemo(() => {
-    const list = publishedForms.filter(f => favoriteFormIds.includes(f.id) || f.isFavorite);
-    if (list.length > 0) return list;
-    return publishedForms.slice(0, 7);
-  }, [publishedForms, favoriteFormIds]);
+    let list = publishedForms.filter(f => favoriteFormIds.includes(f.id) || f.isFavorite);
+    if (list.length === 0) {
+      list = publishedForms.slice(0, 8);
+    }
+    if (appSearch.trim()) {
+      const q = appSearch.toLowerCase().trim();
+      return list.filter(f => 
+        f.name.toLowerCase().includes(q) || 
+        (f.description && f.description.toLowerCase().includes(q)) ||
+        getFormCategory(f).toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [publishedForms, favoriteFormIds, appSearch, projects]);
 
-  // Filtered apps based on selected category
+  // Filtered apps based on selected category & search input
   const filteredApps = React.useMemo(() => {
-    if (activeCategory === '全部') {
-      return publishedForms;
-    }
+    let list = publishedForms;
     if (activeCategory === '最近使用') {
-      return publishedForms.slice(0, 8);
+      list = publishedForms.slice(0, 8);
+    } else if (activeCategory !== '全部') {
+      list = publishedForms.filter(f => getFormCategory(f) === activeCategory);
     }
-    return publishedForms.filter(f => getFormCategory(f) === activeCategory);
-  }, [publishedForms, activeCategory, projects]);
+    if (appSearch.trim()) {
+      const q = appSearch.toLowerCase().trim();
+      list = list.filter(f => 
+        f.name.toLowerCase().includes(q) || 
+        (f.description && f.description.toLowerCase().includes(q)) ||
+        getFormCategory(f).toLowerCase().includes(q) ||
+        (f.designer && f.designer.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [publishedForms, activeCategory, appSearch, projects]);
 
   const toggleFavorite = (e: React.MouseEvent, formId: string) => {
     e.stopPropagation();
@@ -1199,372 +1327,557 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50/50 min-h-screen">
-      <div className="w-full p-6 md:p-10 space-y-10 max-w-7xl mx-auto">
+    <div className="flex-1 bg-[#f8fafc] min-h-screen text-slate-800 relative selection:bg-indigo-500 selection:text-white">
+      {/* Ambient Top Glow */}
+      <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-indigo-100/40 via-slate-50/20 to-transparent pointer-events-none -z-0" />
+
+      <div className="w-full p-5 sm:p-6 md:p-8 lg:p-10 space-y-7 max-w-7xl mx-auto relative z-10">
         
-        {/* Banner Section */}
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-          <div className="space-y-2 relative z-10">
-            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-blue-100">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>控制台 & 工作台 联动中心</span>
+        {/* Executive Digital Command Hero Banner */}
+        <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950 text-white rounded-3xl p-6 md:p-8 border border-slate-700/60 shadow-xl shadow-slate-950/15 relative overflow-hidden space-y-6">
+          {/* Subtle Decorative Ambient Glows */}
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(#ffffff12_1px,transparent_1px)] [background-size:20px_20px] opacity-40 pointer-events-none" />
+
+          {/* Top Status & Fast Action Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-slate-200 backdrop-blur-md shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                <span>系统运行正常 · 实时流转就绪</span>
+                <span className="text-white/30">|</span>
+                <span className="text-slate-300 font-normal">{todayFormatted}</span>
+              </span>
             </div>
-            <h2 className="text-2xl md:text-3xl font-black tracking-tight">控制台已发布轻应用（{publishedForms.length} 个）</h2>
-            <p className="text-xs md:text-sm text-blue-100 font-medium max-w-xl leading-relaxed">
-              表单设计人员在控制台发布表单后，将实时同步至此处。点击任意轻应用图标即可进行在线填报与数据上报。
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveWorkflowTab('myTodo');
+                  setIsWorkflowModalOpen(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white border border-white/20 text-xs font-bold transition-all backdrop-blur-md flex items-center gap-2 shadow-xs cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-rose-400" />
+                <span>待办审批</span>
+                {pendingTasksCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-extrabold shadow-xs tabular-nums animate-pulse">
+                    {pendingTasksCount}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-mono">0</span>
+                )}
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setView && setView('projects')}
+                className="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-indigo-600/30 flex items-center gap-2 cursor-pointer border border-white/15"
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                <span>表单设计控制台</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Center Greeting & Headline */}
+          <div className="space-y-2 relative z-10">
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-tight flex flex-wrap items-center gap-3">
+              <span>张经理，{greeting}！</span>
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 font-sans tracking-normal">
+                数字化协同中枢
+              </span>
+            </h1>
+            <p className="text-xs md:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              全生命周期轻应用中心与跨部门流转平台。在此快速发起业务表单、办理个人待办事项、跟踪审批进展与配置代办委托。
             </p>
           </div>
-          <div className="flex items-center gap-3 relative z-10 shrink-0">
-            <button 
-              onClick={() => setView && setView('projects')}
-              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 font-bold rounded-2xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5"
-            >
-              <PenTool className="w-4 h-4" />
-              进入控制台设计表单
-            </button>
-          </div>
-        </div>
 
-        {/* 主体两栏布局：左侧流程中心（我的待办、我发起的、我处理的、抄送我的、待办委托） + 右侧应用区域（常用应用与全部应用） */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* 左侧流程协同区域 */}
-          <div className="col-span-12 lg:col-span-5 xl:col-span-4 space-y-4">
-            <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm space-y-4">
-              
-              {/* 流程中心头部 */}
-              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                    <Workflow className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-800">流程协同中心</h3>
-                    <p className="text-[11px] text-slate-400 font-medium">高效协同与流程流转</p>
-                  </div>
-                </div>
-                {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length > 0 && (
-                  <span className="px-2.5 py-1 text-[11px] font-extrabold bg-rose-500 text-white rounded-full shadow-xs animate-pulse">
-                    {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length} 待办
+          {/* Bottom KPI Glassmorphism Metrics Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 relative z-10 pt-2">
+            {/* KPI 1: 我的待办 */}
+            <div 
+              onClick={() => { setActiveWorkflowTab('myTodo'); setIsWorkflowModalOpen(true); }}
+              className="p-3.5 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 backdrop-blur-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-rose-400" />
+                  我的待办
+                </span>
+                {pendingTasksCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-rose-500/30 text-rose-300 border border-rose-400/40 text-[10px] font-bold">
+                    急需办理
                   </span>
                 )}
               </div>
-
-              {/* 5个Tab选项卡：我的待办、我发起的、我处理的、抄送我的、待办委托 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-1.5 p-1 bg-slate-100/90 rounded-2xl text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setActiveWorkflowTab('myTodo')}
-                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
-                    activeWorkflowTab === 'myTodo'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="我的待办"
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>我的待办</span>
-                  {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length > 0 && (
-                    <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] flex items-center justify-center font-bold">
-                      {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveWorkflowTab('myInitiated')}
-                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
-                    activeWorkflowTab === 'myInitiated'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="我发起的"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>我发起的</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
-                    {workflowTasks.filter(t => t.category === 'myInitiated').length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveWorkflowTab('myProcessed')}
-                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
-                    activeWorkflowTab === 'myProcessed'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="我处理的"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>我处理的</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
-                    {workflowTasks.filter(t => t.category === 'myProcessed').length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveWorkflowTab('ccToMe')}
-                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
-                    activeWorkflowTab === 'ccToMe'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="抄送我的"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>抄送我的</span>
-                  {workflowTasks.filter(t => t.category === 'ccToMe' && t.status === 'unread').length > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveWorkflowTab('delegation')}
-                  className={`py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 ${
-                    activeWorkflowTab === 'delegation'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="待办委托"
-                >
-                  <Repeat className="w-3.5 h-3.5" />
-                  <span>待办委托</span>
-                  {delegationRule.isEnabled && (
-                    <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 py-0.2 rounded font-bold">
-                      运行
-                    </span>
-                  )}
-                </button>
+              <div className="mt-2.5">
+                <p className="text-2xl md:text-3xl font-black text-white tabular-nums tracking-tight">
+                  {pendingTasksCount} <span className="text-xs text-slate-300 font-medium">项待处理</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1 group-hover:text-rose-300 transition-colors">
+                  <span>平均时效 1.8h</span>
+                  <span className="text-slate-500">·</span>
+                  <span>即刻审批 →</span>
+                </p>
               </div>
+            </div>
 
-              {/* 搜索栏（委托除外） */}
-              {activeWorkflowTab !== 'delegation' && (
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={workflowSearch}
-                    onChange={(e) => setWorkflowSearch(e.target.value)}
-                    placeholder="按事项标题、发起人或表单搜索..."
-                    className="w-full text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-200/80 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                  {workflowSearch && (
-                    <button
-                      onClick={() => setWorkflowSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              )}
+            {/* KPI 2: 我发起的流转 */}
+            <div 
+              onClick={() => { setActiveWorkflowTab('myInitiated'); setIsWorkflowModalOpen(true); }}
+              className="p-3.5 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 backdrop-blur-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5 text-indigo-400" />
+                  在途申请
+                </span>
+                <span className="text-[10px] text-indigo-300 font-mono">流转中</span>
+              </div>
+              <div className="mt-2.5">
+                <p className="text-2xl md:text-3xl font-black text-white tabular-nums tracking-tight">
+                  {workflowTasks.filter(t => t.category === 'myInitiated').length} <span className="text-xs text-slate-300 font-medium">项审批在途</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1 group-hover:text-indigo-300 transition-colors">
+                  当前流转至「业务总监复核」
+                </p>
+              </div>
+            </div>
 
-              {/* 列表内容区 */}
-              {activeWorkflowTab === 'delegation' ? (
-                /* 待办委托专属控制卡片 */
-                <div className="space-y-3.5">
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 border border-blue-100/80 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2.5 h-2.5 rounded-full ${delegationRule.isEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                        <span className="text-xs font-bold text-slate-800">
-                          委托代理服务：{delegationRule.isEnabled ? '已生效运行' : '已暂停'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDelegationRule(prev => {
-                            const next = !prev.isEnabled;
-                            showNotification(next ? '已开启待办委托代理' : '已暂停待办委托代理');
-                            return { ...prev, isEnabled: next };
-                          });
-                        }}
-                        className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${
-                          delegationRule.isEnabled ? 'bg-blue-600' : 'bg-slate-300'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${
-                          delegationRule.isEnabled ? 'translate-x-4' : 'translate-x-0'
-                        }`} />
-                      </button>
-                    </div>
+            {/* KPI 3: 轻应用库 */}
+            <div 
+              onClick={() => { setActiveCategory('全部'); setAppSearch(''); }}
+              className="p-3.5 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 backdrop-blur-md transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                  <LayoutGrid className="w-3.5 h-3.5 text-emerald-400" />
+                  在线应用
+                </span>
+                <span className="text-[10px] text-emerald-300 font-mono">已就绪</span>
+              </div>
+              <div className="mt-2.5">
+                <p className="text-2xl md:text-3xl font-black text-white tabular-nums tracking-tight">
+                  {publishedForms.length} <span className="text-xs text-slate-300 font-medium">个轻应用</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1 group-hover:text-emerald-300 transition-colors">
+                  覆盖人事、行政、研发与财务
+                </p>
+              </div>
+            </div>
 
-                    <div className="space-y-1.5 text-[11px] text-slate-600 bg-white/80 p-3 rounded-xl border border-blue-100/60">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">委托人：</span>
-                        <span className="font-semibold text-slate-800">{delegationRule.delegator}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">被委托人：</span>
-                        <span className="font-bold text-blue-600">{delegationRule.delegatee} ({delegationRule.delegateeDept})</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">委托时效：</span>
-                        <span className="font-mono text-slate-700">{delegationRule.startTime} 至 {delegationRule.endTime}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">授权范围：</span>
-                        <span className="font-semibold text-slate-800">{delegationRule.scope}</span>
-                      </div>
-                      {delegationRule.notes && (
-                        <div className="pt-1 text-slate-500 border-t border-slate-100 italic">
-                          "{delegationRule.notes}"
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => setIsDelegationModalOpen(true)}
-                      className="w-full py-2 bg-white hover:bg-slate-50 text-blue-600 font-bold rounded-xl text-xs border border-blue-200/80 transition-all shadow-xs flex items-center justify-center gap-1.5"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                      修改委托规则
-                    </button>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] text-slate-500 leading-relaxed">
-                    💡 提示：开启待办委托后，在生效日期区间内所有流转至您个人名下的审批待办，系统将自动授权被委托人进行协同办理，并在流转日志中完整记载代理记录。
-                  </div>
-                </div>
-              ) : (
-                /* 任务列表滚动区 */
-                <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1 no-scrollbar">
-                  {(() => {
-                    const list = workflowTasks.filter(t => {
-                      if (t.category !== activeWorkflowTab) return false;
-                      if (!workflowSearch.trim()) return true;
-                      const q = workflowSearch.toLowerCase();
-                      return (
-                        t.title.toLowerCase().includes(q) ||
-                        t.formName.toLowerCase().includes(q) ||
-                        t.applicant.toLowerCase().includes(q) ||
-                        t.applicantDept.toLowerCase().includes(q)
-                      );
-                    });
-
-                    if (list.length === 0) {
-                      return (
-                        <div className="py-10 text-center space-y-2">
-                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                            <CheckCircle2 className="w-5 h-5" />
-                          </div>
-                          <p className="text-xs font-bold text-slate-600">
-                            {activeWorkflowTab === 'myTodo' ? '暂无待审批的任务，工作井井有条' :
-                             activeWorkflowTab === 'myInitiated' ? '暂无发起的流程任务' :
-                             activeWorkflowTab === 'myProcessed' ? '暂无已处理的历史记录' : '暂无抄送给您的事项'}
-                          </p>
-                          <p className="text-[11px] text-slate-400">后续审批事件将实时同步显示于此</p>
-                        </div>
-                      );
-                    }
-
-                    return list.map((task) => (
-                      <div
-                        key={task.id}
-                        onClick={() => {
-                          if (task.category === 'ccToMe' && task.status === 'unread') {
-                            handleMarkCcAsRead(task.id);
-                          }
-                          handleOpenTask(task);
-                        }}
-                        className="p-3.5 rounded-2xl border border-slate-200/70 hover:border-blue-400 bg-white hover:bg-blue-50/30 transition-all cursor-pointer shadow-xs hover:shadow-md group space-y-2"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
-                              {task.formName}
-                            </span>
-                            {task.urgency === 'high' && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-100">
-                                紧急
-                              </span>
-                            )}
-                            {task.category === 'ccToMe' && task.status === 'unread' && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100">
-                                未读
-                              </span>
-                            )}
-                            {task.amount && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 font-mono">
-                                {task.amount}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-medium shrink-0">
-                            {task.submitTime}
-                          </span>
-                        </div>
-
-                        <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors leading-snug line-clamp-2">
-                          {task.title}
-                        </h4>
-
-                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
-                          <span className="text-slate-500 font-medium truncate max-w-[160px]">
-                            {task.applicant} · {task.applicantDept}
-                          </span>
-
-                          {task.category === 'myTodo' && task.status === 'pending' ? (
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={(e) => handleQuickApprove(e, task.id)}
-                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all border border-blue-200"
-                              >
-                                快捷通过
-                              </button>
-                              <span className="text-blue-600 font-bold group-hover:translate-x-0.5 transition-transform">
-                                办理 →
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                              {task.currentStep || (task.status === 'approved' ? '已办结' : task.status === 'rejected' ? '已驳回' : '流转中')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              )}
-
-              {/* 底部协同统计条 */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                <span>待办: {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length}</span>
-                <span>发起: {workflowTasks.filter(t => t.category === 'myInitiated').length}</span>
-                <span>处理: {workflowTasks.filter(t => t.category === 'myProcessed').length}</span>
-                <span>抄送: {workflowTasks.filter(t => t.category === 'ccToMe').length}</span>
-                <span>委托: {delegationRule.isEnabled ? '生效中' : '未开启'}</span>
+            {/* KPI 4: 填报记录 */}
+            <div 
+              className="p-3.5 rounded-2xl bg-white/[0.08] border border-white/15 backdrop-blur-md flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" />
+                  数据沉淀
+                </span>
+                <span className="text-[10px] text-sky-300 font-mono">100% 同步</span>
+              </div>
+              <div className="mt-2.5">
+                <p className="text-2xl md:text-3xl font-black text-white tabular-nums tracking-tight">
+                  {submissions.length} <span className="text-xs text-slate-300 font-medium">份已上报</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  数据安全归档入库
+                </p>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* 右侧应用区域：常用应用 与 全部应用 */}
-          <div className="col-span-12 lg:col-span-7 xl:col-span-8 space-y-8">
-            
-            {/* Section 1: 常用应用 */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
-                  <h2 className="text-lg font-extrabold text-slate-800">常用应用</h2>
-                  <span className="text-xs font-semibold text-slate-400">({favoriteApps.length})</span>
+        {/* Raycast-style Omni Search & Quick Tag Filter Bar */}
+        <div className="bg-white rounded-2xl p-3 md:p-3.5 border border-slate-200/90 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] flex flex-col md:flex-row items-center gap-3 justify-between">
+          <div className="relative w-full md:w-80 lg:w-96">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={appSearch}
+              onChange={(e) => setAppSearch(e.target.value)}
+              placeholder="搜索应用名称、业务模块、审批表单..."
+              className="w-full text-xs pl-10 pr-8 py-2 rounded-xl bg-slate-50/80 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+            />
+            {appSearch && (
+              <button
+                type="button"
+                onClick={() => setAppSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 w-5 h-5 flex items-center justify-center rounded-full hover:bg-slate-200 text-xs font-bold"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
+          {/* Quick Category Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto no-scrollbar pb-1 md:pb-0">
+            <span className="text-[11px] font-bold text-slate-400 shrink-0 hidden sm:inline mr-1">快捷定位:</span>
+            {['综合人事', '财务工具', '综合行政', '敏捷研发', '采购付款', '录用审批'].map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => {
+                  if (appSearch === tag) {
+                    setAppSearch('');
+                  } else {
+                    setAppSearch(tag);
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all shrink-0 cursor-pointer ${
+                  appSearch === tag
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {appSearch && (
+              <button
+                type="button"
+                onClick={() => setAppSearch('')}
+                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold shrink-0 ml-1 cursor-pointer"
+              >
+                重置
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Main Two-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
+          
+          {/* 左侧流程协同区域（纵向排列5项：我的待办、我发起的、我处理的、抄送我的、待办委托） */}
+          <div className="col-span-12 lg:col-span-5 xl:col-span-4 space-y-5">
+            {/* 流程协同中心主卡片 */}
+            <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-200/90 shadow-[0_2px_14px_-3px_rgba(0,0,0,0.04)] space-y-4">
+              
+              {/* 流程中心头部 */}
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold shadow-md shadow-blue-500/20">
+                    <Workflow className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">流程协同中心</h3>
+                    <p className="text-[11px] text-slate-400 font-medium">全生命周期流转与代理委托</p>
+                  </div>
                 </div>
-                <span className="text-xs text-slate-400 font-medium">快捷点击轻应用直接填报</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkflowTab('myTodo');
+                    setIsWorkflowModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-bold rounded-lg transition-colors flex items-center gap-1 group cursor-pointer"
+                >
+                  <span>全量处理</span>
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+              {/* 纵向排列的5个功能项：我的待办、我发起的、我处理的、抄送我的、待办委托 */}
+              <div className="flex flex-col space-y-2.5">
+                
+                {/* 1. 我的待办 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkflowTab('myTodo');
+                    setIsWorkflowModalOpen(true);
+                  }}
+                  className="w-full text-left group flex items-center justify-between p-3.5 rounded-2xl border-l-4 border-l-rose-500 border-t border-r border-b border-slate-200/80 bg-gradient-to-r from-rose-50/40 via-white to-white hover:from-rose-50/80 hover:to-rose-50/20 hover:border-rose-300 transition-all shadow-xs hover:shadow-md cursor-pointer -translate-y-0 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-pink-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-rose-500/20 group-hover:scale-105 transition-transform">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-rose-600 transition-colors truncate">
+                          我的待办
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-100/80 text-rose-700">
+                          需我审批
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">待我签署、审核与处理的流转工单</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {pendingTasksCount > 0 ? (
+                      <span className="px-2.5 py-1 rounded-full bg-rose-500 text-white text-xs font-black shadow-xs flex items-center gap-1.5 tabular-nums animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                        {pendingTasksCount} 待办
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
+                        全办结
+                      </span>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-rose-600 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </button>
+
+                {/* 2. 我发起的 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkflowTab('myInitiated');
+                    setIsWorkflowModalOpen(true);
+                  }}
+                  className="w-full text-left group flex items-center justify-between p-3.5 rounded-2xl border-l-4 border-l-indigo-500 border-t border-r border-b border-slate-200/80 bg-gradient-to-r from-indigo-50/40 via-white to-white hover:from-indigo-50/80 hover:to-indigo-50/20 hover:border-indigo-300 transition-all shadow-xs hover:shadow-md cursor-pointer -translate-y-0 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+                      <Send className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                          我发起的
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100/80 text-indigo-700">
+                          流转中
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">本人提交处于审批流转中的申请单</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 group-hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors tabular-nums border border-indigo-200/60">
+                      {workflowTasks.filter(t => t.category === 'myInitiated').length} 项流转
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </button>
+
+                {/* 3. 我处理的 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkflowTab('myProcessed');
+                    setIsWorkflowModalOpen(true);
+                  }}
+                  className="w-full text-left group flex items-center justify-between p-3.5 rounded-2xl border-l-4 border-l-emerald-500 border-t border-r border-b border-slate-200/80 bg-gradient-to-r from-emerald-50/40 via-white to-white hover:from-emerald-50/80 hover:to-emerald-50/20 hover:border-emerald-300 transition-all shadow-xs hover:shadow-md cursor-pointer -translate-y-0 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors truncate">
+                          我处理的
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100/80 text-emerald-700">
+                          已办结
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">历史经办完成与审批签署归档单</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors tabular-nums border border-emerald-200/60">
+                      {workflowTasks.filter(t => t.category === 'myProcessed').length} 项已办
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </button>
+
+                {/* 4. 抄送我的 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkflowTab('ccToMe');
+                    setIsWorkflowModalOpen(true);
+                  }}
+                  className="w-full text-left group flex items-center justify-between p-3.5 rounded-2xl border-l-4 border-l-sky-500 border-t border-r border-b border-slate-200/80 bg-gradient-to-r from-sky-50/40 via-white to-white hover:from-sky-50/80 hover:to-sky-50/20 hover:border-sky-300 transition-all shadow-xs hover:shadow-md cursor-pointer -translate-y-0 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-sky-500/20 group-hover:scale-105 transition-transform">
+                      <Mail className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-sky-600 transition-colors truncate">
+                          抄送我的
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-sky-100/80 text-sky-700">
+                          知会传阅
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">跨部门业务信息共享与知会传阅单</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-sky-50 group-hover:bg-sky-100 text-sky-700 text-xs font-bold transition-colors tabular-nums border border-sky-200/60">
+                      {workflowTasks.filter(t => t.category === 'ccToMe').length} 份传阅
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-sky-600 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </button>
+
+                {/* 5. 待办委托 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDelegationModalOpen(true);
+                  }}
+                  className="w-full text-left group flex items-center justify-between p-3.5 rounded-2xl border-l-4 border-l-purple-500 border-t border-r border-b border-slate-200/80 bg-gradient-to-r from-purple-50/40 via-white to-white hover:from-purple-50/80 hover:to-purple-50/20 hover:border-purple-300 transition-all shadow-xs hover:shadow-md cursor-pointer -translate-y-0 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500 to-violet-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-purple-500/20 group-hover:scale-105 transition-transform">
+                      <Repeat className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-purple-600 transition-colors truncate">
+                          待办委托
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-100/80 text-purple-700">
+                          代理规则
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                        {delegationRule.isEnabled ? `代理人：${delegationRule.delegatee}` : '出差/休假时代办规则配置'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1.5 border ${
+                      delegationRule.isEnabled 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${delegationRule.isEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                      {delegationRule.isEnabled ? '运行中' : '未开启'}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </button>
+              </div>
+
+              {/* 流程效能指示微看板 */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-blue-500" />
+                  <span>流转时效 1.8h</span>
+                  <span className="text-slate-300">·</span>
+                  <span className="text-emerald-600 font-bold">达标率 99.4%</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">今日效能优</span>
+              </div>
+            </div>
+
+            {/* 待办速办高优先级卡片 */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-[0_2px_14px_-3px_rgba(0,0,0,0.04)] space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <CheckSquare className="w-4 h-4 text-indigo-600" />
+                  今日待办优先处理
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400">
+                  {pendingTasksCount > 0 ? `剩余 ${pendingTasksCount} 项待办` : '当前无积压'}
+                </span>
+              </div>
+
+              {(() => {
+                const urgentTask = workflowTasks.find(t => t.category === 'myTodo' && t.status === 'pending');
+                if (!urgentTask) {
+                  return (
+                    <div className="py-5 text-center space-y-1.5">
+                      <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-bold text-slate-800">所有待办均已处理完毕</p>
+                      <p className="text-[11px] text-slate-400">流程运转顺畅，暂无待审批或阻塞事项</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-3.5 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl border border-slate-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                        {urgentTask.formName}
+                      </span>
+                      {urgentTask.urgency === 'high' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-200 flex items-center gap-1 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          紧急审批
+                        </span>
+                      )}
+                    </div>
+                    
+                    <h4 
+                      onClick={() => handleOpenTask(urgentTask)}
+                      className="text-xs font-bold text-slate-900 hover:text-indigo-600 cursor-pointer line-clamp-1 transition-colors leading-snug"
+                    >
+                      {urgentTask.title}
+                    </h4>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span>发起人: {urgentTask.applicant} ({urgentTask.applicantDept})</span>
+                      {urgentTask.amount && (
+                        <span className="font-extrabold text-rose-600 font-mono text-xs">{urgentTask.amount}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/70">
+                      <button
+                        type="button"
+                        onClick={(e) => handleQuickApprove(e, urgentTask.id)}
+                        className="px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>快捷通过</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenTask(urgentTask)}
+                        className="text-xs font-bold text-slate-600 hover:text-indigo-600 transition-colors flex items-center gap-0.5 cursor-pointer px-2 py-1 hover:bg-white rounded-lg"
+                      >
+                        <span>流转详情</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* 右侧应用区域：常用应用 与 全部轻应用 */}
+          <div className="col-span-12 lg:col-span-7 xl:col-span-8 space-y-7">
+            
+            {/* Section 1: 常用应用 */}
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between pb-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shadow-xs border border-amber-200/60">
+                    <Star className="w-4 h-4 fill-amber-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2 tracking-tight">
+                      常用轻应用
+                      <span className="text-xs font-semibold text-slate-400 tabular-nums">({favoriteApps.length})</span>
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-medium">高频业务轻应用，点击即可立即发起业务填报或流程</p>
+                  </div>
+                </div>
+                <span className="text-xs text-slate-400 font-medium hidden sm:inline">星标自定义置顶</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3.5">
                 {favoriteApps.map((form, idx) => {
                   const IconComp = getAppIconComponent(form.icon, form.type);
-                  const colorClass = getFormColor(form, idx);
+                  const styling = getAppStyling(form, idx);
                   const category = getFormCategory(form);
                   const isFav = favoriteFormIds.includes(form.id);
 
@@ -1572,33 +1885,42 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
                     <div 
                       key={form.id} 
                       onClick={() => handleOpenFill(form)}
-                      className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
+                      className="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-indigo-400 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-200 cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
                     >
                       <button 
+                        type="button"
                         onClick={(e) => toggleFavorite(e, form.id)}
-                        className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10 opacity-0 group-hover:opacity-100"
+                        className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10 opacity-70 group-hover:opacity-100 cursor-pointer"
                         title={isFav ? "取消常用" : "设为常用"}
                       >
                         <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
                       </button>
 
                       <div className="space-y-3">
-                        <div className={`${colorClass} w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform`}>
-                          <IconComp className="w-6 h-6" />
+                        <div className={`w-11 h-11 rounded-2xl bg-gradient-to-tr ${styling.gradient} text-white flex items-center justify-center shadow-md ${styling.shadow} group-hover:scale-105 transition-transform`}>
+                          <IconComp className="w-5 h-5" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
+                          <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1 leading-snug">
                             {form.name}
                           </h4>
-                          <p className="text-[10px] text-slate-400 font-medium mt-1">
-                            {category}
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {category}
+                            </span>
+                            <span className="text-slate-300 text-[10px]">·</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${styling.badge}`}>
+                              {form.type === 'workflow' ? '流程审批' : '在线填报'}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程表单' : '普通填报'}</span>
-                        <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">填报 →</span>
+                      <div className="mt-3.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 font-medium text-[10px]">点击办理</span>
+                        <span className="text-indigo-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 text-xs">
+                          发起填报 <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
                       </div>
                     </div>
                   );
@@ -1606,111 +1928,244 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
 
                 {/* Add Favorite Button */}
                 <div 
-                  onClick={() => showNotification('可在下方“全部应用”中将轻应用取消或标记为常用')}
-                  className="bg-slate-50/80 rounded-2xl p-4 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-blue-50/50 hover:border-blue-300 transition-all text-slate-400 hover:text-blue-600 group"
+                  onClick={() => showNotification('可在下方“全部轻应用”中点击右上角星标，即可自定义置顶常用应用')}
+                  className="bg-slate-50/80 rounded-2xl p-4 border-2 border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/20 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all text-slate-400 hover:text-indigo-600 group min-h-[135px]"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
-                    <Plus className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs border border-slate-200">
+                    <Plus className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-bold">常用设置</span>
+                  <span className="text-xs font-bold">自定义常用应用</span>
                 </div>
               </div>
             </div>
 
-            {/* Section 2: 全部应用 */}
-            <div className="space-y-6 pt-2">
-              <div className="space-y-4">
+            {/* Section 2: 全部轻应用 */}
+            <div className="space-y-4 pt-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <LayoutGrid className="w-5 h-5 text-blue-600" />
-                    <h2 className="text-lg font-extrabold text-slate-800">全部应用</h2>
-                    <span className="text-xs font-semibold text-slate-400">({filteredApps.length})</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-xs border border-indigo-200/60">
+                      <LayoutGrid className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2 tracking-tight">
+                        全部轻应用
+                        <span className="text-xs font-semibold text-slate-400 tabular-nums">({filteredApps.length})</span>
+                      </h2>
+                      <p className="text-[11px] text-slate-400 font-medium">按业务模块分类展示控制台发布的业务轻应用库</p>
+                    </div>
+                  </div>
+
+                  {/* View Mode Switcher (Grid vs List) */}
+                  <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl border border-slate-200/80">
+                    <button
+                      type="button"
+                      onClick={() => setAppViewMode('grid')}
+                      className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
+                        appViewMode === 'grid' 
+                          ? 'bg-white text-indigo-600 shadow-xs' 
+                          : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                      title="网格视图"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAppViewMode('list')}
+                      className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
+                        appViewMode === 'list' 
+                          ? 'bg-white text-indigo-600 shadow-xs' 
+                          : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                      title="列表视图"
+                    >
+                      <Table className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
                 {/* Category Filter Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar border-b border-slate-200/80">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 no-scrollbar border-b border-slate-200/80">
                   {categories.map(cat => {
                     const isActive = activeCategory === cat;
+                    const count = categoryCounts[cat] ?? 0;
                     return (
                       <button
                         key={cat}
+                        type="button"
                         onClick={() => setActiveCategory(cat)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 relative ${
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 relative flex items-center gap-1.5 cursor-pointer ${
                           isActive 
-                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
+                            ? 'bg-slate-900 text-white shadow-xs' 
                             : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
                         }`}
                       >
-                        {cat}
+                        <span>{cat}</span>
+                        <span className={`text-[10px] tabular-nums font-semibold ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
+                          {count}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Apps Grid */}
+              {/* Active Search Notification Banner */}
+              {appSearch && (
+                <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-100 px-4 py-2.5 rounded-2xl text-xs text-indigo-700 font-medium shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>找到与 “<strong className="font-bold text-indigo-900">{appSearch}</strong>” 相关的轻应用共 <strong className="font-bold text-indigo-900 tabular-nums">{filteredApps.length}</strong> 个</span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setAppSearch('')} 
+                    className="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer hover:underline"
+                  >
+                    重置筛选
+                  </button>
+                </div>
+              )}
+
+              {/* Apps Rendering: Grid View vs List View */}
               {filteredApps.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-                  {filteredApps.map((form, idx) => {
-                    const IconComp = getAppIconComponent(form.icon, form.type);
-                    const colorClass = getFormColor(form, idx);
-                    const category = getFormCategory(form);
-                    const isFav = favoriteFormIds.includes(form.id);
+                appViewMode === 'grid' ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                    {filteredApps.map((form, idx) => {
+                      const IconComp = getAppIconComponent(form.icon, form.type);
+                      const styling = getAppStyling(form, idx);
+                      const category = getFormCategory(form);
+                      const isFav = favoriteFormIds.includes(form.id);
 
-                    return (
-                      <div 
-                        key={form.id} 
-                        onClick={() => handleOpenFill(form)}
-                        className="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-blue-400 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
-                      >
-                        <button 
-                          onClick={(e) => toggleFavorite(e, form.id)}
-                          className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10"
-                          title={isFav ? "取消常用" : "设为常用"}
+                      return (
+                        <div 
+                          key={form.id} 
+                          onClick={() => handleOpenFill(form)}
+                          className="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-indigo-400 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-lg transition-all duration-200 cursor-pointer group flex flex-col justify-between relative overflow-hidden -translate-y-0 hover:-translate-y-1"
                         >
-                          <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
-                        </button>
+                          <button 
+                            type="button"
+                            onClick={(e) => toggleFavorite(e, form.id)}
+                            className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-300 hover:text-amber-500 transition-colors z-10 cursor-pointer"
+                            title={isFav ? "取消常用" : "设为常用"}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
+                          </button>
 
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between">
-                            <div className={`${colorClass} w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform`}>
-                              <IconComp className="w-6 h-6" />
+                          <div className="space-y-3">
+                            <div className={`w-11 h-11 rounded-2xl bg-gradient-to-tr ${styling.gradient} text-white flex items-center justify-center shadow-md ${styling.shadow} group-hover:scale-105 transition-transform`}>
+                              <IconComp className="w-5 h-5" />
+                            </div>
+
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1 leading-snug">
+                                {form.name}
+                              </h4>
+                              <p className="text-[10px] text-slate-400 font-medium mt-1 line-clamp-1">
+                                {form.description || `${category}专属业务表单`}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-2">
+                                <span className="text-[10px] text-slate-500 font-medium">{category}</span>
+                                <span className="text-slate-300 text-[10px]">·</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${styling.badge}`}>
+                                  {form.type === 'workflow' ? '流程审批' : form.type === 'report' ? '数据报表' : '普通填报'}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
-                              {form.name}
-                            </h4>
-                            <p className="text-[10px] text-slate-400 font-medium mt-1">
-                              {category}
-                            </p>
+                          <div className="mt-3.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400 font-medium truncate max-w-[90px] text-[10px]">
+                              {form.designer || '平台发布'}
+                            </span>
+                            <span className="text-indigo-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 text-xs">
+                              立即发起 <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
                           </div>
                         </div>
-
-                        <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400 font-medium">{form.type === 'workflow' ? '流程审批' : form.type === 'report' ? '数据报表' : '普通填报'}</span>
-                          <span className="text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                            填报 <ChevronRight className="w-3 h-3" />
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 max-w-md mx-auto space-y-4 my-8 shadow-sm">
-                  <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-500 border border-blue-100">
-                    <FormInput className="w-8 h-8" />
+                      );
+                    })}
                   </div>
-                  <h3 className="text-base font-bold text-slate-800">分类「{activeCategory}」下暂无轻应用</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">表单设计人员可以在控制台设计并发布相关分类的表单，发布后将自动在此处展示。</p>
+                ) : (
+                  /* High-density Enterprise Table / List Mode */
+                  <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+                    <div className="divide-y divide-slate-100">
+                      {filteredApps.map((form, idx) => {
+                        const IconComp = getAppIconComponent(form.icon, form.type);
+                        const styling = getAppStyling(form, idx);
+                        const category = getFormCategory(form);
+                        const isFav = favoriteFormIds.includes(form.id);
+
+                        return (
+                          <div
+                            key={form.id}
+                            onClick={() => handleOpenFill(form)}
+                            className="p-3.5 sm:p-4 hover:bg-slate-50/80 transition-all flex items-center justify-between gap-4 cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${styling.gradient} text-white flex items-center justify-center shrink-0 shadow-sm ${styling.shadow} group-hover:scale-105 transition-transform`}>
+                                <IconComp className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                                    {form.name}
+                                  </h4>
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${styling.badge}`}>
+                                    {form.type === 'workflow' ? '流程审批' : form.type === 'report' ? '数据报表' : '在线填报'}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                                  {form.description || `由 ${form.designer || '平台'} 发布于「${category}」分类`}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="hidden md:inline-block text-xs text-slate-500 font-medium">
+                                {category}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => toggleFavorite(e, form.id)}
+                                className="p-1.5 rounded-lg text-slate-300 hover:text-amber-500 hover:bg-slate-100 transition-colors cursor-pointer"
+                                title={isFav ? "取消常用" : "设为常用"}
+                              >
+                                <Star className={`w-4 h-4 ${isFav ? 'text-amber-500 fill-amber-500' : ''}`} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenFill(form)}
+                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-xl text-xs font-bold transition-all border border-indigo-200/80 cursor-pointer flex items-center gap-1"
+                              >
+                                <span>立即发起</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/90 max-w-md mx-auto space-y-4 my-6 shadow-xs">
+                  <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto text-indigo-600 border border-indigo-100">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {appSearch ? `未找到与 “${appSearch}” 匹配的轻应用` : `分类「${activeCategory}」下暂无轻应用`}
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+                    {appSearch ? '请尝试更换关键词搜索，或重置搜索条件浏览全部轻应用。' : '表单设计人员可以在控制台设计并发布相关分类的表单，发布后将自动在此处展示。'}
+                  </p>
                   <button 
-                    onClick={() => setActiveCategory('全部')}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                    type="button"
+                    onClick={() => { setActiveCategory('全部'); setAppSearch(''); }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                   >
-                    查看全部轻应用
+                    浏览全部轻应用
                   </button>
                 </div>
               )}
@@ -1719,10 +2174,330 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
         </div>
       </div>
 
+      {/* 流程协同中心弹窗 */}
+      <AnimatePresence>
+        {isWorkflowModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm">
+                    <Workflow className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-800">流程协同中心</h3>
+                    <p className="text-[11px] text-slate-400 font-medium">高效协同、待办处理与流程流转</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsWorkflowModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-xl transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 5个Tab选项卡 */}
+              <div className="px-6 pt-4 pb-2 shrink-0">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 bg-slate-100/90 rounded-2xl text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setActiveWorkflowTab('myTodo')}
+                    className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                      activeWorkflowTab === 'myTodo'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>我的待办</span>
+                    {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] flex items-center justify-center font-bold">
+                        {workflowTasks.filter(t => t.category === 'myTodo' && t.status === 'pending').length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveWorkflowTab('myInitiated')}
+                    className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                      activeWorkflowTab === 'myInitiated'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>我发起的</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
+                      {workflowTasks.filter(t => t.category === 'myInitiated').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveWorkflowTab('myProcessed')}
+                    className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                      activeWorkflowTab === 'myProcessed'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>我处理的</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
+                      {workflowTasks.filter(t => t.category === 'myProcessed').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveWorkflowTab('ccToMe')}
+                    className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                      activeWorkflowTab === 'ccToMe'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>抄送我的</span>
+                    {workflowTasks.filter(t => t.category === 'ccToMe' && t.status === 'unread').length > 0 && (
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveWorkflowTab('delegation')}
+                    className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                      activeWorkflowTab === 'delegation'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Repeat className="w-3.5 h-3.5" />
+                    <span>待办委托</span>
+                    {delegationRule.isEnabled && (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 py-0.2 rounded font-bold">
+                        运行
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* 搜索栏（委托除外） */}
+              {activeWorkflowTab !== 'delegation' && (
+                <div className="px-6 py-2 shrink-0">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={workflowSearch}
+                      onChange={(e) => setWorkflowSearch(e.target.value)}
+                      placeholder="按事项标题、发起人或表单搜索..."
+                      className="w-full text-xs pl-8 pr-3 py-2.5 rounded-xl border border-slate-200/80 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                    {workflowSearch && (
+                      <button
+                        onClick={() => setWorkflowSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 列表内容区 */}
+              <div className="px-6 py-3 overflow-y-auto flex-1">
+                {activeWorkflowTab === 'delegation' ? (
+                  /* 待办委托专属控制卡片 */
+                  <div className="space-y-4">
+                    <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 border border-blue-100/80 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${delegationRule.isEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                          <span className="text-sm font-bold text-slate-800">
+                            委托代理服务：{delegationRule.isEnabled ? '已生效运行' : '已暂停'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDelegationRule(prev => {
+                              const next = !prev.isEnabled;
+                              showNotification(next ? '已开启待办委托代理' : '已暂停待办委托代理');
+                              return { ...prev, isEnabled: next };
+                            });
+                          }}
+                          className={`w-10 h-6 rounded-full transition-colors relative p-0.5 ${
+                            delegationRule.isEnabled ? 'bg-blue-600' : 'bg-slate-300'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full bg-white shadow-xs transition-transform ${
+                            delegationRule.isEnabled ? 'translate-x-4' : 'translate-x-0'
+                          }`} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 text-xs text-slate-600 bg-white/90 p-4 rounded-xl border border-blue-100/60">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">委托人：</span>
+                          <span className="font-semibold text-slate-800">{delegationRule.delegator}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">被委托人：</span>
+                          <span className="font-bold text-blue-600">{delegationRule.delegatee} ({delegationRule.delegateeDept})</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">委托时效：</span>
+                          <span className="font-mono text-slate-700">{delegationRule.startTime} 至 {delegationRule.endTime}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">授权范围：</span>
+                          <span className="font-semibold text-slate-800">{delegationRule.scope}</span>
+                        </div>
+                        {delegationRule.notes && (
+                          <div className="pt-2 text-slate-500 border-t border-slate-100 italic">
+                            "{delegationRule.notes}"
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => setIsDelegationModalOpen(true)}
+                        className="w-full py-2.5 bg-white hover:bg-slate-50 text-blue-600 font-bold rounded-xl text-xs border border-blue-200/80 transition-all shadow-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Settings className="w-4 h-4" />
+                        修改委托规则
+                      </button>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-500 leading-relaxed">
+                      💡 提示：开启待办委托后，在生效日期区间内所有流转至您个人名下的审批待办，系统将自动授权被委托人进行协同办理，并在流转日志中完整记载代理记录。
+                    </div>
+                  </div>
+                ) : (
+                  /* 任务列表 */
+                  <div className="space-y-3">
+                    {(() => {
+                      const list = workflowTasks.filter(t => {
+                        if (t.category !== activeWorkflowTab) return false;
+                        if (!workflowSearch.trim()) return true;
+                        const q = workflowSearch.toLowerCase();
+                        return (
+                          t.title.toLowerCase().includes(q) ||
+                          t.formName.toLowerCase().includes(q) ||
+                          t.applicant.toLowerCase().includes(q) ||
+                          t.applicantDept.toLowerCase().includes(q)
+                        );
+                      });
+
+                      if (list.length === 0) {
+                        return (
+                          <div className="py-14 text-center space-y-2">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                              <CheckCircle2 className="w-6 h-6" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-600">
+                              {activeWorkflowTab === 'myTodo' ? '暂无待审批的任务，工作井井有条' :
+                               activeWorkflowTab === 'myInitiated' ? '暂无发起的流程任务' :
+                               activeWorkflowTab === 'myProcessed' ? '暂无已处理的历史记录' : '暂无抄送给您的事项'}
+                            </p>
+                            <p className="text-xs text-slate-400">后续审批事件将实时同步显示于此</p>
+                          </div>
+                        );
+                      }
+
+                      return list.map((task) => (
+                        <div
+                          key={task.id}
+                          onClick={() => {
+                            if (task.category === 'ccToMe' && task.status === 'unread') {
+                              handleMarkCcAsRead(task.id);
+                            }
+                            handleOpenTask(task);
+                          }}
+                          className="p-4 rounded-2xl border border-slate-200/70 hover:border-blue-400 bg-white hover:bg-blue-50/30 transition-all cursor-pointer shadow-xs hover:shadow-md group space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                                {task.formName}
+                              </span>
+                              {task.urgency === 'high' && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-100">
+                                  紧急
+                                </span>
+                              )}
+                              {task.category === 'ccToMe' && task.status === 'unread' && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                  未读
+                                </span>
+                              )}
+                              {task.amount && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 font-mono">
+                                  {task.amount}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-medium shrink-0">
+                              {task.submitTime}
+                            </span>
+                          </div>
+
+                          <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors leading-snug line-clamp-2">
+                            {task.title}
+                          </h4>
+
+                          <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-100">
+                            <span className="text-slate-500 font-medium truncate max-w-[200px]">
+                              {task.applicant} · {task.applicantDept}
+                            </span>
+
+                            {task.category === 'myTodo' && task.status === 'pending' ? (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleQuickApprove(e, task.id)}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all border border-blue-200"
+                                >
+                                  快捷通过
+                                </button>
+                                <span className="text-blue-600 text-xs font-bold group-hover:translate-x-0.5 transition-transform">
+                                  办理 →
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                                {task.currentStep || (task.status === 'approved' ? '已办结' : task.status === 'rejected' ? '已驳回' : '流转中')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* 流程详情与审批签署弹窗 */}
       <AnimatePresence>
         {selectedTask && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1887,7 +2662,7 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
       {/* 待办委托规则配置弹窗 */}
       <AnimatePresence>
         {isDelegationModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2374,22 +3149,34 @@ const WorkspaceHeader = ({ title, subtitle, showNotification, setView }: { title
         {/* Highly visible Back to Home action button */}
         <button 
           onClick={() => setView('landing')}
-          className="flex items-center gap-2 px-4 py-2 border border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary rounded-xl text-xs font-bold transition-all shadow-sm bg-white hover:bg-primary/5 active:scale-95 cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 border border-slate-200 hover:border-blue-500 text-slate-700 hover:text-blue-600 rounded-xl text-xs font-bold transition-all shadow-xs bg-white hover:bg-blue-50/50 active:scale-95 cursor-pointer"
         >
           <Home className="w-3.5 h-3.5" />
           <span>返回主页</span>
         </button>
-        <div className="w-px h-6 bg-outline-variant"></div>
-        <button onClick={() => showNotification('没有新通知')} className="p-2 hover:bg-surface rounded-full text-on-surface-variant relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
+        <div className="w-px h-6 bg-slate-200"></div>
+        <button 
+          onClick={() => showNotification('暂无新通知，系统运行良好')} 
+          className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors relative cursor-pointer"
+          title="通知消息"
+        >
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full border-2 border-white"></span>
         </button>
-        <img 
-          src="https://picsum.photos/seed/profile/100/100" 
-          className="w-8 h-8 rounded-full ring-2 ring-primary/10 cursor-pointer hover:ring-primary/30 transition-all border border-outline-variant" 
-          alt="头像"
-          referrerPolicy="no-referrer"
-        />
+        <div 
+          onClick={() => showNotification('当前登录账号：系统管理员 (张经理)')}
+          className="flex items-center gap-2.5 pl-2 cursor-pointer group"
+          title="系统管理员"
+        >
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-xs ring-2 ring-blue-100 group-hover:ring-blue-300 transition-all relative">
+            <span>管</span>
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
+          </div>
+          <div className="hidden md:block text-left">
+            <p className="text-xs font-bold text-slate-800 leading-none">系统管理员</p>
+            <p className="text-[10px] text-slate-400 font-medium mt-1">数字化协同中心</p>
+          </div>
+        </div>
       </div>
     </div>
   </header>
