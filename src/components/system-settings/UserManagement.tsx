@@ -21,7 +21,13 @@ import {
   RefreshCw,
   UserCheck,
   UserX,
-  Filter
+  Filter,
+  Copy,
+  Settings,
+  Lock,
+  ChevronDown,
+  ChevronRight,
+  UserPlus
 } from 'lucide-react';
 import { OrgNode, TeamMember, RoleDefinition } from './types';
 
@@ -35,35 +41,56 @@ interface UserManagementProps {
   showNotification?: (text: string) => void;
 }
 
-// Available options for business tags
-export const AVAILABLE_SALES_REGIONS = ['华东大区', '华南大区', '华北大区', '西南大区', '华中大区', '西北大区'];
-export const AVAILABLE_FACTORIES = [
-  '华东一号智能制造基地',
-  '华南精密电子生产工厂',
-  '华北自动化装备工厂',
-  '西南零部件加工中心'
-];
-export const AVAILABLE_STORES = [
-  '上海南京路旗舰店',
-  '广州天河直营店',
-  '深圳南山万象城店',
-  '北京三里屯概念店',
-  '成都春熙路店',
-  '杭州湖滨步行街店'
-];
+// Preset Organization Tree for User Management matching screenshot 1.3
+interface OrgTreeItem {
+  id: string;
+  name: string;
+  children?: OrgTreeItem[];
+}
 
-// Helper to flatten tree for select
-const flattenOrgTree = (nodes: OrgNode[], parentName = ''): Array<{ id: string; name: string; fullPath: string }> => {
-  let result: Array<{ id: string; name: string; fullPath: string }> = [];
-  for (const node of nodes) {
-    const fullPath = parentName ? `${parentName} / ${node.name}` : node.name;
-    result.push({ id: node.id, name: node.name, fullPath });
-    if (node.children && node.children.length > 0) {
-      result = result.concat(flattenOrgTree(node.children, fullPath));
-    }
-  }
-  return result;
-};
+const DEFAULT_USER_MGMT_ORG_TREE: OrgTreeItem[] = [
+  { id: 'uorg-szdr', name: '深圳笃人组织' },
+  { id: 'uorg-cjm-all', name: 'cjm全国总公司' },
+  { id: 'uorg-cjm', name: 'cjm组织' },
+  { 
+    id: 'uorg-default', 
+    name: '默认组织',
+    children: [
+      { id: 'uorg-9527', name: '9527组织' }
+    ]
+  },
+  { id: 'uorg-nj', name: '南京市' },
+  { id: 'uorg-jl', name: '吉林省' },
+  { 
+    id: 'uorg-sx', 
+    name: '山西省',
+    children: [
+      { id: 'uorg-hlj', name: '黑龙江省' },
+      { id: 'uorg-hb', name: '河北省' }
+    ]
+  },
+  { id: 'uorg-hn', name: '湖南省' },
+  { id: 'uorg-jt', name: '景田集团' },
+  { id: 'uorg-gx', name: '广西省' },
+  { id: 'uorg-gd', name: '广东省' },
+  { id: 'uorg-test-dept', name: '测试部门' },
+  { id: 'uorg-hr-admin', name: '人事行政部' },
+  { id: 'uorg-abc', name: 'ABC' },
+  { id: 'uorg-cs111', name: 'ceshi111' },
+  { id: 'uorg-cs666', name: '测试666' },
+  { id: 'uorg-api1', name: 'api-name-1' },
+  { id: 'uorg-lvl1', name: '一级组织AAA' },
+  { id: 'uorg-test-a', name: '测试A' },
+  { 
+    id: 'uorg-a1', 
+    name: '组织A1',
+    children: [
+      { id: 'uorg-xk1', name: 'Test-xk-测试组织-1' }
+    ]
+  },
+  { id: 'uorg-chiur', name: 'Chiur' },
+  { id: 'uorg-wh', name: 'WH-测试组织' },
+];
 
 export const UserManagement: React.FC<UserManagementProps> = ({
   teamMembers,
@@ -74,948 +101,925 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   onDeleteMember,
   showNotification
 }) => {
-  const [viewMode, setViewMode] = useState<'list' | 'form'>('list');
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [filterDept, setFilterDept] = useState('All');
-  const [filterRole, setFilterRole] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [selectedTagFilter, setSelectedTagFilter] = useState<'All' | 'region' | 'factory' | 'store'>('All');
+  // Tree state
+  const [treeSearch, setTreeSearch] = useState('');
+  const [selectedOrgId, setSelectedOrgId] = useState<string>('all');
+  const [selectedOrgName, setSelectedOrgName] = useState<string>('全部组织');
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['uorg-default', 'uorg-sx', 'uorg-a1']));
 
-  // Modal State for Quick Add / Edit
+  // Multi-Filter Inputs (matching 1.3 screenshot)
+  const [filterAccountName, setFilterAccountName] = useState('');
+  const [filterPhone, setFilterPhone] = useState('');
+  const [filterDept, setFilterDept] = useState('all');
+  const [filterRelatedParty, setFilterRelatedParty] = useState('all');
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterChannel, setFilterChannel] = useState('all');
+
+  // Table selection & pagination
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Modal: 新增 / 编辑用户 (matching 1.4 用户管理-新增.png)
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
-  // Form Fields State (shared between Modal and Custom Form View)
+  // Form Fields (1.4)
   const [formName, setFormName] = useState('');
-  const [formWorkNo, setFormWorkNo] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formPhone, setFormPhone] = useState('');
-  const [formDeptId, setFormDeptId] = useState('');
-  const [formRoleId, setFormRoleId] = useState('');
+  const [formDeptName, setFormDeptName] = useState('');
+  const [formPersonName, setFormPersonName] = useState('');
+  const [formRoleName, setFormRoleName] = useState('');
+  const [formDataScope, setFormDataScope] = useState('关联方');
+  const [formChargeDept, setFormChargeDept] = useState('');
+  const [formParentUser, setFormParentUser] = useState('');
   const [formStatus, setFormStatus] = useState<'Active' | 'Disabled'>('Active');
-  const [formChargeDepts, setFormChargeDepts] = useState<string[]>([]);
-  const [formSalesRegions, setFormSalesRegions] = useState<string[]>([]);
-  const [formFactories, setFormFactories] = useState<string[]>([]);
-  const [formStores, setFormStores] = useState<string[]>([]);
+  const [formRemarks, setFormRemarks] = useState('');
+  const [formPhone, setFormPhone] = useState('');
 
-  // Flattened department options
-  const flatDepts = useMemo(() => flattenOrgTree(orgData), [orgData]);
+  // Quick Add Person Modal
+  const [isQuickPersonModalOpen, setIsQuickPersonModalOpen] = useState(false);
+  const [quickPersonName, setQuickPersonName] = useState('');
 
-  // Find department name by id
-  const getDeptName = (deptId: string): string => {
-    const found = flatDepts.find(d => d.id === deptId);
-    return found ? found.name : '未分配部门';
+  // Detail Modal
+  const [detailUser, setDetailUser] = useState<TeamMember | null>(null);
+
+  // Toggle tree expand
+  const toggleTreeExpand = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
-  // Filtered members list
+  // Flattened initial members with fallback IDs and account names
+  const allMembers = useMemo(() => {
+    return teamMembers.map((m, idx) => ({
+      ...m,
+      accountId: m.accountId || (330142 - idx).toString(),
+      accountName: m.accountName || m.name,
+      personName: m.personName || m.name,
+      deptName: m.deptName || '外部组织/供应商外包服务部',
+      relatedParty: m.relatedParty || (idx % 2 === 0 ? '外部供应商' : '供应链阳江基地'),
+      channel: m.channel || 'Web端',
+      dataScope: m.dataScope || '关联方',
+      phone: m.phone || `1527474786${idx}`,
+    }));
+  }, [teamMembers]);
+
+  // Filtered rows for data table
   const filteredMembers = useMemo(() => {
-    return teamMembers.filter(member => {
-      const matchKeyword = 
-        !searchKeyword || 
-        member.name.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-        member.workNo.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-        member.email.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-        member.phone.includes(searchKeyword);
-      
-      const matchDept = filterDept === 'All' || member.deptId === filterDept;
-      const matchRole = filterRole === 'All' || member.role === filterRole || member.roleId === filterRole;
-      const matchStatus = filterStatus === 'All' || member.status === filterStatus;
-      
-      let matchTag = true;
-      if (selectedTagFilter === 'region') {
-        matchTag = member.salesRegions && member.salesRegions.length > 0;
-      } else if (selectedTagFilter === 'factory') {
-        matchTag = member.factories && member.factories.length > 0;
-      } else if (selectedTagFilter === 'store') {
-        matchTag = member.stores && member.stores.length > 0;
+    return allMembers.filter(m => {
+      if (selectedOrgId !== 'all' && selectedOrgName !== '全部组织') {
+        const matchesOrg = (m.deptName || '').includes(selectedOrgName) || (m.deptId || '') === selectedOrgId;
+        if (!matchesOrg && !selectedOrgName.includes('组织')) {
+          // allow partial match
+        }
       }
-
-      return matchKeyword && matchDept && matchRole && matchStatus && matchTag;
+      if (filterAccountName.trim()) {
+        const val = filterAccountName.trim().toLowerCase();
+        const acc = (m.accountName || '').toLowerCase();
+        const nm = (m.name || '').toLowerCase();
+        const id = (m.accountId || '').toLowerCase();
+        if (!acc.includes(val) && !nm.includes(val) && !id.includes(val)) return false;
+      }
+      if (filterPhone.trim()) {
+        if (!m.phone.includes(filterPhone.trim())) return false;
+      }
+      if (filterDept !== 'all') {
+        if (!(m.deptName || '').includes(filterDept) && m.deptId !== filterDept) return false;
+      }
+      if (filterRole !== 'all') {
+        if (m.role !== filterRole && m.roleId !== filterRole) return false;
+      }
+      if (filterStatus !== 'all') {
+        if (m.status !== filterStatus) return false;
+      }
+      return true;
     });
-  }, [teamMembers, searchKeyword, filterDept, filterRole, filterStatus, selectedTagFilter]);
+  }, [allMembers, selectedOrgId, selectedOrgName, filterAccountName, filterPhone, filterDept, filterRole, filterStatus]);
 
-  // Open Add Dialog
-  const handleOpenAdd = () => {
+  // Paginated rows
+  const paginatedMembers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredMembers.slice(start, start + pageSize);
+  }, [filteredMembers, currentPage, pageSize]);
+
+  // Open Create Modal
+  const handleOpenCreate = () => {
+    setModalMode('create');
     setEditingUserId(null);
     setFormName('');
-    setFormWorkNo(`EMP-${Math.floor(1000 + Math.random() * 9000)}`);
-    setFormEmail('');
-    setFormPhone('138' + Math.floor(10000000 + Math.random() * 90000000));
-    setFormDeptId(flatDepts[0]?.id || 'd1');
-    setFormRoleId(roles[0]?.id || 'designer');
+    setFormDeptName(selectedOrgName !== '全部组织' ? selectedOrgName : '外部组织/供应商外包服务部');
+    setFormPersonName('');
+    setFormRoleName(roles[0]?.name || '默认初始角色');
+    setFormDataScope('关联方');
+    setFormChargeDept('');
+    setFormParentUser('');
     setFormStatus('Active');
-    setFormChargeDepts([]);
-    setFormSalesRegions([]);
-    setFormFactories([]);
-    setFormStores([]);
+    setFormRemarks('');
+    setFormPhone('');
     setIsModalOpen(true);
   };
 
-  // Open Edit Dialog / Load into Form
-  const handleOpenEdit = (member: TeamMember) => {
-    setEditingUserId(member.id);
-    setFormName(member.name);
-    setFormWorkNo(member.workNo || `EMP-${member.id}`);
-    setFormEmail(member.email);
-    setFormPhone(member.phone || '13800000000');
-    setFormDeptId(member.deptId);
-    setFormRoleId(member.roleId || roles.find(r => r.name === member.role)?.id || roles[0]?.id || 'designer');
-    setFormStatus(member.status || 'Active');
-    setFormChargeDepts(member.chargeDepts || []);
-    setFormSalesRegions(member.salesRegions || []);
-    setFormFactories(member.factories || []);
-    setFormStores(member.stores || []);
-    if (viewMode === 'list') {
-      setIsModalOpen(true);
-    } else {
-      showNotification?.(`已在自定义表单中载入用户「${member.name}」档案`);
-    }
+  // Open Edit Modal
+  const handleOpenEdit = (m: TeamMember) => {
+    setModalMode('edit');
+    setEditingUserId(m.id);
+    setFormName(m.accountName || m.name);
+    setFormDeptName(m.deptName || '外部组织/供应商外包服务部');
+    setFormPersonName(m.personName || m.name);
+    setFormRoleName(m.role);
+    setFormDataScope(m.dataScope || '关联方');
+    setFormChargeDept(m.chargeDepts?.[0] || '');
+    setFormParentUser(m.parentUser || '');
+    setFormStatus(m.status);
+    setFormRemarks(m.remarks || '');
+    setFormPhone(m.phone || '');
+    setIsModalOpen(true);
   };
 
-  // Submit Handler (for both Modal and Custom Form mode)
-  const handleSubmitForm = (e: React.FormEvent) => {
+  // Submit Modal
+  const handleSubmitModal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) {
-      showNotification?.('请输入员工姓名');
+      showNotification?.('请输入用户名称');
       return;
     }
-    if (!formEmail.trim()) {
-      showNotification?.('请输入工作邮箱');
+    if (!formPhone.trim()) {
+      showNotification?.('请输入手机号');
       return;
     }
 
-    const selectedRoleObj = roles.find(r => r.id === formRoleId) || roles[0];
-    const roleName = selectedRoleObj ? selectedRoleObj.name : '普通员工';
+    const payload: Partial<TeamMember> = {
+      accountName: formName.trim(),
+      name: formPersonName.trim() || formName.trim(),
+      personName: formPersonName.trim() || formName.trim(),
+      deptName: formDeptName,
+      role: formRoleName,
+      dataScope: formDataScope,
+      chargeDepts: formChargeDept ? [formChargeDept] : [],
+      parentUser: formParentUser.trim() || undefined,
+      status: formStatus,
+      remarks: formRemarks.trim() || undefined,
+      phone: formPhone.trim(),
+    };
 
-    if (editingUserId) {
-      // Update existing member
-      const existing = teamMembers.find(m => m.id === editingUserId);
-      if (!existing) return;
-      onUpdateMember({
-        ...existing,
-        name: formName.trim(),
-        workNo: formWorkNo.trim() || existing.workNo,
-        email: formEmail.trim(),
-        phone: formPhone.trim(),
-        deptId: formDeptId,
-        role: roleName,
-        roleId: formRoleId,
-        status: formStatus,
-        chargeDepts: formChargeDepts,
-        salesRegions: formSalesRegions,
-        factories: formFactories,
-        stores: formStores
-      });
-      showNotification?.(`已更新用户「${formName.trim()}」的档案与标签配置！`);
-    } else {
-      // Add new member
+    if (modalMode === 'create') {
       onAddMember({
-        name: formName.trim(),
-        workNo: formWorkNo.trim() || `EMP-${Date.now().toString().slice(-4)}`,
-        email: formEmail.trim(),
-        phone: formPhone.trim() || '13800138000',
-        deptId: formDeptId || flatDepts[0]?.id || 'd1',
-        role: roleName,
-        roleId: formRoleId || roles[0]?.id || 'designer',
+        workNo: `EMP-${Date.now().toString().slice(-4)}`,
+        name: formPersonName.trim() || formName.trim(),
+        role: formRoleName,
+        roleId: roles.find(r => r.name === formRoleName)?.id || 'filler',
+        deptId: 'd3',
+        email: `${formName.trim()}@company.com`,
+        phone: formPhone.trim() || '15274747861',
         status: formStatus,
-        chargeDepts: formChargeDepts,
-        salesRegions: formSalesRegions,
-        factories: formFactories,
-        stores: formStores
+        chargeDepts: formChargeDept ? [formChargeDept] : [],
+        salesRegions: [],
+        factories: [],
+        stores: [],
+        ...payload
       });
-      showNotification?.(`已成功录入新用户「${formName.trim()}」并分配标签！`);
+      showNotification?.(`成功新增用户「${formName.trim()}」`);
+    } else if (editingUserId) {
+      const existing = teamMembers.find(m => m.id === editingUserId);
+      if (existing) {
+        onUpdateMember({
+          ...existing,
+          ...payload
+        });
+        showNotification?.(`已更新用户「${formName.trim()}」`);
+      }
     }
 
     setIsModalOpen(false);
-    if (viewMode === 'form') {
-      // Reset form if in form mode
-      setEditingUserId(null);
-      setFormName('');
-      setFormEmail('');
-      setFormChargeDepts([]);
-      setFormSalesRegions([]);
-      setFormFactories([]);
-      setFormStores([]);
+  };
+
+  // Copy helper
+  const handleCopy = (text: string, label = '内容') => {
+    navigator.clipboard.writeText(text);
+    showNotification?.(`已复制${label}: ${text}`);
+  };
+
+  // Selection toggle
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === paginatedMembers.length && paginatedMembers.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(paginatedMembers.map(r => r.id));
     }
   };
 
-  // Toggle user active / disabled status
-  const handleToggleUserStatus = (member: TeamMember) => {
-    const nextStatus = member.status === 'Disabled' ? 'Active' : 'Disabled';
-    onUpdateMember({
-      ...member,
-      status: nextStatus
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  // Batch actions
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) {
+      showNotification?.('请先勾选需要删除的用户');
+      return;
+    }
+    selectedIds.forEach(id => onDeleteMember(id));
+    showNotification?.(`已批量删除选中的 ${selectedIds.length} 位用户`);
+    setSelectedIds([]);
+  };
+
+  const handleBatchStatus = (targetStatus: 'Active' | 'Disabled') => {
+    if (selectedIds.length === 0) {
+      showNotification?.('请先勾选用户');
+      return;
+    }
+    selectedIds.forEach(id => {
+      const m = teamMembers.find(item => item.id === id);
+      if (m) onUpdateMember({ ...m, status: targetStatus });
     });
-    showNotification?.(`用户「${member.name}」已${nextStatus === 'Active' ? '恢复启用' : '禁用停用'}`);
+    showNotification?.(`已批量${targetStatus === 'Active' ? '启用' : '停用'}选中的用户`);
+    setSelectedIds([]);
   };
 
-  // Delete user
-  const handleDeleteUser = (id: string, name: string) => {
-    if (confirm(`确定要删除用户「${name}」的账号体系档案吗？`)) {
-      onDeleteMember(id);
-      if (editingUserId === id) {
-        setEditingUserId(null);
-      }
-      showNotification?.(`用户「${name}」已删除`);
+  const handleResetPassword = () => {
+    if (selectedIds.length === 0) {
+      showNotification?.('请先勾选需要重置密码的用户账号');
+      return;
     }
+    showNotification?.(`已成功为选中的 ${selectedIds.length} 个账号重置随机密码并下发通知`);
   };
 
-  // Toggle multi-select tags helper
-  const toggleArrayItem = (arr: string[], item: string): string[] => {
-    return arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
+  // Render tree item
+  const renderOrgTreeItem = (item: OrgTreeItem, level = 0) => {
+    const isExpanded = expandedNodes.has(item.id);
+    const isSelected = selectedOrgId === item.id;
+    const hasChildren = item.children && item.children.length > 0;
+
+    if (treeSearch.trim() && !item.name.toLowerCase().includes(treeSearch.trim().toLowerCase())) {
+      const hasMatchInChild = (item.children || []).some(c => c.name.toLowerCase().includes(treeSearch.trim().toLowerCase()));
+      if (!hasMatchInChild) return null;
+    }
+
+    return (
+      <div key={item.id} className="select-none text-xs">
+        <div 
+          onClick={() => {
+            setSelectedOrgId(item.id);
+            setSelectedOrgName(item.name);
+          }}
+          className={`flex items-center gap-1.5 py-1.5 px-2 rounded-lg cursor-pointer transition-colors ${
+            isSelected 
+              ? 'bg-primary/10 text-primary font-bold' 
+              : 'hover:bg-slate-100 text-slate-700'
+          }`}
+          style={{ paddingLeft: `${Math.max(8, level * 16 + 6)}px` }}
+        >
+          {hasChildren ? (
+            <span 
+              onClick={(e) => toggleTreeExpand(item.id, e)}
+              className="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer shrink-0"
+            >
+              {isExpanded ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+            </span>
+          ) : (
+            <span className="w-4 h-4 shrink-0" />
+          )}
+          <span className="truncate">{item.name}</span>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div className="space-y-0.5">
+            {item.children!.map(child => renderOrgTreeItem(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white overflow-hidden">
-      {/* Top Header */}
-      <div className="px-8 py-5 border-b border-outline-variant/60 flex flex-wrap items-center justify-between gap-4 bg-surface-container-lowest">
-        <div className="flex items-center gap-4">
-          <div className="w-9 h-9 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-xl font-black tracking-tight text-on-surface flex items-center gap-2">
-              用户管理
-              <span className="text-[10px] font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                独立用户体系
-              </span>
-            </h2>
-            <p className="text-xs text-on-surface-variant">维护平台员工实体、部门归属、系统角色，以及负责大区/工厂/门店多维标签体系</p>
+    <div className="flex-1 flex h-full bg-slate-50/50 overflow-hidden">
+      {/* ================= Left Organization Tree (Matching 1.3) ================= */}
+      <div className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0">
+        <div className="p-3 border-b border-outline-variant/60">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text"
+              value={treeSearch}
+              onChange={(e) => setTreeSearch(e.target.value)}
+              placeholder="搜索"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-primary focus:bg-white transition-all placeholder:text-slate-400"
+            />
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* View mode toggle */}
-          <div className="bg-surface-container-low p-1 rounded-xl flex items-center border border-outline-variant/40">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                viewMode === 'list'
-                  ? 'bg-white text-primary shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <Table className="w-3.5 h-3.5" />
-              <span>用户台账列表</span>
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('form');
-                if (!editingUserId && teamMembers[0]) handleOpenEdit(teamMembers[0]);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                viewMode === 'form'
-                  ? 'bg-white text-primary shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>自定义表单 CRUD 模式</span>
-            </button>
+        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          <div 
+            onClick={() => {
+              setSelectedOrgId('all');
+              setSelectedOrgName('全部组织');
+            }}
+            className={`flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer text-xs transition-colors mb-1 ${
+              selectedOrgId === 'all' 
+                ? 'bg-primary/10 text-primary font-bold' 
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-slate-400" />
+            <span>全部成员组织</span>
           </div>
 
-          <button
-            onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-primary/20"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>新建用户</span>
-          </button>
+          {DEFAULT_USER_MGMT_ORG_TREE.map(item => renderOrgTreeItem(item, 0))}
         </div>
       </div>
 
-      {viewMode === 'list' ? (
-        /* ================= 模式一：标准用户列表与过滤 ================= */
-        <div className="flex-1 flex flex-col overflow-hidden p-8 space-y-6">
-          {/* Filter Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="relative col-span-1 sm:col-span-2">
-              <Search className="w-4 h-4 text-outline absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
+      {/* ================= Right Content Area ================= */}
+      <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+        {/* Top Multi-Filter Search Area (matching screenshot 1.3 optimized) */}
+        <div className="p-4 border-b border-outline-variant/60 bg-white space-y-3">
+          {/* Row 1 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+            <div>
+              <input 
                 type="text"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="搜索姓名、工号、手机或邮箱..."
-                className="w-full pl-10 pr-4 py-2.5 bg-surface border border-outline-variant/60 rounded-xl text-xs font-medium focus:outline-none focus:border-primary focus:bg-white transition-all"
+                value={filterAccountName}
+                onChange={(e) => setFilterAccountName(e.target.value)}
+                placeholder="请输入名称"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs placeholder:text-slate-400"
               />
             </div>
-
             <div>
-              <select
+              <input 
+                type="text"
+                value={filterPhone}
+                onChange={(e) => setFilterPhone(e.target.value)}
+                placeholder="请输入手机号"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs placeholder:text-slate-400"
+              />
+            </div>
+            <div>
+              <select 
                 value={filterDept}
                 onChange={(e) => setFilterDept(e.target.value)}
-                className="w-full px-3 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary cursor-pointer text-on-surface"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs bg-white text-slate-700"
               >
-                <option value="All">全部所属组织</option>
-                {flatDepts.map(d => (
-                  <option key={d.id} value={d.id}>{d.fullPath}</option>
-                ))}
+                <option value="all">请选择所属组织</option>
+                <option value="外部组织">外部组织/供应商外包服务部</option>
+                <option value="供应链使用组织">供应链使用组织/阳江基地</option>
+                <option value="供应链经销商">供应链经销商/华东配送</option>
+                <option value="默认组织">默认组织/树状_1/景田</option>
               </select>
             </div>
+          </div>
 
+          {/* Row 2 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs items-center">
             <div>
-              <select
+              <select 
                 value={filterRole}
                 onChange={(e) => setFilterRole(e.target.value)}
-                className="w-full px-3 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary cursor-pointer text-on-surface"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs bg-white text-slate-700"
               >
-                <option value="All">全部系统角色</option>
+                <option value="all">请选择角色</option>
                 {roles.map(r => (
                   <option key={r.id} value={r.name}>{r.name}</option>
                 ))}
               </select>
             </div>
-
             <div>
-              <select
+              <select 
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-3 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary cursor-pointer text-on-surface"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs bg-white text-slate-700"
               >
-                <option value="All">所有状态</option>
-                <option value="Active">正常启用 (Active)</option>
-                <option value="Disabled">禁用停用 (Disabled)</option>
+                <option value="all">请选择状态</option>
+                <option value="Active">启用</option>
+                <option value="Disabled">停用</option>
               </select>
             </div>
-          </div>
-
-          {/* Quick Tag Filter Chips */}
-          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline-variant/30 text-xs">
-            <span className="text-outline font-bold flex items-center gap-1">
-              <Tag className="w-3.5 h-3.5 text-primary" />
-              标签筛选：
-            </span>
-            {[
-              { id: 'All', label: '全部用户' },
-              { id: 'region', label: '含【负责销售区域】标签' },
-              { id: 'factory', label: '含【负责工厂】标签' },
-              { id: 'store', label: '含【负责门店】标签' },
-            ].map(chip => (
-              <button
-                key={chip.id}
-                onClick={() => setSelectedTagFilter(chip.id as any)}
-                className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                  selectedTagFilter === chip.id
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'bg-surface hover:bg-surface-container-low text-on-surface-variant border border-outline-variant/40'
-                }`}
+            <div className="flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                className="px-5 py-2 bg-primary hover:bg-primary/90 text-white font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
               >
-                {chip.label}
+                <Search className="w-3.5 h-3.5" />
+                搜索
               </button>
-            ))}
-            <span className="text-outline text-[11px] ml-auto">共找到 {filteredMembers.length} 名用户</span>
-          </div>
-
-          {/* Table */}
-          <div className="flex-1 bg-white border border-outline-variant/80 rounded-3xl overflow-hidden flex flex-col shadow-sm">
-            <div className="flex-1 overflow-auto custom-scrollbar">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-outline-variant/60 bg-surface-container-lowest text-outline text-[11px] font-black uppercase tracking-wider">
-                    <th className="py-3.5 px-6">员工姓名 / 工号</th>
-                    <th className="py-3.5 px-4">联系方式</th>
-                    <th className="py-3.5 px-4">所属组织</th>
-                    <th className="py-3.5 px-4">分配角色</th>
-                    <th className="py-3.5 px-4">业务标签 (用于数据行权限管控)</th>
-                    <th className="py-3.5 px-4">状态</th>
-                    <th className="py-3.5 px-6 text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/40">
-                  {filteredMembers.map(user => (
-                    <tr key={user.id} className="hover:bg-primary/5 transition-colors group">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary font-black flex items-center justify-center text-sm shrink-0 border border-primary/20">
-                            {user.name.slice(0, 1)}
-                          </div>
-                          <div>
-                            <p className="font-black text-on-surface text-sm">{user.name}</p>
-                            <p className="text-[10px] text-outline font-mono mt-0.5">工号: {user.workNo || user.id}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <div className="space-y-1">
-                          <p className="text-on-surface font-mono flex items-center gap-1.5 text-[11px]">
-                            <Phone className="w-3 h-3 text-outline" />
-                            {user.phone || '13800000000'}
-                          </p>
-                          <p className="text-outline font-mono flex items-center gap-1.5 text-[10px]">
-                            <Mail className="w-3 h-3 text-outline" />
-                            {user.email}
-                          </p>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-1.5 text-on-surface font-bold text-xs">
-                          <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
-                          <span>{getDeptName(user.deptId)}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <span className="text-[11px] font-black px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
-                          {user.role}
-                        </span>
-                      </td>
-
-                      {/* Business Tags for Row Security Control */}
-                      <td className="py-4 px-4 max-w-xs">
-                        <div className="flex flex-wrap gap-1">
-                          {user.chargeDepts && user.chargeDepts.length > 0 && (
-                            <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <Building2 className="w-2.5 h-2.5" />
-                              管辖{user.chargeDepts.length}组织
-                            </span>
-                          )}
-                          {user.salesRegions && user.salesRegions.map(reg => (
-                            <span key={reg} className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <MapPin className="w-2.5 h-2.5" />
-                              {reg}
-                            </span>
-                          ))}
-                          {user.factories && user.factories.map(fac => (
-                            <span key={fac} className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <Factory className="w-2.5 h-2.5" />
-                              {fac.replace('智能制造基地', '').replace('生产工厂', '')}
-                            </span>
-                          ))}
-                          {user.stores && user.stores.map(st => (
-                            <span key={st} className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <Store className="w-2.5 h-2.5" />
-                              {st}
-                            </span>
-                          ))}
-                          {(!user.chargeDepts?.length && !user.salesRegions?.length && !user.factories?.length && !user.stores?.length) && (
-                            <span className="text-[10px] text-outline italic">常规组织归属</span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                          user.status === 'Disabled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                        }`}>
-                          {user.status === 'Disabled' ? '已停用' : '启用中'}
-                        </span>
-                      </td>
-
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleToggleUserStatus(user)}
-                            className={`p-1.5 rounded-lg border transition-colors ${
-                              user.status === 'Disabled'
-                                ? 'text-green-600 border-green-200 hover:bg-green-50'
-                                : 'text-orange-600 border-orange-200 hover:bg-orange-50'
-                            }`}
-                            title={user.status === 'Disabled' ? '启用用户' : '禁用用户'}
-                          >
-                            {user.status === 'Disabled' ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenEdit(user)}
-                            className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors border border-transparent hover:border-primary/20"
-                            title="编辑档案与标签"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteUser(user.id, user.name)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
-                            title="删除用户"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <button 
+                type="button"
+                onClick={() => {
+                  setFilterAccountName('');
+                  setFilterPhone('');
+                  setFilterDept('all');
+                  setFilterRole('all');
+                  setFilterStatus('all');
+                  setSelectedOrgId('all');
+                  setSelectedOrgName('全部组织');
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs transition-colors"
+              >
+                重置
+              </button>
             </div>
           </div>
         </div>
-      ) : (
-        /* ================= 模式二：在自定义表单中做用户的增删改查 ================= */
-        <div className="flex-1 flex overflow-hidden p-8 gap-8 bg-surface-container-lowest/30">
-          {/* Custom Form Container */}
-          <div className="w-full max-w-xl bg-white border border-outline-variant/80 rounded-3xl p-8 flex flex-col shadow-sm overflow-y-auto custom-scrollbar">
-            <div className="flex items-center justify-between border-b pb-4 mb-6">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-on-surface">
-                    {editingUserId ? `自定义表单修改：${formName}` : '自定义表单新增用户档案'}
-                  </h3>
-                  <p className="text-[11px] text-outline">在表单设计器标准表单框架内录入用户与多维标签</p>
-                </div>
-              </div>
 
-              {editingUserId && (
-                <button
-                  type="button"
-                  onClick={handleOpenAdd}
-                  className="text-xs text-primary hover:underline font-bold"
-                >
-                  切换为新建模式
-                </button>
-              )}
-            </div>
-
-            <form onSubmit={handleSubmitForm} className="space-y-5 flex-1">
-              {/* Basic Fields */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-on-surface flex items-center gap-1">
-                    员工姓名 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="如：张明远"
-                    className="w-full px-4 py-2.5 bg-surface border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary focus:bg-white transition-all"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-on-surface">工号标识</label>
-                  <input
-                    type="text"
-                    value={formWorkNo}
-                    onChange={(e) => setFormWorkNo(e.target.value)}
-                    placeholder="EMP-1001"
-                    className="w-full px-4 py-2.5 bg-surface border border-outline-variant/60 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-primary focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-on-surface flex items-center gap-1">
-                    工作邮箱 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="w-full px-4 py-2.5 bg-surface border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary focus:bg-white transition-all font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-on-surface">联系手机号</label>
-                  <input
-                    type="tel"
-                    value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    placeholder="13800000000"
-                    className="w-full px-4 py-2.5 bg-surface border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary focus:bg-white transition-all font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Department & Role */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-on-surface flex items-center gap-1">
-                    所属组织架构 <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formDeptId}
-                    onChange={(e) => setFormDeptId(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-surface border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary focus:bg-white transition-all cursor-pointer"
-                  >
-                    {flatDepts.map(d => (
-                      <option key={d.id} value={d.id}>{d.fullPath}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-on-surface flex items-center gap-1">
-                    系统权限角色 <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formRoleId}
-                    onChange={(e) => setFormRoleId(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-surface border border-outline-variant/60 rounded-xl text-xs font-bold focus:outline-none focus:border-primary focus:bg-white transition-all cursor-pointer"
-                  >
-                    {roles.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Status Radio */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-black text-on-surface">账号状态</label>
-                <div className="flex items-center gap-6 pt-1">
-                  <label className="flex items-center gap-2 text-xs font-bold text-on-surface cursor-pointer">
-                    <input
-                      type="radio"
-                      name="userFormStatus"
-                      value="Active"
-                      checked={formStatus === 'Active'}
-                      onChange={() => setFormStatus('Active')}
-                      className="text-primary accent-primary"
-                    />
-                    <span>正常启用 (Active)</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-bold text-on-surface cursor-pointer">
-                    <input
-                      type="radio"
-                      name="userFormStatus"
-                      value="Disabled"
-                      checked={formStatus === 'Disabled'}
-                      onChange={() => setFormStatus('Disabled')}
-                      className="text-primary accent-primary"
-                    />
-                    <span>停用封存 (Disabled)</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Business Tags for Row Security Control (Requirement 3.2) */}
-              <div className="p-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/60 space-y-3.5">
-                <div className="flex items-center gap-2 border-b pb-2">
-                  <Tag className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-black text-on-surface">业务管控标签配置 (用于角色数据行权限)</span>
-                </div>
-
-                {/* 1. 负责销售区域 */}
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-outline">负责销售区域标签：</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {AVAILABLE_SALES_REGIONS.map(reg => (
-                      <button
-                        key={reg}
-                        type="button"
-                        onClick={() => setFormSalesRegions(toggleArrayItem(formSalesRegions, reg))}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                          formSalesRegions.includes(reg)
-                            ? 'bg-purple-600 text-white shadow-sm'
-                            : 'bg-white text-outline border border-outline-variant/50 hover:border-purple-300'
-                        }`}
-                      >
-                        {reg}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 2. 负责工厂 */}
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-outline">负责工厂标签：</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {AVAILABLE_FACTORIES.map(fac => (
-                      <button
-                        key={fac}
-                        type="button"
-                        onClick={() => setFormFactories(toggleArrayItem(formFactories, fac))}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                          formFactories.includes(fac)
-                            ? 'bg-amber-600 text-white shadow-sm'
-                            : 'bg-white text-outline border border-outline-variant/50 hover:border-amber-300'
-                        }`}
-                      >
-                        {fac}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 3. 负责门店 */}
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-outline">负责门店标签：</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {AVAILABLE_STORES.map(st => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => setFormStores(toggleArrayItem(formStores, st))}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                          formStores.includes(st)
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'bg-white text-outline border border-outline-variant/50 hover:border-emerald-300'
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="pt-3 flex items-center gap-3">
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{editingUserId ? '保存表单修改并更新用户' : '提交表单新增独立用户'}</span>
-                </button>
-                {editingUserId && (
-                  <button
-                    type="button"
-                    onClick={handleOpenAdd}
-                    className="px-5 py-3 border border-outline-variant rounded-xl text-xs font-bold text-outline hover:text-on-surface transition-colors"
-                  >
-                    重置
-                  </button>
-                )}
-              </div>
-            </form>
+        {/* Action Buttons Row (matching 1.3) */}
+        <div className="px-6 py-3 border-b border-outline-variant/60 flex items-center justify-between bg-white">
+          <div className="flex items-center gap-2.5">
+            <button 
+              type="button"
+              onClick={handleOpenCreate}
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              新增
+            </button>
+            <button 
+              type="button"
+              onClick={handleBatchDelete}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+              删除
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleBatchStatus('Active')}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              启用
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleBatchStatus('Disabled')}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <XCircle className="w-3.5 h-3.5 text-slate-400" />
+              停用
+            </button>
+            <button 
+              type="button"
+              onClick={handleResetPassword}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              重置密码
+            </button>
           </div>
 
-          {/* Right: Quick Users Data View */}
-          <div className="flex-1 bg-white border border-outline-variant/80 rounded-3xl p-6 flex flex-col shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between pb-4 border-b">
-              <div className="space-y-0.5">
-                <h4 className="text-sm font-black text-on-surface flex items-center gap-2">
-                  <Table className="w-4 h-4 text-primary" />
-                  用户档案表单数据台账
-                </h4>
-                <p className="text-[11px] text-outline">点击任一用户行可载入左侧自定义表单进行修改</p>
-              </div>
-              <span className="text-xs font-bold text-outline">共 {teamMembers.length} 人</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <button 
+              title="表格列配置" 
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
-            <div className="flex-1 overflow-auto custom-scrollbar mt-4">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-outline-variant/60 text-outline text-[11px] font-bold">
-                    <th className="py-3 px-3">姓名/工号</th>
-                    <th className="py-3 px-3">所属部门</th>
-                    <th className="py-3 px-3">角色</th>
-                    <th className="py-3 px-3">业务标签</th>
-                    <th className="py-3 px-3">状态</th>
-                    <th className="py-3 px-3 text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/40">
-                  {teamMembers.map(m => (
+        {/* Data Table (matching columns in 1.3) */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-50/80 sticky top-0 z-10 border-b border-slate-200 text-slate-500 font-semibold select-none">
+              <tr>
+                <th className="w-12 px-4 py-3">
+                  <input 
+                    type="checkbox"
+                    checked={selectedIds.length === paginatedMembers.length && paginatedMembers.length > 0}
+                    onChange={handleToggleSelectAll}
+                    className="rounded border-slate-300 text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer"
+                  />
+                </th>
+                <th className="px-4 py-3 min-w-[120px]">账号ID</th>
+                <th className="px-4 py-3 min-w-[180px]">用户名称</th>
+                <th className="px-4 py-3 min-w-[130px]">手机号</th>
+                <th className="px-4 py-3 min-w-[200px]">所属组织</th>
+                <th className="px-4 py-3 min-w-[130px] text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {paginatedMembers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    未找到匹配的用户数据
+                  </td>
+                </tr>
+              ) : (
+                paginatedMembers.map(row => {
+                  const isChecked = selectedIds.includes(row.id);
+
+                  return (
                     <tr 
-                      key={m.id} 
-                      onClick={() => handleOpenEdit(m)}
-                      className={`hover:bg-primary/5 cursor-pointer transition-colors ${
-                        editingUserId === m.id ? 'bg-primary/10 font-bold' : ''
-                      }`}
+                      key={row.id}
+                      className={`hover:bg-slate-50/80 transition-colors ${isChecked ? 'bg-primary/5' : ''}`}
                     >
-                      <td className="py-3 px-3">
-                        <span className="font-bold text-on-surface">{m.name}</span>
-                        <span className="text-[10px] text-outline ml-2 font-mono">{m.workNo || m.id}</span>
+                      <td className="px-4 py-3">
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelect(row.id)}
+                          className="rounded border-slate-300 text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer"
+                        />
                       </td>
-                      <td className="py-3 px-3 text-on-surface-variant">{getDeptName(m.deptId)}</td>
-                      <td className="py-3 px-3">
-                        <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-md">
-                          {m.role}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="text-[10px] text-outline font-medium">
-                          {(m.salesRegions?.length || 0) + (m.factories?.length || 0) + (m.stores?.length || 0)} 个标签
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                          m.status === 'Disabled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                        }`}>
-                          {m.status === 'Disabled' ? '停用' : '启用'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleOpenEdit(m)}
-                            className="text-primary hover:underline text-xs font-bold"
+                      <td className="px-4 py-3 font-mono text-slate-600">
+                        <div className="flex items-center gap-1.5">
+                          <button 
+                            type="button"
+                            onClick={() => handleCopy(row.accountId || row.id, '账号ID')}
+                            title="复制账号ID"
+                            className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700"
                           >
-                            表单编辑
+                            <Copy className="w-3 h-3" />
                           </button>
-                          <button
-                            onClick={() => handleDeleteUser(m.id, m.name)}
-                            className="text-red-500 hover:text-red-700 text-xs font-bold"
+                          <span>{row.accountId || row.id}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {row.accountName || row.name}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 font-mono">
+                        {row.phone}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 truncate max-w-[220px]" title={row.deptName}>
+                        {row.deptName || '外部组织/供应商外包服务部'}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-3 font-medium">
+                          <button 
+                            type="button"
+                            onClick={() => setDetailUser(row)}
+                            className="text-primary hover:underline cursor-pointer"
+                          >
+                            详情
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleOpenEdit(row)}
+                            className="text-primary hover:underline cursor-pointer"
+                          >
+                            编辑
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`确定删除用户「${row.accountName || row.name}」吗？`)) {
+                                onDeleteMember(row.id);
+                                showNotification?.(`已删除「${row.accountName || row.name}」`);
+                              }
+                            }}
+                            className="text-primary hover:underline cursor-pointer"
                           >
                             删除
                           </button>
                         </div>
                       </td>
                     </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer (matching 1.3) */}
+        <div className="px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 bg-white select-none">
+          <div>
+            共 <span className="font-semibold text-slate-700">155868</span> 条
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+            >
+              &lt;
+            </button>
+            {[1, 2, 3, 4, 5].map(page => (
+              <button 
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-7 h-7 rounded border font-medium ${
+                  currentPage === page 
+                    ? 'bg-primary text-white border-primary' 
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <span className="text-slate-400">...</span>
+            <button 
+              onClick={() => setCurrentPage(7794)}
+              className="w-8 h-7 rounded border border-slate-200 hover:bg-slate-50"
+            >
+              7794
+            </button>
+            <button 
+              onClick={() => setCurrentPage(p => p + 1)}
+              className="p-1.5 rounded border border-slate-200 hover:bg-slate-50"
+            >
+              &gt;
+            </button>
+            <select 
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-2 py-1 border border-slate-200 rounded text-xs bg-white text-slate-700"
+            >
+              <option value={10}>10 条/页</option>
+              <option value={20}>20 条/页</option>
+              <option value={50}>50 条/页</option>
+            </select>
+            <div className="flex items-center gap-1 ml-2 text-slate-400">
+              跳至 <input type="text" className="w-10 px-1 py-0.5 border border-slate-200 text-center rounded text-xs" /> 页
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ================= Modal: 新增用户 / 编辑用户 (Image 1.4 用户管理-新增.png) ================= */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900">
+                {modalMode === 'create' ? '新增用户' : '编辑用户'}
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSubmitModal} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* 名称 * */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  名称 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input 
+                    type="text"
+                    required
+                    maxLength={50}
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="请输入名称"
+                    className="w-full px-3.5 py-2 pr-14 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-primary placeholder:text-slate-400"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 select-none">
+                    {formName.length} / 50
+                  </span>
+                </div>
+              </div>
+
+              {/* 手机号 * */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  手机号 <span className="text-red-500">*</span>
+                </label>
+                <input 
+                  type="tel"
+                  required
+                  value={formPhone}
+                  onChange={(e) => setFormPhone(e.target.value)}
+                  placeholder="请输入手机号"
+                  className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-primary placeholder:text-slate-400 text-slate-700 font-mono"
+                />
+              </div>
+
+              {/* 所属组织 * */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  所属组织 <span className="text-red-500">*</span>
+                </label>
+                <select 
+                  value={formDeptName}
+                  onChange={(e) => setFormDeptName(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-primary bg-white text-slate-700"
+                >
+                  <option value="">请选择所属组织</option>
+                  <option value="外部组织/供应商外包服务部">外部组织/供应商外包服务部</option>
+                  <option value="供应链使用组织/阳江生产基地">供应链使用组织/阳江生产基地</option>
+                  <option value="供应链经销商/华东核心仓配中心">供应链经销商/华东核心仓配中心</option>
+                  <option value="景田集团/总部/总经办">景田集团/总部/总经办</option>
+                  <option value="默认组织/树状_1/景田">默认组织/树状_1/景田</option>
+                  <option value="人事行政部">人事行政部</option>
+                </select>
+              </div>
+
+              {/* 角色 * */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  角色 <span className="text-red-500">*</span>
+                </label>
+                <select 
+                  value={formRoleName}
+                  onChange={(e) => setFormRoleName(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-primary bg-white text-slate-700"
+                >
+                  <option value="">请选择角色</option>
+                  {roles.map(r => (
+                    <option key={r.id} value={r.name}>{r.name}</option>
                   ))}
-                </tbody>
-              </table>
+                  <option value="王晓红_供应商角色">王晓红_供应商角色</option>
+                  <option value="王晓红_叉车司机">王晓红_叉车司机</option>
+                  <option value="王晓红_保安">王晓红_保安</option>
+                  <option value="经销商业务代表">经销商业务代表</option>
+                </select>
+              </div>
+
+              {/* 关联所属上级 */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  关联所属上级
+                </label>
+                <input 
+                  type="text"
+                  value={formParentUser}
+                  onChange={(e) => setFormParentUser(e.target.value)}
+                  placeholder="请选择所属上级"
+                  className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-primary text-slate-700 placeholder:text-slate-400"
+                />
+              </div>
+
+              {/* 状态 * (Radio Group) */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  状态 <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-6 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input 
+                      type="radio"
+                      name="userStatus"
+                      checked={formStatus === 'Active'}
+                      onChange={() => setFormStatus('Active')}
+                      className="w-4 h-4 text-primary focus:ring-primary"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">启用</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input 
+                      type="radio"
+                      name="userStatus"
+                      checked={formStatus === 'Disabled'}
+                      onChange={() => setFormStatus('Disabled')}
+                      className="w-4 h-4 text-primary focus:ring-primary"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">停用</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 备注 */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  备注
+                </label>
+                <textarea 
+                  rows={2}
+                  value={formRemarks}
+                  onChange={(e) => setFormRemarks(e.target.value)}
+                  placeholder="请输入备注"
+                  className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-primary placeholder:text-slate-400 resize-none"
+                />
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  取消
+                </button>
+                <button 
+                  type="submit"
+                  className="px-6 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-colors cursor-pointer"
+                >
+                  确定
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Quick Add Person Modal ================= */}
+      {isQuickPersonModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5 animate-in fade-in">
+            <h4 className="text-sm font-bold text-slate-900 mb-3">快捷登记人员</h4>
+            <input 
+              type="text"
+              autoFocus
+              value={quickPersonName}
+              onChange={(e) => setQuickPersonName(e.target.value)}
+              placeholder="请输入人员姓名 (如：李德林)"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs mb-4 focus:outline-none focus:border-primary"
+            />
+            <div className="flex justify-end gap-2">
+              <button 
+                type="button"
+                onClick={() => setIsQuickPersonModalOpen(false)}
+                className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                取消
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (quickPersonName.trim()) {
+                    setFormPersonName(quickPersonName.trim());
+                    showNotification?.(`已选定人员「${quickPersonName.trim()}」`);
+                    setIsQuickPersonModalOpen(false);
+                  }
+                }}
+                className="px-4 py-1.5 text-xs bg-primary text-white font-medium rounded-lg"
+              >
+                确定
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Quick Add / Edit Modal (for list view) */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-outline-variant max-h-[90vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-black text-on-surface mb-1">
-              {editingUserId ? '编辑用户信息与标签' : '新建独立用户档案'}
-            </h3>
-            <p className="text-xs text-outline mb-4">录入用户信息并配置其负责的大区、工厂、门店等行权限管控标签</p>
-
-            <form onSubmit={handleSubmitForm} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-on-surface">员工姓名 *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none font-bold"
-                  />
+      {/* ================= Detail Modal ================= */}
+      {detailUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 animate-in fade-in">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <Users className="w-4 h-4" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-on-surface">工号</label>
-                  <input
-                    type="text"
-                    value={formWorkNo}
-                    onChange={(e) => setFormWorkNo(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none font-mono"
-                  />
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900">{detailUser.accountName || detailUser.name}</h4>
+                  <p className="text-[10px] text-slate-400 font-mono">账号ID: {detailUser.accountId || detailUser.id}</p>
                 </div>
               </div>
+              <button 
+                onClick={() => setDetailUser(null)}
+                className="text-slate-400 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-on-surface">工作邮箱 *</label>
-                  <input
-                    type="email"
-                    required
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-on-surface">联系手机</label>
-                  <input
-                    type="tel"
-                    value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none font-mono"
-                  />
-                </div>
+            <div className="py-4 space-y-2.5 text-xs">
+              <div className="flex justify-between py-1 border-b border-slate-50">
+                <span className="text-slate-400">所属组织</span>
+                <span className="text-slate-700 font-medium text-right">{detailUser.deptName || '外部组织/供应商外包服务部'}</span>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-on-surface">所属主组织 *</label>
-                  <select
-                    value={formDeptId}
-                    onChange={(e) => setFormDeptId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none"
-                  >
-                    {flatDepts.map(d => (
-                      <option key={d.id} value={d.id}>{d.fullPath}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-on-surface">系统权限角色 *</label>
-                  <select
-                    value={formRoleId}
-                    onChange={(e) => setFormRoleId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none"
-                  >
-                    {roles.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="flex justify-between py-1 border-b border-slate-50">
+                <span className="text-slate-400">分配角色</span>
+                <span className="text-slate-700 font-medium">{detailUser.role}</span>
               </div>
-
-              {/* Tag Controls */}
-              <div className="p-3.5 bg-surface-container-lowest rounded-2xl border border-outline-variant/60 space-y-3">
-                <span className="text-xs font-black text-on-surface block">负责大区/工厂/门店标签 (用于行数据管控)：</span>
-                
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-outline">负责销售大区：</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {AVAILABLE_SALES_REGIONS.map(reg => (
-                      <button
-                        key={reg}
-                        type="button"
-                        onClick={() => setFormSalesRegions(toggleArrayItem(formSalesRegions, reg))}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
-                          formSalesRegions.includes(reg) ? 'bg-purple-600 text-white' : 'bg-white border text-outline'
-                        }`}
-                      >
-                        {reg}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-outline">负责工厂基地：</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {AVAILABLE_FACTORIES.map(fac => (
-                      <button
-                        key={fac}
-                        type="button"
-                        onClick={() => setFormFactories(toggleArrayItem(formFactories, fac))}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
-                          formFactories.includes(fac) ? 'bg-amber-600 text-white' : 'bg-white border text-outline'
-                        }`}
-                      >
-                        {fac}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-outline">负责门店：</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {AVAILABLE_STORES.map(st => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => setFormStores(toggleArrayItem(formStores, st))}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
-                          formStores.includes(st) ? 'bg-emerald-600 text-white' : 'bg-white border text-outline'
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <div className="flex justify-between py-1 border-b border-slate-50">
+                <span className="text-slate-400">手机号码</span>
+                <span className="text-slate-700 font-mono">{detailUser.phone}</span>
               </div>
-
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-outline hover:text-on-surface"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-md shadow-primary/20"
-                >
-                  {editingUserId ? '保存变更' : '创建用户'}
-                </button>
+              <div className="flex justify-between py-1 border-b border-slate-50">
+                <span className="text-slate-400">账号状态</span>
+                <span className={detailUser.status === 'Active' ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'}>
+                  {detailUser.status === 'Active' ? '启用' : '停用'}
+                </span>
               </div>
-            </form>
+              {detailUser.remarks && (
+                <div className="pt-2">
+                  <span className="text-slate-400 block mb-1">备注</span>
+                  <p className="bg-slate-50 p-2.5 rounded-lg text-slate-600">{detailUser.remarks}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button 
+                onClick={() => setDetailUser(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg"
+              >
+                关闭
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -141,7 +141,7 @@ import { SystemSettingsView } from './components/system-settings/SystemSettingsV
 import { WorkflowManagementView } from './components/workflow-management/WorkflowManagementView';
 import { ProcessManagementView } from './components/process-management/ProcessManagementView';
 
-type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'processManagement' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter';
+type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'processManagement' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter' | 'org' | 'roles' | 'users';
 
 interface FormField {
   id: string;
@@ -574,6 +574,7 @@ interface TeamViewProps {
   savedForms: Array<{ id: string; name: string; category?: string }>;
   formFieldsMap: Record<string, Array<{ id: string; label: string; type: string }>>;
   initialTab?: 'org' | 'users' | 'roles';
+  onTabChange?: (tab: 'org' | 'users' | 'roles') => void;
   showNotification?: (text: string) => void;
 }
 
@@ -3032,41 +3033,131 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
 };
 
 // Shared UI Components
-const Sidebar = ({ currentView, setView }: SidebarProps) => (
-  <aside className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0">
-    <div className="p-8 flex items-center gap-2 mb-4">
-      <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-        <LayoutGrid className="text-white w-5 h-5" />
-      </div>
-      <span className="font-bold text-xl tracking-tighter">自定义表单</span>
-    </div>
-    
-    <nav className="flex-1 space-y-1 px-4">
-      {[
-        { label: '仪表盘', icon: Activity, view: 'dashboard' },
-        { label: '表单管理', icon: FormInput, view: 'projects' },
-        { label: '流程管理', icon: GitBranch, view: 'processManagement' },
-        { label: '集成管理', icon: Workflow, view: 'workflow' },
-        { label: '数据管理', icon: FileSpreadsheet, view: 'dataManagement' },
-        { label: '数据洞察', icon: BarChart3, view: 'insights' },
-        { label: '系统设置', icon: Database, view: 'integrations' },
-      ].map((item) => (
-        <div 
-          key={item.label}
-          onClick={() => setView(item.view as ViewType)}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all font-medium text-sm ${
-            currentView === item.view 
-              ? 'bg-primary/5 text-primary' 
-              : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
-          }`}
-        >
-          <item.icon className="w-4 h-4" />
-          {item.label}
-        </div>
-      ))}
-    </nav>
+const Sidebar = ({ currentView, setView }: SidebarProps) => {
+  const isSettingsChildActive = currentView === 'org' || currentView === 'users' || currentView === 'roles' || currentView === 'team';
+  const isSettingsActive = currentView === 'integrations';
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(true);
 
-    <div className="p-4 border-t border-outline-variant">
+  React.useEffect(() => {
+    if (isSettingsChildActive || isSettingsActive) {
+      setIsSettingsOpen(true);
+    }
+  }, [isSettingsChildActive, isSettingsActive]);
+
+  const topMenuItems = [
+    { label: '仪表盘', icon: Activity, view: 'dashboard' },
+    { label: '表单管理', icon: FormInput, view: 'projects' },
+    { label: '流程管理', icon: GitBranch, view: 'processManagement' },
+    { label: '数据管理', icon: FileSpreadsheet, view: 'dataManagement' },
+    { label: '数据洞察', icon: BarChart3, view: 'insights' },
+    { label: '系统集成', icon: Workflow, view: 'workflow' },
+  ];
+
+  const settingsSubMenuItems = [
+    { label: '组织管理', icon: Building2, view: 'org' },
+    { label: '用户管理', icon: UserCog, view: 'users' },
+    { label: '角色管理', icon: ShieldCheck, view: 'roles' },
+  ];
+
+  return (
+    <aside className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0">
+      <div className="p-8 flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+          <LayoutGrid className="text-white w-5 h-5" />
+        </div>
+        <span className="font-bold text-xl tracking-tighter">自定义表单</span>
+      </div>
+      
+      <nav className="flex-1 space-y-1 px-4 overflow-y-auto">
+        {topMenuItems.map((item) => (
+          <div 
+            key={item.label}
+            onClick={() => setView(item.view as ViewType)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all font-medium text-sm ${
+              currentView === item.view
+                ? 'bg-primary/5 text-primary font-semibold' 
+                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            }`}
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </div>
+        ))}
+
+        {/* 系统设置（主菜单及二级折叠子菜单） */}
+        <div className="pt-1">
+          <div
+            onClick={() => {
+              if (currentView !== 'integrations') {
+                setView('integrations');
+                setIsSettingsOpen(true);
+              } else {
+                setIsSettingsOpen(prev => !prev);
+              }
+            }}
+            className={`flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all font-medium text-sm select-none ${
+              isSettingsActive
+                ? 'bg-primary/5 text-primary font-semibold'
+                : isSettingsChildActive
+                ? 'text-primary font-medium hover:bg-surface-container-low'
+                : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Database className="w-4 h-4" />
+              <span>系统设置</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSettingsOpen(prev => !prev);
+              }}
+              title={isSettingsOpen ? '折叠子菜单' : '展开子菜单'}
+              className="p-1 rounded-md hover:bg-black/5 text-outline hover:text-on-surface transition-colors"
+            >
+              <ChevronDown 
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  isSettingsOpen ? 'rotate-0' : '-rotate-90'
+                }`} 
+              />
+            </button>
+          </div>
+
+          {/* 二级菜单：组织管理、用户管理、角色管理 */}
+          <AnimatePresence initial={false}>
+            {isSettingsOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="overflow-hidden pl-3 ml-4 border-l-2 border-outline-variant/60 space-y-1 mt-1 mb-1"
+              >
+                {settingsSubMenuItems.map((subItem) => {
+                  const isSubActive = currentView === subItem.view || (currentView === 'team' && subItem.view === 'org');
+                  return (
+                    <div
+                      key={subItem.label}
+                      onClick={() => setView(subItem.view as ViewType)}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-all font-medium text-xs ${
+                        isSubActive
+                          ? 'bg-primary/10 text-primary font-bold shadow-xs'
+                          : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+                      }`}
+                    >
+                      <subItem.icon className="w-3.5 h-3.5" />
+                      <span>{subItem.label}</span>
+                    </div>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </nav>
+
+      <div className="p-4 border-t border-outline-variant">
       <div className="bg-surface-container-low rounded-2xl p-4">
         <div className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">额度消耗</div>
         <div className="h-1.5 w-full bg-outline-variant rounded-full overflow-hidden mb-2">
@@ -3088,7 +3179,8 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => (
       </button>
     </div>
   </aside>
-);
+  );
+};
 
 const DashboardHeader = ({ title, subtitle, showNotification }: DashboardHeaderProps) => (
   <header className="h-20 sleek-glass sticky top-0 z-10 flex items-center shrink-0">
@@ -5640,15 +5732,12 @@ const IntegrationsView = ({
   setView,
   setTeamInitialTab 
 }: IntegrationsViewProps & { 
-  setView: (v: ViewType) => void;
+  setView?: (v: ViewType) => void;
   setTeamInitialTab?: (tab: 'org' | 'users' | 'roles') => void;
 }) => (
   <div className="w-full p-8 md:p-10 space-y-8">
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
       {[
-        { name: '组织管理', desc: '独立组织体系，支持在自定义表单中做组织增删改查与启停', icon: Building2, type: 'internal', target: 'team', tab: 'org' as const },
-        { name: '用户管理', desc: '独立用户体系，支持表单CRUD与负责大区/工厂/门店多维标签', icon: UserCog, type: 'internal', target: 'team', tab: 'users' as const },
-        { name: '角色管理', desc: '独立角色体系，配置菜单/表单/操作及行列级数据权限管控', icon: ShieldCheck, type: 'internal', target: 'team', tab: 'roles' as const },
         { name: 'Slack', desc: '在您的频道中接收即时提醒', icon: Mail, connected: true },
         { name: 'Zapier', desc: '连接 5,000+ 其它应用程序', icon: Zap, connected: false },
         { name: 'Google Sheets', desc: '自动导出回复数据', icon: FileSpreadsheet, connected: true },
@@ -5657,28 +5746,18 @@ const IntegrationsView = ({
       ].map((app) => (
         <div 
           key={app.name} 
-          onClick={() => {
-            if (app.type === 'internal') {
-              if (app.tab && setTeamInitialTab) {
-                setTeamInitialTab(app.tab);
-              }
-              setView(app.target as ViewType);
-            }
-          }}
-          className={`sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all text-on-surface ${app.type === 'internal' ? 'cursor-pointer hover:shadow-xl' : ''}`}
+          className="sleek-card p-6 flex flex-col gap-4 group hover:border-primary transition-all text-on-surface"
         >
           <div className="flex justify-between items-start">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center border font-bold text-lg ${app.type === 'internal' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-surface text-on-surface-variant border border-outline-variant'}`}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center border font-bold text-lg bg-surface text-on-surface-variant border-outline-variant">
               <app.icon className="w-5 h-5" />
             </div>
-            {app.type === 'internal' ? (
-              <span className="bg-primary/5 text-primary text-[8px] font-black px-2 py-0.5 rounded tracking-widest uppercase">系统组件</span>
-            ) : app.connected ? (
+            {app.connected ? (
               <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-widest uppercase">已连接</span>
             ) : (
               <button 
                 onClick={(e) => { e.stopPropagation(); showNotification(`正在连接 ${app.name}...`); }}
-                className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest"
+                className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest cursor-pointer"
               >连接</button>
             )}
           </div>
@@ -7469,6 +7548,213 @@ const ArchitectApp: React.FC = () => {
   ]);
 
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([
+    {
+      id: 'm-330142',
+      accountId: '330142',
+      accountName: 'Y',
+      personName: 'YH--物流管理员',
+      workNo: 'EMP-330142',
+      name: 'Y',
+      role: '王晓红_供应商角色',
+      roleId: 'r_supplier',
+      deptId: 'd-supply-ext',
+      deptName: '外部组织/供应商外包服务部',
+      relatedParty: '外部供应商',
+      channel: 'Web端',
+      email: 'yh_logistics@company.com',
+      phone: '17775696958',
+      status: 'Active',
+      createdAt: '2026-03-01',
+      dataScope: '关联方',
+      chargeDepts: ['d-supply-ext'],
+      salesRegions: ['华南大区'],
+      factories: ['华南精密电子生产工厂'],
+      stores: []
+    },
+    {
+      id: 'm-330141',
+      accountId: '330141',
+      accountName: '王晓红_供应商账号',
+      personName: '王晓红_供应商代表',
+      workNo: 'EMP-330141',
+      name: '王晓红_供应商账号',
+      role: '王晓红_供应商角色',
+      roleId: 'r_supplier',
+      deptId: 'd-supply-ext',
+      deptName: '外部组织/供应商外包服务部',
+      relatedParty: '外部供应商',
+      channel: 'Web端',
+      email: 'wxh_supplier@company.com',
+      phone: '15274747863',
+      status: 'Active',
+      createdAt: '2026-03-02',
+      dataScope: '关联方',
+      chargeDepts: ['d-supply-ext'],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    {
+      id: 'm-330140',
+      accountId: '330140',
+      accountName: '王晓红_叉车司机',
+      personName: '王晓红_叉车司机',
+      workNo: 'EMP-330140',
+      name: '王晓红_叉车司机',
+      role: '王晓红_叉车司机',
+      roleId: 'r_driver',
+      deptId: 'd-fac-yj',
+      deptName: '供应链使用组织/阳江生产基地',
+      relatedParty: '供应链阳江基地',
+      channel: '供应链App',
+      email: 'wxh_forklift@company.com',
+      phone: '15274747862',
+      status: 'Active',
+      createdAt: '2026-03-05',
+      dataScope: '本人',
+      chargeDepts: ['d-fac-yj'],
+      salesRegions: [],
+      factories: ['华南精密电子生产工厂'],
+      stores: []
+    },
+    {
+      id: 'm-330139',
+      accountId: '330139',
+      accountName: 'Test-xk-测试账号-2',
+      personName: 'Test-xk-测试员',
+      workNo: 'EMP-330139',
+      name: 'Test-xk-测试账号-2',
+      role: 'Test-xk-测试角色',
+      roleId: 'r_test_xk',
+      deptId: 'd-dealer-hd',
+      deptName: '供应链经销商/华东核心仓配中心',
+      relatedParty: '经销商',
+      channel: '微信小程序',
+      email: 'test_xk_2@company.com',
+      phone: '121212121212',
+      status: 'Active',
+      createdAt: '2026-03-08',
+      dataScope: '关联方',
+      chargeDepts: [],
+      salesRegions: ['华东大区'],
+      factories: [],
+      stores: []
+    },
+    {
+      id: 'm-330138',
+      accountId: '330138',
+      accountName: '王晓红_保安账号',
+      personName: '王晓红_保安',
+      workNo: 'EMP-330138',
+      name: '王晓红_保安账号',
+      role: '王晓红_保安',
+      roleId: 'r_security',
+      deptId: 'd-fac-yj',
+      deptName: '供应链使用组织/阳江生产基地',
+      relatedParty: '供应链阳江基地',
+      channel: '供应链App',
+      email: 'wxh_guard@company.com',
+      phone: '15274747861',
+      status: 'Active',
+      createdAt: '2026-03-10',
+      dataScope: '本人',
+      chargeDepts: [],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    {
+      id: 'm-330137',
+      accountId: '330137',
+      accountName: 'Test-xk-测试账号',
+      personName: 'Test-xk-测试员',
+      workNo: 'EMP-330137',
+      name: 'Test-xk-测试账号',
+      role: 'Test-xk-测试角色',
+      roleId: 'r_test_xk',
+      deptId: 'd-test-org1',
+      deptName: 'Test-xk-测试组织-1',
+      relatedParty: '直营体系',
+      channel: 'Web端',
+      email: 'test_xk@company.com',
+      phone: '121212121212',
+      status: 'Active',
+      createdAt: '2026-03-12',
+      dataScope: '关联方',
+      chargeDepts: [],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    {
+      id: 'm-330109',
+      accountId: '330109',
+      accountName: '王晓红_账户切换测试',
+      personName: '王晓红_测试员',
+      workNo: 'EMP-330109',
+      name: '王晓红_账户切换测试',
+      role: '王晓红_供应商角色',
+      roleId: 'r_supplier',
+      deptId: 'd-supply-ext',
+      deptName: '外部组织/供应链外包服务中心',
+      relatedParty: '外部供应商',
+      channel: 'Web端',
+      email: 'wxh_switch@company.com',
+      phone: '15274747876',
+      status: 'Active',
+      createdAt: '2026-03-15',
+      dataScope: '关联方',
+      chargeDepts: [],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    {
+      id: 'm-330107',
+      accountId: '330107',
+      accountName: '王晓红_2号',
+      personName: '王晓红_2号',
+      workNo: 'EMP-330107',
+      name: '王晓红_2号',
+      role: '王晓红_经销商角色',
+      roleId: 'r_dealer',
+      deptId: 'd-tree1-jt',
+      deptName: '默认组织/树状_1/景田集团',
+      relatedParty: '直营体系',
+      channel: '微信小程序',
+      email: 'wxh_2@company.com',
+      phone: '15274747872',
+      status: 'Active',
+      createdAt: '2026-03-18',
+      dataScope: '关联方',
+      chargeDepts: [],
+      salesRegions: [],
+      factories: [],
+      stores: []
+    },
+    {
+      id: 'm-330106',
+      accountId: '330106',
+      accountName: '工厂人员-Y',
+      personName: '桶装水工人-Y',
+      workNo: 'EMP-330106',
+      name: '工厂人员-Y',
+      role: 'YF-桶水工厂员工',
+      roleId: 'r_yf_worker',
+      deptId: 'd-tree1-jt',
+      deptName: '默认组织/树状_1/景田灌装线',
+      relatedParty: '直营体系',
+      channel: '供应链App',
+      email: 'factory_y@company.com',
+      phone: '17700006666',
+      status: 'Active',
+      createdAt: '2026-03-20',
+      dataScope: '关联方',
+      chargeDepts: [],
+      salesRegions: [],
+      factories: ['华东一号智能制造基地'],
+      stores: []
+    },
     { 
       id: '1', 
       workNo: 'EMP-1001',
@@ -13885,7 +14171,7 @@ const ArchitectApp: React.FC = () => {
     return (
       <ConsoleLayout 
         viewToken="workflow" 
-        title="集成管理" 
+        title="系统集成" 
         subtitle="第三方应用表单接入与数据流转中台" 
         currentView={view} 
         setView={setView} 
@@ -13934,35 +14220,43 @@ const ArchitectApp: React.FC = () => {
       </ConsoleLayout>
     );
   }
-  if (view === 'team') return (
-    <ConsoleLayout 
-      viewToken="team" 
-      title="组织与权限管理" 
-      subtitle="" 
-      currentView={view} 
-      setView={setView} 
-      showNotification={showNotification} 
-      notifications={notifications}
-      hideHeader={true}
-    >
-      <TeamView 
-        teamMembers={teamMembers} 
-        orgData={orgData}
-        roles={roles}
-        setRoles={setRoles}
-        onAddMember={onAddMember}
-        onUpdateMember={onUpdateMember}
-        onDeleteMember={onDeleteMember}
-        onAddDept={onAddDept}
-        onUpdateDept={onUpdateDept}
-        onDeleteDept={onDeleteDept}
-        savedForms={savedForms}
-        formFieldsMap={formFieldsMap}
-        initialTab={teamInitialTab}
-        showNotification={showNotification}
-      />
-    </ConsoleLayout>
-  );
+  if (view === 'team' || view === 'org' || view === 'roles' || view === 'users') {
+    const currentTab: 'org' | 'users' | 'roles' = view === 'org' ? 'org' : view === 'roles' ? 'roles' : view === 'users' ? 'users' : teamInitialTab;
+    const viewTitle = view === 'org' ? '组织管理' : view === 'roles' ? '角色管理' : view === 'users' ? '用户管理' : '组织与权限管理';
+    return (
+      <ConsoleLayout 
+        viewToken={view} 
+        title={viewTitle} 
+        subtitle="" 
+        currentView={view} 
+        setView={setView} 
+        showNotification={showNotification} 
+        notifications={notifications}
+        hideHeader={true}
+      >
+        <TeamView 
+          teamMembers={teamMembers} 
+          orgData={orgData}
+          roles={roles}
+          setRoles={setRoles}
+          onAddMember={onAddMember}
+          onUpdateMember={onUpdateMember}
+          onDeleteMember={onDeleteMember}
+          onAddDept={onAddDept}
+          onUpdateDept={onUpdateDept}
+          onDeleteDept={onDeleteDept}
+          savedForms={savedForms}
+          formFieldsMap={formFieldsMap}
+          initialTab={currentTab}
+          onTabChange={(tab) => {
+            setTeamInitialTab(tab);
+            setView(tab as ViewType);
+          }}
+          showNotification={showNotification}
+        />
+      </ConsoleLayout>
+    );
+  }
 
   if (view === 'dashboard') {
     const appsCount = projects.length;

@@ -6,6 +6,8 @@ import {
   Edit3, 
   Save, 
   Check, 
+  CheckCircle2,
+  XCircle,
   X, 
   Menu as MenuIcon, 
   FileText, 
@@ -27,7 +29,15 @@ import {
   Layers, 
   Sparkles,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  Search,
+  Settings,
+  Calendar,
+  Smartphone,
+  Globe,
+  SlidersHorizontal,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   RoleDefinition, 
@@ -47,15 +57,145 @@ interface RoleManagementProps {
   showNotification?: (text: string) => void;
 }
 
-// Available system menu items
-const SYSTEM_MENUS = [
-  { key: 'dashboard', label: '仪表盘 (总览与统计)', desc: '业务数据宏观看板与核心指标' },
-  { key: 'projects', label: '应用管理 (轻应用工作台)', desc: '表单应用目录与分类结构' },
-  { key: 'designer', label: '表单设计器 (画布编辑器)', desc: '拖拽设计新表单与控件配置' },
-  { key: 'dataManagement', label: '数据管理中心 (台账)', desc: '业务数据查询、批量处理与导出' },
-  { key: 'insights', label: '数据洞察 (智能分析)', desc: '多维交叉透视报表与趋势图表' },
-  { key: 'workflow', label: '工作流审批中心', desc: '业务审批流发起、流转与处理' },
-  { key: 'settings', label: '系统设置 (组织/用户/角色)', desc: '平台安全、架构与全局配置' },
+// Preset Role Tree matching 1.5 screenshot
+interface RoleTreeCategory {
+  id: string;
+  name: string;
+  children?: { id: string; name: string }[];
+}
+
+const DEFAULT_ROLE_TREE: RoleTreeCategory[] = [
+  { id: 'rt-default', name: '默认初始角色' },
+  { 
+    id: 'rt-jyx', 
+    name: '景云销',
+    children: [
+      { id: 'rt-jyx-1', name: '外部提案方' },
+      { id: 'rt-jyx-2', name: '外部报价方 (停用)' },
+      { id: 'rt-jyx-3', name: '2' }
+    ]
+  },
+  { 
+    id: 'rt-hm1', 
+    name: 'hm一级角色',
+    children: [
+      { id: 'rt-hm1-a', name: '角色A' }
+    ]
+  },
+  { id: 'rt-equity', name: '权益系统' },
+  { id: 'rt-role-ab', name: '角色AB' },
+  { 
+    id: 'rt-hua', 
+    name: '华角色全部权限',
+    children: [
+      { id: 'rt-hua-fe', name: '前端测试' }
+    ]
+  },
+  { id: 'rt-equity-all', name: '权益全部' },
+  { 
+    id: 'rt-lvl1-aaa', 
+    name: '一级角色AAA',
+    children: [
+      { id: 'rt-lvl1-base', name: '基础资料角色' },
+      { id: 'rt-lvl1-hm3', name: 'hm测试用3全部' },
+      { id: 'rt-lvl1-sub', name: '以及角色' }
+    ]
+  },
+  { id: 'rt-mid-identity', name: '中台身份' },
+  { id: 'rt-supplier-identity', name: '供应商身份' },
+  { id: 'rt-dealer-identity', name: '经销商身份' },
+  { id: 'rt-mid-identity2', name: '中台身份2' },
+  { id: 'rt-logistics-identity', name: '物流服务商身份' },
+  { id: 'rt-brand-identity', name: '景田品牌管理身份' },
+  { id: 'rt-supply-test', name: '供应链测试角色' },
+  { id: 'rt-zycs', name: 'ZYCS' },
+  { id: 'rt-admin-platform', name: '平台管理员' },
+  { id: 'rt-test-time', name: '测试时' },
+];
+
+// Modules list matching screenshot 1.6
+const PERM_WEB_MODULES = [
+  '景田送水',
+  '企业知识库',
+  '基础资料',
+  '品牌管理',
+  '供应链-订单管理',
+  '供应链-订单管理-瓶水',
+  '供应链-工厂管理',
+  '审批中心',
+  '景云销',
+  '2号人事部',
+  '自定义表单',
+  'OA协同系统',
+  '采购申请',
+  '寻源管理',
+  '协同办公',
+  'BI 报表',
+  '系统设置',
+  '超级管理员'
+];
+
+// Base data scope options: 本人 | 本人及下属 | 本组织 | 本组织及子组织 | 全部
+export type BaseScope = 'self' | 'self_and_sub' | 'dept' | 'dept_and_sub' | 'all';
+
+export const BASE_SCOPE_LABELS: Record<BaseScope, string> = {
+  self: '本人',
+  self_and_sub: '本人及下属',
+  dept: '本组织',
+  dept_and_sub: '本组织及子组织',
+  all: '全部'
+};
+
+// Menu items under the active module for Data Permissions (Screenshot 1.6)
+interface MenuDataItem {
+  id: string;
+  name: string;
+  module: string;
+  defaultScope: BaseScope;
+}
+
+const DEFAULT_MENU_DATA_ITEMS: MenuDataItem[] = [
+  { id: 'm-driver', name: '司机管理', module: '景田送水', defaultScope: 'dept' },
+  { id: 'm-vehicle', name: '车辆管理', module: '景田送水', defaultScope: 'dept' },
+  { id: 'm-log-order', name: '物流订单', module: '景田送水', defaultScope: 'dept' },
+  { id: 'm-log-task', name: '物流任务单', module: '景田送水', defaultScope: 'dept' },
+  { id: 'm-pallet-apply', name: '回托申请', module: '景田送水', defaultScope: 'dept' },
+  { id: 'm-pallet-task', name: '回托物流任务单', module: '景田送水', defaultScope: 'dept' },
+  { id: 'm-water-order', name: '桶水订单配送', module: '景田送水', defaultScope: 'dept' },
+  { id: 'm-dealer-stock', name: '经销商水站库存', module: '景田送水', defaultScope: 'all' },
+  { id: 'm-bottle-apply', name: '瓶装水调拨单', module: '供应链-订单管理-瓶水', defaultScope: 'dept' },
+  { id: 'm-factory-sched', name: '工厂排产计划', module: '供应链-工厂管理', defaultScope: 'all' },
+];
+
+export type FieldPermMode = 'hidden' | 'readonly' | 'edit';
+
+interface FieldPermItem {
+  id: string;
+  name: string;
+  code: string;
+  defaultPerm: FieldPermMode;
+}
+
+const DEFAULT_FIELD_PERM_ITEMS: FieldPermItem[] = [
+  { id: 'f_customer_name', name: '客户姓名/企业名称', code: 'customer_name', defaultPerm: 'edit' },
+  { id: 'f_contact_phone', name: '客户联系电话', code: 'contact_phone', defaultPerm: 'readonly' },
+  { id: 'f_unit_price', name: '订单结算单价', code: 'unit_price', defaultPerm: 'hidden' },
+  { id: 'f_delivery_addr', name: '物流收货地址', code: 'delivery_address', defaultPerm: 'edit' },
+  { id: 'f_id_card', name: '客户身份证号', code: 'id_card_no', defaultPerm: 'hidden' },
+  { id: 'f_bank_account', name: '银行对公账户', code: 'bank_account', defaultPerm: 'readonly' },
+  { id: 'f_contract_amount', name: '签约合同总金额', code: 'contract_amount', defaultPerm: 'hidden' },
+  { id: 'f_discount_rate', name: '批价折扣比率', code: 'discount_rate', defaultPerm: 'readonly' },
+];
+
+const DEFAULT_BUTTON_PERMS = [
+  '数据新增',
+  '数据编辑',
+  '数据删除',
+  '数据批量删除',
+  '数据导出',
+  '数据导入',
+  '启用停用',
+  '重置密码'
 ];
 
 export const RoleManagement: React.FC<RoleManagementProps> = ({
@@ -67,1181 +207,1388 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
   onUpdateMember,
   showNotification,
 }) => {
-  const [selectedRoleId, setSelectedRoleId] = useState<string>(roles[0]?.id || 'designer');
-  const [activeTab, setActiveTab] = useState<'features' | 'dataRow' | 'dataColumn' | 'members'>('features');
-  const [selectedFormForColumn, setSelectedFormForColumn] = useState<string>(savedForms[0]?.id || 'f1');
-  const [isSaving, setIsSaving] = useState(false);
+  // Tree state
+  const [treeSearch, setTreeSearch] = useState('');
+  const [selectedTreeCategory, setSelectedTreeCategory] = useState<string>('all');
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['rt-jyx', 'rt-lvl1-aaa', 'rt-hua']));
 
-  // Modal for New Custom Role
-  const [isNewRoleModalOpen, setIsNewRoleModalOpen] = useState(false);
-  const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleCode, setNewRoleCode] = useState('');
-  const [newRoleDesc, setNewRoleDesc] = useState('');
+  // Multi-Filter Inputs (matching 1.5)
+  const [filterRoleName, setFilterRoleName] = useState('');
+  const [filterParentRole, setFilterParentRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
 
-  // Modal for Assigning Members to Role
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  // Table selection & pagination
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
-  // Currently selected role
-  const selectedRole = useMemo(() => {
-    return roles.find(r => r.id === selectedRoleId) || roles[0];
-  }, [roles, selectedRoleId]);
+  // View Mode: 'list' (Image 1.5) or 'config' (Image 1.6 角色管理-数据权限.png)
+  const [viewMode, setViewMode] = useState<'list' | 'config'>('list');
+  const [configMode, setConfigMode] = useState<'create' | 'edit'>('edit');
+  const [activeConfigRoleId, setActiveConfigRoleId] = useState<string>(roles[0]?.id || 'r_supplier');
 
-  // Members currently belonging to the selected role
-  const roleMembers = useMemo(() => {
-    if (!selectedRole) return [];
-    return teamMembers.filter(m => m.roleId === selectedRole.id || m.role === selectedRole.name);
-  }, [teamMembers, selectedRole]);
+  // Role Form state for 基本信息
+  const [roleFormName, setRoleFormName] = useState('');
+  const [roleFormCode, setRoleFormCode] = useState('');
+  const [roleFormParent, setRoleFormParent] = useState('--');
+  const [roleFormDesc, setRoleFormDesc] = useState('');
 
-  // Save current role configuration
-  const handleSaveRoleConfig = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      showNotification?.(`角色「${selectedRole.name}」的功能权限与数据权限策略包保存生效！`);
-    }, 600);
-  };
+  // Permission Config State (Image 1.6)
+  const [permTopTab, setPermTopTab] = useState<'baseInfo' | 'webPerm' | 'appPerm'>('webPerm');
+  const [activeModule, setActiveModule] = useState<string>('景田送水');
+  const [activePermSubTab, setActivePermSubTab] = useState<'field' | 'button' | 'data'>('data');
+  const [menuSearch, setMenuSearch] = useState('');
+  const [batchActionOpen, setBatchActionOpen] = useState(false);
 
-  // Update Feature Permissions: Menu toggle
-  const handleToggleMenu = (menuKey: string, checked: boolean) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        return {
-          ...r,
-          menus: { ...r.menus, [menuKey]: checked }
-        };
-      }
-      return r;
-    }));
-  };
-
-  // Update Feature Permissions: Form permissions (view, fill, manage)
-  const handleFormPermissionChange = (formId: string, permKey: keyof FormPermission, val: boolean) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        const currentFormPerm = r.forms[formId] || { view: true, fill: true, manage: false };
-        return {
-          ...r,
-          forms: {
-            ...r.forms,
-            [formId]: {
-              ...currentFormPerm,
-              [permKey]: val
-            }
-          }
-        };
-      }
-      return r;
-    }));
-  };
-
-  // Quick batch form permission helper
-  const handleBatchFormPermission = (permKey: keyof FormPermission, val: boolean) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        const updatedForms: Record<string, FormPermission> = { ...r.forms };
-        savedForms.forEach(f => {
-          updatedForms[f.id] = {
-            ...(updatedForms[f.id] || { view: true, fill: true, manage: false }),
-            [permKey]: val
-          };
-        });
-        return { ...r, forms: updatedForms };
-      }
-      return r;
-    }));
-    showNotification?.(`已将当前角色所有表单的【${permKey === 'view' ? '查看' : permKey === 'fill' ? '填报' : '管理'}】权限统一设为 ${val ? '开启' : '关闭'}`);
-  };
-
-  // Update Feature Permissions: Operation permissions (create, edit, delete, enable, disable, etc.)
-  const handleOperationChange = (opKey: keyof OperationPermissions, val: boolean) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        return {
-          ...r,
-          operations: {
-            ...r.operations,
-            [opKey]: val
-          }
-        };
-      }
-      return r;
-    }));
-  };
-
-  // Update Data Permissions: Org Row Scope
-  const handleOrgScopeChange = (scope: RoleDefinition['orgScope']) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        return { ...r, orgScope: scope };
-      }
-      return r;
-    }));
-  };
-
-  // Update Data Permissions: Tag Row Controls (chargeDepts, salesRegions, factories, stores)
-  const handleTagControlChange = (key: keyof RoleDefinition['tagControl'], val: any) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        return {
-          ...r,
-          tagControl: {
-            ...r.tagControl,
-            [key]: val
-          }
-        };
-      }
-      return r;
-    }));
-  };
-
-  // Update Column Field Permissions for a specific form & field
-  const handleFieldColumnAccessChange = (formId: string, fieldId: string, access: FieldColumnAccess) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        const formFields = r.fieldPermissions[formId] || {};
-        return {
-          ...r,
-          fieldPermissions: {
-            ...r.fieldPermissions,
-            [formId]: {
-              ...formFields,
-              [fieldId]: access
-            }
-          }
-        };
-      }
-      return r;
-    }));
-  };
-
-  // Batch Field Column Permissions
-  const handleBatchFieldAccess = (formId: string, access: FieldColumnAccess) => {
-    const fields = formFieldsMap[formId] || [];
-    setRoles(prev => prev.map(r => {
-      if (r.id === selectedRoleId) {
-        const updatedFields: Record<string, FieldColumnAccess> = {};
-        fields.forEach(f => {
-          updatedFields[f.id] = access;
-        });
-        return {
-          ...r,
-          fieldPermissions: {
-            ...r.fieldPermissions,
-            [formId]: updatedFields
-          }
-        };
-      }
-      return r;
-    }));
-    showNotification?.(`已将表单所有字段的列权限设为：${access === 'editable' ? '可编辑' : access === 'readonly' ? '只读' : access === 'masked' ? '脱敏' : '隐藏'}`);
-  };
-
-  // Add New Custom Role
-  const handleCreateNewRole = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRoleName.trim()) {
-      showNotification?.('请输入角色名称');
-      return;
+  // In-memory data scope config per role: roleId -> (menuId -> BaseScope)
+  const [menuScopeMap, setMenuScopeMap] = useState<Record<string, Record<string, BaseScope>>>({
+    r_supplier: {
+      'm-driver': 'dept',
+      'm-vehicle': 'dept',
+      'm-log-order': 'dept',
+      'm-log-task': 'dept',
+      'm-pallet-apply': 'dept',
+      'm-pallet-task': 'dept',
     }
-    const newId = `role-${Date.now()}`;
-    const newRole: RoleDefinition = {
-      id: newId,
-      name: newRoleName.trim(),
-      code: newRoleCode.trim().toUpperCase() || `ROLE_${Date.now().toString().slice(-4)}`,
-      desc: newRoleDesc.trim() || '自主定制的系统业务角色',
-      isSystem: false,
-      userCount: 0,
-      menus: {
-        dashboard: true,
-        projects: true,
-        designer: false,
-        dataManagement: true,
-        insights: false,
-        workflow: true,
-        settings: false
-      },
-      forms: {},
-      operations: {
-        create: true,
-        edit: true,
-        delete: false,
-        enable: false,
-        disable: false,
-        export: true,
-        batchDelete: false,
-        importData: false
-      },
-      orgScope: 'dept',
-      tagControl: {
-        enabled: true,
-        matchMode: 'any',
-        byChargeDepts: true,
-        bySalesRegions: true,
-        byFactories: false,
-        byStores: false
-      },
-      fieldPermissions: {}
-    };
+  });
 
-    setRoles(prev => [...prev, newRole]);
-    setSelectedRoleId(newId);
-    setIsNewRoleModalOpen(false);
-    setNewRoleName('');
-    setNewRoleCode('');
-    setNewRoleDesc('');
-    showNotification?.(`已成功创建独立业务角色：${newRole.name}`);
-  };
+  // Field permissions state (互斥：隐藏 / 只读 / 编辑)
+  const [fieldPerms, setFieldPerms] = useState<Record<string, FieldPermMode>>({
+    f_customer_name: 'edit',
+    f_contact_phone: 'readonly',
+    f_unit_price: 'hidden',
+    f_delivery_addr: 'edit',
+    f_id_card: 'hidden',
+    f_bank_account: 'readonly',
+    f_contract_amount: 'hidden',
+    f_discount_rate: 'readonly',
+  });
 
-  // Delete Custom Role
-  const handleDeleteRole = (id: string, name: string) => {
-    if (confirm(`确定要删除角色「${name}」吗？已分配该角色的成员将自动转为普通权限。`)) {
-      setRoles(prev => prev.filter(r => r.id !== id));
-      if (selectedRoleId === id) {
-        setSelectedRoleId(roles[0]?.id || '');
+  // Button permissions state (包含最前面“全部”)
+  const [buttonPerms, setButtonPerms] = useState<Record<string, boolean>>({
+    '数据新增': true,
+    '数据编辑': true,
+    '数据删除': false,
+    '数据批量删除': false,
+    '数据导出': true,
+    '数据导入': false,
+    '启用停用': true,
+    '重置密码': true,
+  });
+
+  // Enriched sample roles matching 1.5 screenshot
+  const allRoles = useMemo(() => {
+    const presetRoleList: RoleDefinition[] = [
+      {
+        id: 'r_supplier',
+        name: '王晓红_供应商角色',
+        code: 'ROLE_SUPPLIER_WXH',
+        desc: '供应商外部协作角色，管控所属阳江及配送数据权限',
+        isSystem: false,
+        parentRoleId: '--',
+        parentRoleName: '--',
+        appSystem: '供应商',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-03-12',
+        menus: { dashboard: true, projects: true, workflow: true },
+        forms: {},
+        operations: { create: true, edit: true, delete: false, enable: true, disable: false, export: true, batchDelete: false, importData: false },
+        orgScope: 'dept_sub',
+        tagControl: { enabled: true, matchMode: 'any', byChargeDepts: true, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_driver',
+        name: '王晓红_叉车司机',
+        code: 'ROLE_FORKLIFT_WXH',
+        desc: '厂区智能叉车装卸与调度终端填报权限',
+        isSystem: false,
+        parentRoleId: '--',
+        parentRoleName: '--',
+        appSystem: '景田',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-03-15',
+        menus: { dashboard: true, workflow: true },
+        forms: {},
+        operations: { create: true, edit: false, delete: false, enable: false, disable: false, export: false, batchDelete: false, importData: false },
+        orgScope: 'self',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: true, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_security',
+        name: '王晓红_保安',
+        code: 'ROLE_SECURITY_WXH',
+        desc: '大门放行与扫码核销岗',
+        isSystem: false,
+        parentRoleId: '--',
+        parentRoleName: '--',
+        appSystem: '景田',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-03-18',
+        menus: { dashboard: true },
+        forms: {},
+        operations: { create: true, edit: false, delete: false, enable: false, disable: false, export: false, batchDelete: false, importData: false },
+        orgScope: 'self',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_test_xk',
+        name: 'Test-xk-测试角色',
+        code: 'ROLE_TEST_XK',
+        desc: '自动化测试沙盒角色',
+        isSystem: false,
+        parentRoleId: '--',
+        parentRoleName: '--',
+        appSystem: '经销商',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-04-01',
+        menus: { dashboard: true, projects: true },
+        forms: {},
+        operations: { create: true, edit: true, delete: true, enable: true, disable: true, export: true, batchDelete: true, importData: true },
+        orgScope: 'dept',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_dealer',
+        name: '王晓红_经销商角色',
+        code: 'ROLE_DEALER_WXH',
+        desc: '水站与分销商日常订货及销售管理',
+        isSystem: false,
+        parentRoleId: '--',
+        parentRoleName: '--',
+        appSystem: '经销商',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-04-05',
+        menus: { dashboard: true, projects: true },
+        forms: {},
+        operations: { create: true, edit: true, delete: false, enable: true, disable: false, export: true, batchDelete: false, importData: false },
+        orgScope: 'dept_sub',
+        tagControl: { enabled: true, matchMode: 'any', byChargeDepts: true, bySalesRegions: true, byFactories: false, byStores: true },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_h11',
+        name: 'H角色11',
+        code: 'ROLE_H11',
+        desc: '二级业务承运管理角色',
+        isSystem: false,
+        parentRoleId: 'r_h8',
+        parentRoleName: 'H角色8',
+        appSystem: '景田',
+        status: 'Disabled',
+        creator: '超级管理员',
+        createdAt: '2026-04-10',
+        menus: { dashboard: true },
+        forms: {},
+        operations: { create: false, edit: false, delete: false, enable: false, disable: false, export: false, batchDelete: false, importData: false },
+        orgScope: 'self',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_orange',
+        name: '没声明的橘色',
+        code: 'ROLE_ORANGE',
+        desc: '临时测试预设组',
+        isSystem: false,
+        parentRoleId: '--',
+        parentRoleName: '--',
+        appSystem: '景田',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-04-12',
+        menus: { dashboard: true },
+        forms: {},
+        operations: { create: true, edit: false, delete: false, enable: true, disable: false, export: false, batchDelete: false, importData: false },
+        orgScope: 'self',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_yf_worker',
+        name: 'YF-桶水工厂员工',
+        code: 'ROLE_YF_FACTORY',
+        desc: '阳江桶水灌装产线日常巡检与品质填报',
+        isSystem: false,
+        parentRoleId: 'r_yf_chain',
+        parentRoleName: 'yf-中台供应链测试...',
+        appSystem: '景田',
+        status: 'Active',
+        creator: 'YF-中台管理',
+        createdAt: '2026-04-15',
+        menus: { dashboard: true, workflow: true },
+        forms: {},
+        operations: { create: true, edit: true, delete: false, enable: true, disable: false, export: false, batchDelete: false, importData: false },
+        orgScope: 'dept',
+        tagControl: { enabled: true, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: true, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_rc',
+        name: '饶翠的角色',
+        code: 'ROLE_RAOCUI',
+        desc: '基础资料与商品主数据审核员',
+        isSystem: false,
+        parentRoleId: 'r_init',
+        parentRoleName: '默认初始角色',
+        appSystem: '景田',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-04-18',
+        menus: { dashboard: true, projects: true, dataManagement: true },
+        forms: {},
+        operations: { create: true, edit: true, delete: false, enable: true, disable: false, export: true, batchDelete: false, importData: true },
+        orgScope: 'dept_sub',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
+      },
+      {
+        id: 'r_sourcing',
+        name: '寻源管理员-bb-p',
+        code: 'ROLE_SOURCING',
+        desc: '大宗原辅料招标与寻源竞价管理',
+        isSystem: false,
+        parentRoleId: '--',
+        parentRoleName: '--',
+        appSystem: '景田',
+        status: 'Active',
+        creator: '超级管理员',
+        createdAt: '2026-04-20',
+        menus: { dashboard: true, projects: true },
+        forms: {},
+        operations: { create: true, edit: true, delete: false, enable: true, disable: false, export: true, batchDelete: false, importData: false },
+        orgScope: 'all',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
       }
-      showNotification?.(`角色「${name}」已删除`);
-    }
-  };
+    ];
 
-  // Toggle user membership in this role
-  const handleToggleMemberRole = (member: TeamMember) => {
-    const isCurrentlyInRole = member.roleId === selectedRole.id || member.role === selectedRole.name;
-    const nextRoleId = isCurrentlyInRole ? roles.find(r => r.id !== selectedRole.id)?.id || 'filler' : selectedRole.id;
-    const nextRoleName = isCurrentlyInRole ? '普通员工' : selectedRole.name;
+    // Merge roles passed from parent state
+    const merged = [...presetRoleList];
+    roles.forEach(existing => {
+      if (!merged.some(m => m.id === existing.id || m.name === existing.name)) {
+        merged.push({
+          ...existing,
+          parentRoleName: existing.parentRoleName || '--',
+          appSystem: existing.appSystem || '集团',
+          status: existing.status || 'Active',
+          creator: existing.creator || '超级管理员',
+        });
+      }
+    });
+    return merged;
+  }, [roles]);
 
-    onUpdateMember({
-      ...member,
-      roleId: nextRoleId,
-      role: nextRoleName
+  // Filtered rows for data table
+  const filteredRoles = useMemo(() => {
+    return allRoles.filter(r => {
+      if (selectedTreeCategory !== 'all') {
+        if (!r.name.includes(selectedTreeCategory) && !(r.appSystem || '').includes(selectedTreeCategory)) {
+          // allow partial
+        }
+      }
+      if (filterRoleName.trim()) {
+        const val = filterRoleName.trim().toLowerCase();
+        if (!r.name.toLowerCase().includes(val) && !r.code.toLowerCase().includes(val)) return false;
+      }
+      if (filterParentRole !== 'all') {
+        if ((r.parentRoleName || '--') !== filterParentRole) return false;
+      }
+      if (filterStatus !== 'all') {
+        if ((r.status || 'Active') !== filterStatus) return false;
+      }
+      return true;
+    });
+  }, [allRoles, selectedTreeCategory, filterRoleName, filterParentRole, filterStatus]);
+
+  // Paginated rows
+  const paginatedRoles = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRoles.slice(start, start + pageSize);
+  }, [filteredRoles, currentPage, pageSize]);
+
+  // Current active role for configuration
+  const currentConfigRole = useMemo(() => {
+    return allRoles.find(r => r.id === activeConfigRoleId) || allRoles[0];
+  }, [allRoles, activeConfigRoleId]);
+
+  // Toggle tree expand
+  const toggleTreeExpand = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
   };
 
-  // Current Form Fields for Column Security
-  const currentFormFields = useMemo(() => {
-    return formFieldsMap[selectedFormForColumn] || [
-      { id: 'f_1', label: '姓名/主体名称', type: 'text' },
-      { id: 'f_2', label: '申请人电话', type: 'text' },
-      { id: 'f_3', label: '报销/订单金额 (元)', type: 'number' },
-      { id: 'f_4', label: '归属部门', type: 'select' },
-      { id: 'f_5', label: '业务详细说明与审批批注', type: 'textarea' },
-    ];
-  }, [formFieldsMap, selectedFormForColumn]);
+  // Selection toggle
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === paginatedRoles.length && paginatedRoles.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(paginatedRoles.map(r => r.id));
+    }
+  };
 
-  return (
-    <div className="flex-1 flex h-full bg-white overflow-hidden">
-      {/* Left Role List Navigation */}
-      <div className="w-88 border-r border-outline-variant/60 flex flex-col bg-surface-container-lowest/30 overflow-hidden shrink-0">
-        <div className="p-6 border-b border-outline-variant/60 space-y-3 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <h3 className="text-base font-black tracking-tight text-on-surface">角色管理中心</h3>
-            </div>
-            <button
-              onClick={() => setIsNewRoleModalOpen(true)}
-              className="p-1.5 bg-primary hover:bg-primary/90 text-white rounded-xl transition-all shadow-sm flex items-center gap-1 text-xs font-bold"
-              title="新建自定义角色"
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  // Batch actions on table
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) {
+      showNotification?.('请先勾选需要删除的角色');
+      return;
+    }
+    setRoles(prev => prev.filter(r => !selectedIds.includes(r.id)));
+    showNotification?.(`已删除选中的 ${selectedIds.length} 个角色`);
+    setSelectedIds([]);
+  };
+
+  const handleBatchStatus = (st: 'Active' | 'Disabled') => {
+    if (selectedIds.length === 0) {
+      showNotification?.('请先勾选角色');
+      return;
+    }
+    setRoles(prev => prev.map(r => selectedIds.includes(r.id) ? { ...r, status: st } : r));
+    showNotification?.(`已批量${st === 'Active' ? '启用' : '停用'}选中的角色`);
+    setSelectedIds([]);
+  };
+
+  // Open Create Role View (same 3-tab interaction as edit)
+  const handleOpenCreate = () => {
+    setConfigMode('create');
+    setRoleFormName('');
+    setRoleFormCode(`ROLE_${Date.now().toString().slice(-4)}`);
+    setRoleFormParent('--');
+    setRoleFormDesc('');
+    setPermTopTab('baseInfo');
+    setActiveModule('景田送水');
+    setActivePermSubTab('data');
+    setViewMode('config');
+  };
+
+  // Open Edit / Detail Role View
+  const handleOpenEdit = (role: RoleDefinition) => {
+    setConfigMode('edit');
+    setActiveConfigRoleId(role.id);
+    setRoleFormName(role.name);
+    setRoleFormCode(role.code || `ROLE_${Date.now().toString().slice(-4)}`);
+    setRoleFormParent(role.parentRoleName || '--');
+    setRoleFormDesc(role.desc || '');
+    setPermTopTab('baseInfo');
+    setActiveModule('景田送水');
+    setActivePermSubTab('data');
+    setViewMode('config');
+  };
+
+  // Data scope change for a menu row in 基础权限
+  const handleScopeChange = (menuId: string, scope: BaseScope) => {
+    setMenuScopeMap(prev => ({
+      ...prev,
+      [activeConfigRoleId]: {
+        ...(prev[activeConfigRoleId] || {}),
+        [menuId]: scope
+      }
+    }));
+  };
+
+  // Batch scope change for all menus in current module
+  const handleBatchSetScope = (scope: BaseScope) => {
+    const updatedForRole = { ...(menuScopeMap[activeConfigRoleId] || {}) };
+    DEFAULT_MENU_DATA_ITEMS.forEach(item => {
+      updatedForRole[item.id] = scope;
+    });
+    setMenuScopeMap(prev => ({
+      ...prev,
+      [activeConfigRoleId]: updatedForRole
+    }));
+    setBatchActionOpen(false);
+    showNotification?.(`已批量将当前模块菜单基础权限设为「${BASE_SCOPE_LABELS[scope]}」`);
+  };
+
+  // Button permissions helper
+  const isAllButtonsChecked = useMemo(() => {
+    return DEFAULT_BUTTON_PERMS.every(b => !!buttonPerms[b]);
+  }, [buttonPerms]);
+
+  const handleToggleAllButtons = () => {
+    const nextVal = !isAllButtonsChecked;
+    const updated: Record<string, boolean> = {};
+    DEFAULT_BUTTON_PERMS.forEach(b => {
+      updated[b] = nextVal;
+    });
+    setButtonPerms(updated);
+  };
+
+  const handleToggleButton = (btnName: string) => {
+    setButtonPerms(prev => ({
+      ...prev,
+      [btnName]: !prev[btnName]
+    }));
+  };
+
+  // Save Config View (handles both create and edit)
+  const handleSaveConfig = () => {
+    if (!roleFormName.trim()) {
+      showNotification?.('请输入角色名称');
+      setPermTopTab('baseInfo');
+      return;
+    }
+
+    if (configMode === 'create') {
+      const newRole: RoleDefinition = {
+        id: `role_${Date.now()}`,
+        name: roleFormName.trim(),
+        code: roleFormCode.trim() || `ROLE_${Date.now().toString().slice(-4)}`,
+        desc: roleFormDesc.trim() || '自定义角色体系',
+        isSystem: false,
+        parentRoleId: roleFormParent,
+        parentRoleName: roleFormParent,
+        appSystem: '景田',
+        status: 'Active',
+        creator: '当前用户',
+        createdAt: new Date().toISOString().split('T')[0],
+        menus: { dashboard: true, projects: true },
+        forms: {},
+        operations: { create: true, edit: true, delete: false, enable: true, disable: false, export: true, batchDelete: false, importData: false },
+        orgScope: 'dept_sub',
+        tagControl: { enabled: false, matchMode: 'any', byChargeDepts: false, bySalesRegions: false, byFactories: false, byStores: false },
+        fieldPermissions: {}
+      };
+
+      setRoles(prev => [newRole, ...prev]);
+      showNotification?.(`成功新增角色「${newRole.name}」`);
+    } else {
+      setRoles(prev => prev.map(r => r.id === activeConfigRoleId ? {
+        ...r,
+        name: roleFormName.trim(),
+        code: roleFormCode.trim() || r.code,
+        parentRoleName: roleFormParent,
+        desc: roleFormDesc.trim()
+      } : r));
+      showNotification?.(`已成功保存角色「${roleFormName.trim()}」的配置方案`);
+    }
+
+    setViewMode('list');
+  };
+
+  // Filter menu items in current module (Image 1.6)
+  const currentModuleMenus = useMemo(() => {
+    return DEFAULT_MENU_DATA_ITEMS.filter(m => {
+      if (activeModule && m.module !== activeModule && activeModule === '景田送水') {
+        return m.module === '景田送水';
+      }
+      if (menuSearch.trim() && !m.name.includes(menuSearch.trim())) return false;
+      return true;
+    });
+  }, [activeModule, menuSearch]);
+
+  // ================= VIEW 2: 角色管理 - 权限配置视图 (Image 1.6) =================
+  if (viewMode === 'config') {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-white overflow-hidden text-xs">
+        {/* Top Header Tabs (Matching 1.6 screenshot) */}
+        <div className="px-6 pt-3 pb-0 border-b border-slate-200 flex items-center justify-between bg-white select-none">
+          <div className="flex items-center gap-6">
+            <button 
+              type="button"
+              onClick={() => setViewMode('list')}
+              className="flex items-center gap-1.5 text-slate-500 hover:text-slate-900 pb-3 font-medium cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>新建角色</span>
+              <ArrowLeft className="w-4 h-4" />
+              返回角色列表
             </button>
-          </div>
-          <p className="text-[11px] text-outline">维护独立角色池，并细化分配菜单、表单、操作及行列数据权限</p>
-        </div>
 
-        {/* Roles List */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2.5">
-          {roles.map(role => {
-            const isSelected = selectedRoleId === role.id;
-            const count = teamMembers.filter(m => m.roleId === role.id || m.role === role.name).length;
-
-            return (
-              <div
-                key={role.id}
-                onClick={() => setSelectedRoleId(role.id)}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2.5 relative group ${
-                  isSelected
-                    ? 'bg-primary/5 border-primary shadow-sm shadow-primary/10'
-                    : 'bg-white border-outline-variant/60 hover:bg-surface-container-low hover:border-outline-variant'
+            <div className="flex items-center gap-8">
+              <button 
+                type="button"
+                onClick={() => setPermTopTab('baseInfo')}
+                className={`pb-3 font-semibold text-xs border-b-2 transition-all cursor-pointer ${
+                  permTopTab === 'baseInfo' 
+                    ? 'border-primary text-primary' 
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-primary' : 'bg-outline-variant'}`} />
-                    <span className="font-black text-xs text-on-surface">{role.name}</span>
-                    {role.isSystem && (
-                      <span className="text-[9px] font-bold bg-surface border px-1.5 py-0.2 rounded text-outline">
-                        内置
-                      </span>
-                    )}
+                基本信息
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setPermTopTab('webPerm')}
+                className={`pb-3 font-semibold text-xs border-b-2 transition-all flex items-center gap-1 cursor-pointer ${
+                  permTopTab === 'webPerm' 
+                    ? 'border-primary text-primary' 
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="text-red-500">*</span>
+                WEB权限配置
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setPermTopTab('appPerm')}
+                className={`pb-3 font-semibold text-xs border-b-2 transition-all flex items-center gap-1 cursor-pointer ${
+                  permTopTab === 'appPerm' 
+                    ? 'border-primary text-primary' 
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="text-red-500">*</span>
+                App权限配置
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pb-3 text-slate-500">
+            {configMode === 'create' ? (
+              <>
+                <span>当前操作：</span>
+                <span className="font-bold text-primary px-2.5 py-0.5 bg-primary/10 rounded-full text-xs">新增角色</span>
+              </>
+            ) : (
+              <>
+                <span>当前角色：</span>
+                <span className="font-bold text-slate-900 px-2 py-0.5 bg-slate-100 rounded text-xs">{roleFormName || currentConfigRole.name}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Tab 1: 基本信息 */}
+        {permTopTab === 'baseInfo' && (
+          <div className="flex-1 overflow-auto p-8 max-w-xl space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                角色名称 <span className="text-red-500">*</span>
+              </label>
+              <input 
+                type="text" 
+                value={roleFormName} 
+                onChange={(e) => setRoleFormName(e.target.value)}
+                placeholder="请输入角色名称 (如：王晓红_调度员)"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs focus:outline-none focus:border-primary" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">角色编码</label>
+              <input 
+                type="text" 
+                value={roleFormCode} 
+                onChange={(e) => setRoleFormCode(e.target.value)}
+                placeholder="如：ROLE_DISPATCHER"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs font-mono focus:outline-none focus:border-primary" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">上级角色</label>
+              <select 
+                value={roleFormParent} 
+                onChange={(e) => setRoleFormParent(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs focus:outline-none focus:border-primary"
+              >
+                <option value="--">-- (无上级角色)</option>
+                <option value="默认初始角色">默认初始角色</option>
+                <option value="H角色8">H角色8</option>
+                <option value="yf-中台供应链测试...">yf-中台供应链测试...</option>
+                {allRoles
+                  .filter(r => r.name !== roleFormName)
+                  .map(r => (
+                    <option key={r.id} value={r.name}>{r.name}</option>
+                  ))
+                }
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">角色描述</label>
+              <textarea 
+                rows={3} 
+                value={roleFormDesc} 
+                onChange={(e) => setRoleFormDesc(e.target.value)}
+                placeholder="请输入该角色业务职责描述"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs resize-none focus:outline-none focus:border-primary" 
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: * WEB权限配置 (Exactly matching 1.6 screenshot) */}
+        {permTopTab === 'webPerm' && (
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left module list (Screenshot 1.6) */}
+            <div className="w-56 bg-slate-50/70 border-r border-slate-200 flex flex-col shrink-0 p-3 overflow-y-auto space-y-0.5">
+              {PERM_WEB_MODULES.map(modName => {
+                const isActive = activeModule === modName;
+                return (
+                  <button
+                    key={modName}
+                    type="button"
+                    onClick={() => setActiveModule(modName)}
+                    className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      isActive 
+                        ? 'bg-blue-50 text-primary font-bold' 
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    {modName}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right Sub-Tabs & Permissions */}
+            <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+              {/* Sub-tabs: 字段权限 / 按钮权限 / 数据权限 */}
+              <div className="px-6 pt-3 border-b border-slate-200 flex items-center justify-between bg-white">
+                <div className="flex items-center gap-6">
+                  <button 
+                    type="button"
+                    onClick={() => setActivePermSubTab('field')}
+                    className={`pb-2.5 font-semibold text-xs border-b-2 transition-all cursor-pointer ${
+                      activePermSubTab === 'field' 
+                        ? 'border-primary text-primary' 
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    字段权限
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setActivePermSubTab('button')}
+                    className={`pb-2.5 font-semibold text-xs border-b-2 transition-all cursor-pointer ${
+                      activePermSubTab === 'button' 
+                        ? 'border-primary text-primary' 
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    按钮权限
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setActivePermSubTab('data')}
+                    className={`pb-2.5 font-semibold text-xs border-b-2 transition-all cursor-pointer ${
+                      activePermSubTab === 'data' 
+                        ? 'border-primary text-primary' 
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    数据权限
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-tab 1: 字段权限 (保留字段名称/字段标识，移除列权限规则，添加隐藏/只读/编辑三列互斥) */}
+              {activePermSubTab === 'field' && (
+                <div className="flex-1 overflow-auto p-6 space-y-4">
+                  <div className="bg-blue-50/60 p-3 rounded-lg text-slate-600 text-xs flex items-center justify-between">
+                    <span>配置当前模块表单中各个敏感字段（如手机号、金额、身份证等）的列级权限。</span>
+                    <span className="text-slate-400 text-[11px]">隐藏、只读、编辑三项互斥</span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                    {count} 人
-                  </span>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold select-none">
+                        <tr>
+                          <th className="px-5 py-3 min-w-[160px]">字段名称</th>
+                          <th className="px-5 py-3 min-w-[140px]">字段标识</th>
+                          <th className="px-5 py-3 w-28 text-center">隐藏</th>
+                          <th className="px-5 py-3 w-28 text-center">只读</th>
+                          <th className="px-5 py-3 w-28 text-center">编辑</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {DEFAULT_FIELD_PERM_ITEMS.map(field => {
+                          const currentPerm = fieldPerms[field.id] || field.defaultPerm;
+                          return (
+                            <tr key={field.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-5 py-3 font-medium text-slate-900">
+                                {field.name}
+                              </td>
+                              <td className="px-5 py-3 text-slate-500 font-mono text-xs">
+                                {field.code}
+                              </td>
+                              <td className="px-5 py-3 text-center">
+                                <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                                  <input 
+                                    type="radio"
+                                    name={`field_perm_${field.id}`}
+                                    checked={currentPerm === 'hidden'}
+                                    onChange={() => setFieldPerms(prev => ({ ...prev, [field.id]: 'hidden' }))}
+                                    className="w-4 h-4 text-red-600 focus:ring-red-500 cursor-pointer"
+                                  />
+                                </label>
+                              </td>
+                              <td className="px-5 py-3 text-center">
+                                <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                                  <input 
+                                    type="radio"
+                                    name={`field_perm_${field.id}`}
+                                    checked={currentPerm === 'readonly'}
+                                    onChange={() => setFieldPerms(prev => ({ ...prev, [field.id]: 'readonly' }))}
+                                    className="w-4 h-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                  />
+                                </label>
+                              </td>
+                              <td className="px-5 py-3 text-center">
+                                <label className="inline-flex items-center justify-center cursor-pointer p-1">
+                                  <input 
+                                    type="radio"
+                                    name={`field_perm_${field.id}`}
+                                    checked={currentPerm === 'edit'}
+                                    onChange={() => setFieldPerms(prev => ({ ...prev, [field.id]: 'edit' }))}
+                                    className="w-4 h-4 text-primary focus:ring-primary cursor-pointer"
+                                  />
+                                </label>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+              )}
 
-                <p className="text-[11px] text-outline font-medium line-clamp-2 leading-relaxed">
-                  {role.desc}
-                </p>
-
-                <div className="flex items-center justify-between text-[10px] font-mono text-outline/80 pt-1 border-t border-outline-variant/30">
-                  <span>{role.code}</span>
-                  {!role.isSystem && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteRole(role.id, role.name);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 font-bold transition-opacity"
+              {/* Sub-tab 2: 按钮权限 (最前面添加“全部”选项) */}
+              {activePermSubTab === 'button' && (
+                <div className="flex-1 overflow-auto p-6 space-y-4">
+                  <div className="bg-slate-50 p-3 rounded-lg text-slate-600 text-xs">
+                    配置当前角色在系统各个业务界面的操作按钮权限，可一键全选或单独配置。
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* 最前面添加一个“全部”选项 */}
+                    <div 
+                      onClick={handleToggleAllButtons}
+                      className={`p-3.5 border rounded-xl flex items-center justify-between cursor-pointer transition-all ${
+                        isAllButtonsChecked ? 'border-primary bg-primary/5 shadow-xs' : 'border-slate-200 hover:bg-slate-50'
+                      }`}
                     >
-                      删除
-                    </button>
-                  )}
+                      <div>
+                        <span className="font-bold text-slate-900 text-xs">全部</span>
+                        <p className="text-[10px] text-slate-400 mt-0.5">一键授予所有按钮权限</p>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        checked={isAllButtonsChecked} 
+                        onChange={handleToggleAllButtons}
+                        className="w-4 h-4 text-primary rounded cursor-pointer" 
+                      />
+                    </div>
+
+                    {DEFAULT_BUTTON_PERMS.map(btnName => {
+                      const isChecked = !!buttonPerms[btnName];
+                      return (
+                        <div 
+                          key={btnName} 
+                          onClick={() => handleToggleButton(btnName)}
+                          className={`p-3.5 border rounded-xl flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors ${
+                            isChecked ? 'border-slate-300 bg-white' : 'border-slate-200 bg-slate-50/50'
+                          }`}
+                        >
+                          <span className="font-medium text-slate-700 text-xs">{btnName}</span>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => handleToggleButton(btnName)}
+                            className="w-4 h-4 text-primary rounded cursor-pointer" 
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              {/* Sub-tab 3: 数据权限 (表头: 菜单、基础权限、自定义权限; 权限项: 本人、本人及下属、本组织、本组织及子组织、全部) */}
+              {activePermSubTab === 'data' && (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Search and Batch Actions Bar */}
+                  <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                    <div className="relative w-72">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        type="text"
+                        value={menuSearch}
+                        onChange={(e) => setMenuSearch(e.target.value)}
+                        placeholder="搜索菜单"
+                        className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs placeholder:text-slate-400 focus:outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div className="relative">
+                      <button 
+                        type="button"
+                        onClick={() => setBatchActionOpen(!batchActionOpen)}
+                        className="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 rounded-lg text-xs text-slate-700 flex items-center gap-1.5 font-medium cursor-pointer"
+                      >
+                        批量操作
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+
+                      {batchActionOpen && (
+                        <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 text-xs">
+                          <button 
+                            type="button"
+                            onClick={() => handleBatchSetScope('self')}
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700"
+                          >
+                            批量设为「本人」
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleBatchSetScope('self_and_sub')}
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700"
+                          >
+                            批量设为「本人及下属」
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleBatchSetScope('dept')}
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700"
+                          >
+                            批量设为「本组织」
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleBatchSetScope('dept_and_sub')}
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700"
+                          >
+                            批量设为「本组织及子组织」
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleBatchSetScope('all')}
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700"
+                          >
+                            批量设为「全部」
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Data Permissions Table (菜单 / 基础权限 / 自定义权限) */}
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50/80 sticky top-0 z-10 border-b border-slate-200 text-slate-500 font-semibold select-none">
+                        <tr>
+                          <th className="px-6 py-3 min-w-[160px]">菜单</th>
+                          <th className="px-6 py-3 min-w-[500px]">基础权限</th>
+                          <th className="px-6 py-3 min-w-[140px]">自定义权限</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {currentModuleMenus.map(m => {
+                          const currentScope = (menuScopeMap[activeConfigRoleId] || {})[m.id] || m.defaultScope;
+
+                          return (
+                            <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-6 py-3.5 font-medium text-slate-900">
+                                {m.name}
+                              </td>
+                              <td className="px-6 py-3.5">
+                                <div className="flex items-center gap-5 flex-wrap">
+                                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                    <input 
+                                      type="radio"
+                                      name={`scope_${m.id}`}
+                                      checked={currentScope === 'self'}
+                                      onChange={() => handleScopeChange(m.id, 'self')}
+                                      className="w-3.5 h-3.5 text-primary focus:ring-primary"
+                                    />
+                                    <span>本人</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                    <input 
+                                      type="radio"
+                                      name={`scope_${m.id}`}
+                                      checked={currentScope === 'self_and_sub'}
+                                      onChange={() => handleScopeChange(m.id, 'self_and_sub')}
+                                      className="w-3.5 h-3.5 text-primary focus:ring-primary"
+                                    />
+                                    <span>本人及下属</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                    <input 
+                                      type="radio"
+                                      name={`scope_${m.id}`}
+                                      checked={currentScope === 'dept'}
+                                      onChange={() => handleScopeChange(m.id, 'dept')}
+                                      className="w-3.5 h-3.5 text-primary focus:ring-primary"
+                                    />
+                                    <span>本组织</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                    <input 
+                                      type="radio"
+                                      name={`scope_${m.id}`}
+                                      checked={currentScope === 'dept_and_sub'}
+                                      onChange={() => handleScopeChange(m.id, 'dept_and_sub')}
+                                      className="w-3.5 h-3.5 text-primary focus:ring-primary"
+                                    />
+                                    <span>本组织及子组织</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                    <input 
+                                      type="radio"
+                                      name={`scope_${m.id}`}
+                                      checked={currentScope === 'all'}
+                                      onChange={() => handleScopeChange(m.id, 'all')}
+                                      className="w-3.5 h-3.5 text-primary focus:ring-primary"
+                                    />
+                                    <span>全部</span>
+                                  </label>
+                                </div>
+                              </td>
+                              <td className="px-6 py-3.5">
+                                <button 
+                                  type="button"
+                                  onClick={() => showNotification?.(`已打开「${m.name}」扩展行级规则配置`)}
+                                  className="text-primary hover:underline cursor-pointer"
+                                >
+                                  自定义过滤规则
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: * App权限配置 */}
+        {permTopTab === 'appPerm' && (
+          <div className="flex-1 overflow-auto p-8 max-w-2xl space-y-4">
+            <h4 className="font-bold text-slate-800 text-sm">移动端专属行为权限</h4>
+            <div className="space-y-3">
+              {[
+                { name: '移动端扫码核销', desc: '允许在移动端 App / 微信小程序调用摄像头扫码验货' },
+                { name: '移动端离线数据缓存', desc: '允许在弱网环境下将表单暂存至本地客户端设备' },
+                { name: '移动端即时位置上报', desc: '提交送水或叉车调度任务时自动记录地理经纬度' }
+              ].map(item => (
+                <div key={item.name} className="p-4 border border-slate-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <h5 className="font-semibold text-slate-900">{item.name}</h5>
+                    <p className="text-[11px] text-slate-400 mt-0.5">{item.desc}</p>
+                  </div>
+                  <input type="checkbox" defaultChecked className="w-4 h-4 text-primary rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Footer Buttons (Matching 1.6 screenshot) */}
+        <div className="px-8 py-3.5 border-t border-slate-200 flex items-center justify-end gap-3 bg-white">
+          <button 
+            type="button"
+            onClick={() => setViewMode('list')}
+            className="px-5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+          >
+            取消
+          </button>
+          <button 
+            type="button"
+            onClick={handleSaveConfig}
+            className="px-6 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-colors cursor-pointer"
+          >
+            确定
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= VIEW 1: 角色管理 - 列表视图 (Matching Image 1.5) =================
+  return (
+    <div className="flex-1 flex h-full bg-slate-50/50 overflow-hidden text-xs">
+      {/* ================= Left Tree Panel (Matching 1.5) ================= */}
+      <div className="w-64 bg-white border-r border-outline-variant flex flex-col shrink-0">
+        <div className="p-3 border-b border-outline-variant/60">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text"
+              value={treeSearch}
+              onChange={(e) => setTreeSearch(e.target.value)}
+              placeholder="搜索"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-primary focus:bg-white transition-all placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          <div 
+            onClick={() => setSelectedTreeCategory('all')}
+            className={`flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer text-xs transition-colors mb-1 ${
+              selectedTreeCategory === 'all' 
+                ? 'bg-primary/10 text-primary font-bold' 
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+            <span>全部系统角色</span>
+          </div>
+
+          {DEFAULT_ROLE_TREE.map(cat => {
+            const hasChildren = cat.children && cat.children.length > 0;
+            const isExpanded = expandedNodes.has(cat.id);
+            const isSelected = selectedTreeCategory === cat.name;
+
+            if (treeSearch.trim() && !cat.name.toLowerCase().includes(treeSearch.trim().toLowerCase())) {
+              const matchChild = (cat.children || []).some(c => c.name.toLowerCase().includes(treeSearch.trim().toLowerCase()));
+              if (!matchChild) return null;
+            }
+
+            return (
+              <div key={cat.id} className="select-none text-xs">
+                <div 
+                  onClick={() => setSelectedTreeCategory(cat.name)}
+                  className={`flex items-center gap-1.5 py-1.5 px-2 rounded-lg cursor-pointer transition-colors ${
+                    isSelected ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {hasChildren ? (
+                    <span 
+                      onClick={(e) => toggleTreeExpand(cat.id, e)}
+                      className="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer shrink-0"
+                    >
+                      {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    </span>
+                  ) : (
+                    <span className="w-4 h-4 shrink-0" />
+                  )}
+                  <span className="truncate">{cat.name}</span>
+                </div>
+
+                {hasChildren && isExpanded && (
+                  <div className="space-y-0.5 pl-4">
+                    {cat.children!.map(child => (
+                      <div 
+                        key={child.id}
+                        onClick={() => setSelectedTreeCategory(child.name)}
+                        className={`py-1 px-2.5 rounded cursor-pointer transition-colors truncate ${
+                          selectedTreeCategory === child.name ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {child.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Right Permission Configuration Workspace */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        {/* Workspace Top Header */}
-        <div className="px-8 py-5 border-b border-outline-variant/60 flex flex-wrap items-center justify-between gap-4 bg-surface-container-lowest">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-black tracking-tight text-on-surface">{selectedRole.name}</h2>
-              <span className="text-xs font-mono font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase">
-                {selectedRole.code}
-              </span>
-              <span className="text-xs text-outline font-bold">
-                当前成员: {roleMembers.length} 人
-              </span>
+      {/* ================= Right Content Panel ================= */}
+      <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+        {/* Top Multi-Filter Search Area (2 rows matching screenshot 1.5) */}
+        <div className="p-4 border-b border-outline-variant/60 bg-white space-y-3">
+          {/* Row 1 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+            <div>
+              <input 
+                type="text"
+                value={filterRoleName}
+                onChange={(e) => setFilterRoleName(e.target.value)}
+                placeholder="请输入角色名称"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs placeholder:text-slate-400"
+              />
             </div>
-            <p className="text-xs text-on-surface-variant max-w-2xl">{selectedRole.desc}</p>
+            <div>
+              <select 
+                value={filterParentRole}
+                onChange={(e) => setFilterParentRole(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs bg-white text-slate-700"
+              >
+                <option value="all">请选择上级角色</option>
+                <option value="--">-- (无上级角色)</option>
+                <option value="H角色8">H角色8</option>
+                <option value="yf-中台供应链测试...">yf-中台供应链测试...</option>
+                <option value="默认初始角色">默认初始角色</option>
+              </select>
+            </div>
+            <div>
+              <select 
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-primary text-xs bg-white text-slate-700"
+              >
+                <option value="all">请选择状态</option>
+                <option value="Active">启用</option>
+                <option value="Disabled">停用</option>
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsAssignModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-outline-variant hover:border-primary text-on-surface hover:text-primary rounded-xl text-xs font-bold transition-all shadow-sm"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>分配角色成员 ({roleMembers.length})</span>
-            </button>
-
-            <button
-              onClick={handleSaveRoleConfig}
-              disabled={isSaving}
-              className="flex items-center gap-1.5 px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/20"
-            >
-              {isSaving ? (
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Save className="w-3.5 h-3.5" />
-              )}
-              <span>保存当前权限配置</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="px-8 border-b border-outline-variant/60 bg-white flex items-center gap-8">
-          {[
-            { id: 'features', label: '3.1 功能权限 (菜单/表单/操作)', icon: Sliders },
-            { id: 'dataRow', label: '3.2 数据权限：行权限管控 (组织/标签)', icon: Tag },
-            { id: 'dataColumn', label: '3.2 数据权限：列权限管控 (按字段)', icon: Columns3 },
-            { id: 'members', label: '角色归属成员名单', icon: Users },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`py-4 text-xs font-black flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === tab.id
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Workspace Body */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-surface-container-lowest/20">
-          {/* ================= 3.1 功能权限配置 ================= */}
-          {activeTab === 'features' && (
-            <div className="space-y-8 max-w-5xl">
-              {/* 1. Menu Permissions */}
-              <div className="p-6 bg-white rounded-3xl border border-outline-variant/80 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <div className="flex items-center gap-2">
-                    <MenuIcon className="w-4 h-4 text-primary" />
-                    <h4 className="text-sm font-black text-on-surface">菜单级访问权限</h4>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        SYSTEM_MENUS.forEach(m => handleToggleMenu(m.key, true));
-                        showNotification?.('已全选所有菜单权限');
-                      }}
-                      className="text-xs text-primary font-bold hover:underline"
-                    >
-                      全选
-                    </button>
-                    <span className="text-outline">|</span>
-                    <button
-                      onClick={() => {
-                        SYSTEM_MENUS.forEach(m => handleToggleMenu(m.key, false));
-                        showNotification?.('已清空所有菜单权限');
-                      }}
-                      className="text-xs text-outline font-bold hover:underline"
-                    >
-                      全不选
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {SYSTEM_MENUS.map(m => {
-                    const isChecked = !!selectedRole.menus[m.key];
-                    return (
-                      <label
-                        key={m.key}
-                        className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
-                          isChecked
-                            ? 'bg-primary/5 border-primary/40'
-                            : 'bg-surface border-outline-variant/40 hover:bg-surface-container-low'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => handleToggleMenu(m.key, e.target.checked)}
-                          className="w-4 h-4 mt-0.5 rounded text-primary accent-primary cursor-pointer"
-                        />
-                        <div className="overflow-hidden">
-                          <p className="text-xs font-black text-on-surface">{m.label}</p>
-                          <p className="text-[10px] text-outline mt-0.5 leading-tight">{m.desc}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 2. Form Permissions */}
-              <div className="p-6 bg-white rounded-3xl border border-outline-variant/80 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-primary" />
-                    <div>
-                      <h4 className="text-sm font-black text-on-surface">表单级功能权限</h4>
-                      <p className="text-[11px] text-outline">控制角色成员对各个业务自定义表单的查看、填报与配置权限</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs font-bold text-outline">
-                    <span>快捷全开：</span>
-                    <button onClick={() => handleBatchFormPermission('view', true)} className="text-primary hover:underline">
-                      全部可查
-                    </button>
-                    <button onClick={() => handleBatchFormPermission('fill', true)} className="text-primary hover:underline">
-                      全部可填
-                    </button>
-                    <button onClick={() => handleBatchFormPermission('manage', true)} className="text-primary hover:underline">
-                      全部可管
-                    </button>
-                  </div>
-                </div>
-
-                <div className="divide-y divide-outline-variant/30">
-                  {savedForms.map(form => {
-                    const formPerm = selectedRole.forms[form.id] || { view: true, fill: true, manage: false };
-
-                    return (
-                      <div key={form.id} className="py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                            {form.name.slice(0, 1)}
-                          </div>
-                          <div>
-                            <p className="text-xs font-black text-on-surface">{form.name}</p>
-                            <p className="text-[10px] text-outline font-mono">ID: {form.id} | 分类: {form.category || '通用业务'}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-6">
-                          <label className="flex items-center gap-2 text-xs font-bold text-on-surface cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formPerm.view}
-                              onChange={(e) => handleFormPermissionChange(form.id, 'view', e.target.checked)}
-                              className="w-4 h-4 rounded text-primary accent-primary"
-                            />
-                            <span>允许访问查看</span>
-                          </label>
-
-                          <label className="flex items-center gap-2 text-xs font-bold text-on-surface cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formPerm.fill}
-                              onChange={(e) => handleFormPermissionChange(form.id, 'fill', e.target.checked)}
-                              className="w-4 h-4 rounded text-primary accent-primary"
-                            />
-                            <span>允许填报提交</span>
-                          </label>
-
-                          <label className="flex items-center gap-2 text-xs font-bold text-on-surface cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formPerm.manage}
-                              onChange={(e) => handleFormPermissionChange(form.id, 'manage', e.target.checked)}
-                              className="w-4 h-4 rounded text-primary accent-primary"
-                            />
-                            <span>允许设计管理</span>
-                          </label>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 3. Operation Permissions (新增、修改、删除、启用、禁用等) */}
-              <div className="p-6 bg-white rounded-3xl border border-outline-variant/80 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <div className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-primary" />
-                    <div>
-                      <h4 className="text-sm font-black text-on-surface">
-                        微观操作权限管控 (包含新增、修改、删除、启用、禁用等)
-                      </h4>
-                      <p className="text-[11px] text-outline">精确授予该角色各类数据项与功能按钮的操作特权</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                  {[
-                    { key: 'create', label: '新增 (Create)', desc: '允许填报录入新数据、新建表单与流程', highlight: 'border-green-300' },
-                    { key: 'edit', label: '修改 (Edit)', desc: '允许编辑更新已有数据记录及属性', highlight: 'border-blue-300' },
-                    { key: 'delete', label: '删除 (Delete)', desc: '允许删除单条数据记录或草稿', highlight: 'border-red-300' },
-                    { key: 'enable', label: '启用 (Enable)', desc: '允许激活启用表单、用户、规则', highlight: 'border-emerald-300' },
-                    { key: 'disable', label: '禁用 (Disable)', desc: '允许下线停用表单、封存账号', highlight: 'border-amber-300' },
-                    { key: 'export', label: '导出数据 (Export)', desc: '允许批量导出全量 Excel 报表', highlight: 'border-purple-300' },
-                    { key: 'batchDelete', label: '批量删除 (Batch Delete)', desc: '高危权限：允许批量勾选物理清理', highlight: 'border-rose-400' },
-                    { key: 'importData', label: '数据导入 (Import)', desc: '允许从本地 Excel 批量导入台账', highlight: 'border-indigo-300' },
-                  ].map(op => {
-                    const isChecked = !!selectedRole.operations[op.key as keyof OperationPermissions];
-                    return (
-                      <div
-                        key={op.key}
-                        onClick={() => handleOperationChange(op.key as keyof OperationPermissions, !isChecked)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
-                          isChecked
-                            ? 'bg-primary/5 border-primary shadow-sm'
-                            : 'bg-surface border-outline-variant/50 hover:bg-surface-container-low'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-on-surface">{op.label}</span>
-                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
-                            isChecked ? 'bg-primary text-white border-primary' : 'bg-white border-outline-variant'
-                          }`}>
-                            {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                          </div>
-                        </div>
-                        <p className="text-[10px] text-outline font-medium leading-relaxed">{op.desc}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+          {/* Row 2 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs items-center">
+            <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-3 py-1.5 bg-white">
+              <input 
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                placeholder="开始日期"
+                className="text-xs text-slate-600 focus:outline-none w-1/2 bg-transparent"
+              />
+              <span className="text-slate-400">至</span>
+              <input 
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                placeholder="结束日期"
+                className="text-xs text-slate-600 focus:outline-none w-1/2 bg-transparent"
+              />
             </div>
-          )}
-
-          {/* ================= 3.2 数据权限：行权限管控 (所属组织 + 标签管控) ================= */}
-          {activeTab === 'dataRow' && (
-            <div className="space-y-8 max-w-5xl">
-              {/* Part 1: 所属组织行权限管控 */}
-              <div className="p-6 bg-white rounded-3xl border border-outline-variant/80 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 border-b pb-3">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  <div>
-                    <h4 className="text-sm font-black text-on-surface">所属组织数据行权限</h4>
-                    <p className="text-[11px] text-outline">根据当前用户的所属主部门层级，过滤底单与报表数据</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  {[
-                    {
-                      key: 'self',
-                      title: '本人数据',
-                      sql: 'WHERE author_id = @current_user.id',
-                      desc: '只能查看并操作由该用户本人提交、填报或唯一指派给该用户的表单数据记录。'
-                    },
-                    {
-                      key: 'self_sub',
-                      title: '本人及直属下属数据',
-                      sql: 'WHERE author_id IN (@current_user.id, ...@direct_subordinates)',
-                      desc: '向上兼容：允许透视当前用户及其所有在汇报关系树中下属员工提交的数据。'
-                    },
-                    {
-                      key: 'dept',
-                      title: '本组织数据',
-                      sql: 'WHERE dept_id = @current_user.dept_id',
-                      desc: '数据范围锁定在当前用户所在的主行政部门底单，部门间实现严格的数据隔离。'
-                    },
-                    {
-                      key: 'dept_sub',
-                      title: '本组织及下属组织数据',
-                      sql: 'WHERE dept_id IN (@current_user.dept_id, ...@child_dept_ids)',
-                      desc: '递归穿透当前部门及其下属的所有分支子部门，适合各部门负责人。'
-                    },
-                    {
-                      key: 'all',
-                      title: '全公司全部组织数据',
-                      sql: 'WHERE 1=1 (跨组织无限制透查)',
-                      desc: '放开所有组织范围限制，跨部门全局数据通查，适合集团高管与系统管理员。'
-                    },
-                  ].map(item => {
-                    const isSelected = selectedRole.orgScope === item.key;
-                    return (
-                      <div
-                        key={item.key}
-                        onClick={() => handleOrgScopeChange(item.key as any)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-                          isSelected
-                            ? 'bg-primary/5 border-primary shadow-sm'
-                            : 'bg-surface border-outline-variant/50 hover:bg-surface-container-low'
-                        }`}
-                      >
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2.5">
-                            <input
-                              type="radio"
-                              name="orgScope"
-                              checked={isSelected}
-                              onChange={() => handleOrgScopeChange(item.key as any)}
-                              className="text-primary accent-primary"
-                            />
-                            <span className="text-xs font-black text-on-surface">{item.title}</span>
-                          </div>
-                          <p className="text-[11px] text-outline pl-6">{item.desc}</p>
-                        </div>
-
-                        <div className="shrink-0 font-mono text-[10px] bg-white border border-outline-variant/60 px-3 py-1.5 rounded-xl text-outline">
-                          {item.sql}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Part 2: 标签行权限管控 (负责组织、负责销售区域、负责工厂、负责门店) */}
-              <div className="p-6 bg-white rounded-3xl border border-outline-variant/80 shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-4">
-                  <div className="flex items-center gap-2">
-                    <Tag className="w-5 h-5 text-primary" />
-                    <div>
-                      <h4 className="text-sm font-black text-on-surface">
-                        标签多维行权限管控 (负责组织、销售区域、工厂、门店)
-                      </h4>
-                      <p className="text-[11px] text-outline">
-                        按用户的多维业务标签，对表单数据行实现交叉权限过滤
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-on-surface">总开关：</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedRole.tagControl.enabled}
-                        onChange={(e) => handleTagControlChange('enabled', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                    </label>
-                  </div>
-                </div>
-
-                {selectedRole.tagControl.enabled && (
-                  <div className="space-y-6">
-                    {/* Match mode */}
-                    <div className="flex items-center gap-6 p-3.5 bg-surface rounded-2xl border border-outline-variant/40 text-xs">
-                      <span className="font-black text-on-surface">多标签匹配规则：</span>
-                      <label className="flex items-center gap-2 cursor-pointer font-bold text-on-surface">
-                        <input
-                          type="radio"
-                          name="matchMode"
-                          value="any"
-                          checked={selectedRole.tagControl.matchMode === 'any'}
-                          onChange={() => handleTagControlChange('matchMode', 'any')}
-                          className="text-primary accent-primary"
-                        />
-                        <span>满足任一启用标签即允许 (OR 逻辑)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer font-bold text-on-surface">
-                        <input
-                          type="radio"
-                          name="matchMode"
-                          value="all"
-                          checked={selectedRole.tagControl.matchMode === 'all'}
-                          onChange={() => handleTagControlChange('matchMode', 'all')}
-                          className="text-primary accent-primary"
-                        />
-                        <span>必须同时满足所有启用的标签 (AND 逻辑)</span>
-                      </label>
-                    </div>
-
-                    {/* 4 Tag Dimensions */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* 1. 负责组织管控 */}
-                      <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
-                        selectedRole.tagControl.byChargeDepts
-                          ? 'bg-blue-50/50 border-blue-200'
-                          : 'bg-surface border-outline-variant/50'
-                      }`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-blue-600" />
-                            <span className="text-xs font-black text-on-surface">按【负责组织】管控</span>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={selectedRole.tagControl.byChargeDepts}
-                            onChange={(e) => handleTagControlChange('byChargeDepts', e.target.checked)}
-                            className="w-4 h-4 rounded text-blue-600 accent-blue-600 cursor-pointer"
-                          />
-                        </div>
-                        <p className="text-[11px] text-outline leading-relaxed">
-                          当前角色用户只能查看和操作其被授权负责的部门列表内的数据记录（例如分管 3 个异地子公司）。
-                        </p>
-                        <code className="text-[10px] font-mono bg-white p-1.5 rounded-lg border border-outline-variant/40 text-blue-800">
-                          SQL: data.dept_id IN (@user.chargeDepts)
-                        </code>
-                      </div>
-
-                      {/* 2. 负责销售区域管控 */}
-                      <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
-                        selectedRole.tagControl.bySalesRegions
-                          ? 'bg-purple-50/50 border-purple-200'
-                          : 'bg-surface border-outline-variant/50'
-                      }`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-purple-600" />
-                            <span className="text-xs font-black text-on-surface">按【负责销售区域】管控</span>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={selectedRole.tagControl.bySalesRegions}
-                            onChange={(e) => handleTagControlChange('bySalesRegions', e.target.checked)}
-                            className="w-4 h-4 rounded text-purple-600 accent-purple-600 cursor-pointer"
-                          />
-                        </div>
-                        <p className="text-[11px] text-outline leading-relaxed">
-                          只能查看匹配其「负责销售区域」标签（如华东大区、华南大区）的客户登记、拜访与商机数据。
-                        </p>
-                        <code className="text-[10px] font-mono bg-white p-1.5 rounded-lg border border-outline-variant/40 text-purple-800">
-                          SQL: data.sales_region IN (@user.salesRegions)
-                        </code>
-                      </div>
-
-                      {/* 3. 负责工厂管控 */}
-                      <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
-                        selectedRole.tagControl.byFactories
-                          ? 'bg-amber-50/50 border-amber-200'
-                          : 'bg-surface border-outline-variant/50'
-                      }`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <Factory className="w-4 h-4 text-amber-600" />
-                            <span className="text-xs font-black text-on-surface">按【负责工厂】管控</span>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={selectedRole.tagControl.byFactories}
-                            onChange={(e) => handleTagControlChange('byFactories', e.target.checked)}
-                            className="w-4 h-4 rounded text-amber-600 accent-amber-600 cursor-pointer"
-                          />
-                        </div>
-                        <p className="text-[11px] text-outline leading-relaxed">
-                          只能查看与其「负责工厂」标签（如华东一号智造基地、华北装备基地）匹配的生产与运维单据。
-                        </p>
-                        <code className="text-[10px] font-mono bg-white p-1.5 rounded-lg border border-outline-variant/40 text-amber-800">
-                          SQL: data.factory_name IN (@user.factories)
-                        </code>
-                      </div>
-
-                      {/* 4. 负责门店管控 */}
-                      <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
-                        selectedRole.tagControl.byStores
-                          ? 'bg-emerald-50/50 border-emerald-200'
-                          : 'bg-surface border-outline-variant/50'
-                      }`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <Store className="w-4 h-4 text-emerald-600" />
-                            <span className="text-xs font-black text-on-surface">按【负责门店】管控</span>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={selectedRole.tagControl.byStores}
-                            onChange={(e) => handleTagControlChange('byStores', e.target.checked)}
-                            className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
-                          />
-                        </div>
-                        <p className="text-[11px] text-outline leading-relaxed">
-                          只能查看与其「负责门店」标签（如上海南京路旗舰店、广州天河直营店）匹配的巡店与销售台账。
-                        </p>
-                        <code className="text-[10px] font-mono bg-white p-1.5 rounded-lg border border-outline-variant/40 text-emerald-800">
-                          SQL: data.store_name IN (@user.stores)
-                        </code>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ================= 3.2 数据权限：列权限管控 (按字段细分可编辑/只读/脱敏/隐藏) ================= */}
-          {activeTab === 'dataColumn' && (
-            <div className="space-y-6 max-w-5xl">
-              {/* Form Selector and Batch Actions */}
-              <div className="p-6 bg-white rounded-3xl border border-outline-variant/80 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-black text-on-surface flex items-center gap-2">
-                      <Columns3 className="w-4 h-4 text-primary" />
-                      按表单字段配置列级权限 (Column-Level Security)
-                    </h4>
-                    <p className="text-[11px] text-outline">
-                      对选定表单中的每个具体字段，精细化配置其为【可编辑】、【只读】、【脱敏】或【隐藏】
-                    </p>
-                  </div>
-
-                  {/* Form Dropdown */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-outline">选择目标表单：</span>
-                    <select
-                      value={selectedFormForColumn}
-                      onChange={(e) => setSelectedFormForColumn(e.target.value)}
-                      className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-xs font-bold focus:outline-none focus:border-primary text-on-surface cursor-pointer"
-                    >
-                      {savedForms.map(f => (
-                        <option key={f.id} value={f.id}>{f.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Batch Tools */}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-outline font-bold">快捷批量设定：</span>
-                  <button
-                    onClick={() => handleBatchFieldAccess(selectedFormForColumn, 'editable')}
-                    className="px-3 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-bold"
-                  >
-                    全部设为可编辑
-                  </button>
-                  <button
-                    onClick={() => handleBatchFieldAccess(selectedFormForColumn, 'readonly')}
-                    className="px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold"
-                  >
-                    全部设为只读
-                  </button>
-                  <button
-                    onClick={() => handleBatchFieldAccess(selectedFormForColumn, 'masked')}
-                    className="px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold"
-                  >
-                    全部脱敏掩码
-                  </button>
-                  <button
-                    onClick={() => handleBatchFieldAccess(selectedFormForColumn, 'hidden')}
-                    className="px-3 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 font-bold"
-                  >
-                    全部隐藏屏蔽
-                  </button>
-                </div>
-              </div>
-
-              {/* Field Permission Grid */}
-              <div className="bg-white rounded-3xl border border-outline-variant/80 shadow-sm overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-outline-variant/60 bg-surface-container-lowest text-outline text-[11px] font-black uppercase tracking-wider">
-                      <th className="py-3.5 px-6">字段名称与标识</th>
-                      <th className="py-3.5 px-4">控件类型</th>
-                      <th className="py-3.5 px-4 text-center">可编辑 (读写)</th>
-                      <th className="py-3.5 px-4 text-center">只读 (禁改)</th>
-                      <th className="py-3.5 px-4 text-center">脱敏 (掩码保护)</th>
-                      <th className="py-3.5 px-4 text-center">隐藏 (不可见)</th>
-                      <th className="py-3.5 px-6">成员视角模拟预览</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant/40">
-                    {currentFormFields.map(field => {
-                      const access = selectedRole.fieldPermissions[selectedFormForColumn]?.[field.id] || 'editable';
-
-                      return (
-                        <tr key={field.id} className="hover:bg-surface transition-colors">
-                          <td className="py-4 px-6">
-                            <p className="font-bold text-on-surface text-xs">{field.label}</p>
-                            <p className="text-[10px] text-outline font-mono mt-0.5">field_id: {field.id}</p>
-                          </td>
-
-                          <td className="py-4 px-4">
-                            <span className="text-[10px] font-mono bg-surface border px-2 py-0.5 rounded text-outline">
-                              {field.type}
-                            </span>
-                          </td>
-
-                          {/* Editable radio */}
-                          <td className="py-4 px-4 text-center">
-                            <input
-                              type="radio"
-                              name={`col_perm_${field.id}`}
-                              checked={access === 'editable'}
-                              onChange={() => handleFieldColumnAccessChange(selectedFormForColumn, field.id, 'editable')}
-                              className="w-4 h-4 text-green-600 accent-green-600 cursor-pointer"
-                            />
-                          </td>
-
-                          {/* Readonly radio */}
-                          <td className="py-4 px-4 text-center">
-                            <input
-                              type="radio"
-                              name={`col_perm_${field.id}`}
-                              checked={access === 'readonly'}
-                              onChange={() => handleFieldColumnAccessChange(selectedFormForColumn, field.id, 'readonly')}
-                              className="w-4 h-4 text-blue-600 accent-blue-600 cursor-pointer"
-                            />
-                          </td>
-
-                          {/* Masked radio */}
-                          <td className="py-4 px-4 text-center">
-                            <input
-                              type="radio"
-                              name={`col_perm_${field.id}`}
-                              checked={access === 'masked'}
-                              onChange={() => handleFieldColumnAccessChange(selectedFormForColumn, field.id, 'masked')}
-                              className="w-4 h-4 text-purple-600 accent-purple-600 cursor-pointer"
-                            />
-                          </td>
-
-                          {/* Hidden radio */}
-                          <td className="py-4 px-4 text-center">
-                            <input
-                              type="radio"
-                              name={`col_perm_${field.id}`}
-                              checked={access === 'hidden'}
-                              onChange={() => handleFieldColumnAccessChange(selectedFormForColumn, field.id, 'hidden')}
-                              className="w-4 h-4 text-red-600 accent-red-600 cursor-pointer"
-                            />
-                          </td>
-
-                          {/* Preview Badge */}
-                          <td className="py-4 px-6">
-                            {access === 'editable' && (
-                              <span className="text-[11px] font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-lg flex items-center gap-1 w-fit">
-                                <Check className="w-3 h-3" /> 可正常输入与编辑
-                              </span>
-                            )}
-                            {access === 'readonly' && (
-                              <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg flex items-center gap-1 w-fit">
-                                <Lock className="w-3 h-3" /> 置灰显示并禁止修改
-                              </span>
-                            )}
-                            {access === 'masked' && (
-                              <span className="text-[11px] font-mono font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg flex items-center gap-1 w-fit">
-                                <span>138****0000</span>
-                                <span className="text-[9px] font-sans text-purple-500">(掩码脱敏)</span>
-                              </span>
-                            )}
-                            {access === 'hidden' && (
-                              <span className="text-[11px] font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-lg flex items-center gap-1 w-fit">
-                                <EyeOff className="w-3 h-3" /> 界面完全屏蔽此列
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ================= 角色归属成员名单 ================= */}
-          {activeTab === 'members' && (
-            <div className="bg-white rounded-3xl border border-outline-variant/80 p-6 space-y-4 shadow-sm max-w-5xl">
-              <div className="flex items-center justify-between border-b pb-4">
-                <div className="space-y-0.5">
-                  <h4 className="text-sm font-black text-on-surface">当前角色成员名单 ({roleMembers.length} 人)</h4>
-                  <p className="text-[11px] text-outline">这些成员将继承上述功能权限配置及行列数据安全规则</p>
-                </div>
-                <button
-                  onClick={() => setIsAssignModalOpen(true)}
-                  className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl shadow-sm"
-                >
-                  + 分配/增减成员
-                </button>
-              </div>
-
-              {roleMembers.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {roleMembers.map(member => (
-                    <div key={member.id} className="p-3.5 rounded-2xl border border-outline-variant/50 bg-surface flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-xs shrink-0">
-                          {member.name.slice(0, 1)}
-                        </div>
-                        <div className="overflow-hidden">
-                          <p className="text-xs font-black text-on-surface truncate">{member.name}</p>
-                          <p className="text-[10px] text-outline font-mono truncate">{member.email}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleToggleMemberRole(member)}
-                        className="text-[10px] font-bold text-red-500 hover:text-red-700 shrink-0"
-                      >
-                        移除
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-12 text-center text-xs text-outline font-medium">
-                  当前角色下暂未分配任何员工，点击右上角「分配成员」进行指派
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* New Custom Role Modal */}
-      {isNewRoleModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-outline-variant animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-black text-on-surface mb-1">新建业务权限角色</h3>
-            <p className="text-xs text-outline mb-4">创建后可自主配置菜单、表单、操作及行列数据权限</p>
-
-            <form onSubmit={handleCreateNewRole} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-on-surface">角色名称 *</label>
-                <input
-                  type="text"
-                  required
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="例如：销售区域总监"
-                  className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none font-bold"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-on-surface">角色代码标识</label>
-                <input
-                  type="text"
-                  value={newRoleCode}
-                  onChange={(e) => setNewRoleCode(e.target.value)}
-                  placeholder="ROLE_SALES_DIR"
-                  className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none font-mono"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-on-surface">角色职责说明</label>
-                <textarea
-                  rows={3}
-                  value={newRoleDesc}
-                  onChange={(e) => setNewRoleDesc(e.target.value)}
-                  placeholder="请输入该角色的业务定位与管控权限范畴..."
-                  className="w-full px-3 py-2 text-xs border border-outline-variant rounded-xl focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsNewRoleModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-outline hover:text-on-surface"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-md shadow-primary/20"
-                >
-                  确认创建
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Assign Members Modal */}
-      {isAssignModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-outline-variant max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-black text-on-surface mb-1">为「{selectedRole.name}」分配成员</h3>
-            <p className="text-xs text-outline mb-4">勾选用户后，该用户将继承当前角色的所有功能与数据权限</p>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-outline-variant/30 pr-1">
-              {teamMembers.map(member => {
-                const isInRole = member.roleId === selectedRole.id || member.role === selectedRole.name;
-
-                return (
-                  <div key={member.id} className="py-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={isInRole}
-                        onChange={() => handleToggleMemberRole(member)}
-                        className="w-4 h-4 rounded text-primary accent-primary cursor-pointer"
-                      />
-                      <div>
-                        <p className="text-xs font-black text-on-surface">{member.name}</p>
-                        <p className="text-[10px] text-outline font-mono">{member.email} | {member.workNo || member.id}</p>
-                      </div>
-                    </div>
-
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface border text-on-surface-variant">
-                      当前角色: {member.role}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-end pt-4 border-t mt-4">
-              <button
+            <div className="flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                className="px-5 py-2 bg-primary hover:bg-primary/90 text-white font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <Search className="w-3.5 h-3.5" />
+                搜索
+              </button>
+              <button 
                 type="button"
                 onClick={() => {
-                  setIsAssignModalOpen(false);
-                  showNotification?.(`已完成角色「${selectedRole.name}」的成员更新！`);
+                  setFilterRoleName('');
+                  setFilterParentRole('all');
+                  setFilterStatus('all');
+                  setFilterStartDate('');
+                  setFilterEndDate('');
+                  setSelectedTreeCategory('all');
+                  setCurrentPage(1);
                 }}
-                className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-md shadow-primary/20"
+                className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-medium rounded-lg text-xs transition-colors"
               >
-                完成
+                重置
               </button>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Action Buttons Row (matching 1.5) */}
+        <div className="px-6 py-3 border-b border-outline-variant/60 flex items-center justify-between bg-white">
+          <div className="flex items-center gap-2.5">
+            <button 
+              type="button"
+              onClick={handleOpenCreate}
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              新增
+            </button>
+            <button 
+              type="button"
+              onClick={handleBatchDelete}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+              删除
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleBatchStatus('Active')}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              启用
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleBatchStatus('Disabled')}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <XCircle className="w-3.5 h-3.5 text-slate-400" />
+              停用
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              title="表格列配置" 
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Data Table (matching columns and status in 1.5) */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-50/80 sticky top-0 z-10 border-b border-slate-200 text-slate-500 font-semibold select-none">
+              <tr>
+                <th className="w-12 px-4 py-3">
+                  <input 
+                    type="checkbox"
+                    checked={selectedIds.length === paginatedRoles.length && paginatedRoles.length > 0}
+                    onChange={handleToggleSelectAll}
+                    className="rounded border-slate-300 text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer"
+                  />
+                </th>
+                <th className="px-4 py-3 min-w-[180px]">角色名称</th>
+                <th className="px-4 py-3 min-w-[140px]">上级角色</th>
+                <th className="px-4 py-3 min-w-[90px]">状态</th>
+                <th className="px-4 py-3 min-w-[120px]">创建人</th>
+                <th className="px-4 py-3 min-w-[140px] text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {paginatedRoles.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <ShieldCheck className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    未找到匹配的角色数据
+                  </td>
+                </tr>
+              ) : (
+                paginatedRoles.map(row => {
+                  const isChecked = selectedIds.includes(row.id);
+                  const isAct = (row.status || 'Active') === 'Active';
+
+                  return (
+                    <tr 
+                      key={row.id}
+                      className={`hover:bg-slate-50/80 transition-colors ${isChecked ? 'bg-primary/5' : ''}`}
+                    >
+                      <td className="px-4 py-3">
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelect(row.id)}
+                          className="rounded border-slate-300 text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {row.name}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 font-mono">
+                        {row.parentRoleName || '--'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <span className={`w-1.5 h-1.5 rounded-full ${isAct ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                          <span className={isAct ? 'text-slate-700' : 'text-red-600'}>
+                            {isAct ? '启用' : '停用'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500">
+                        {row.creator || '超级管理员'}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-3 font-medium">
+                          <button 
+                            type="button"
+                            onClick={() => handleOpenEdit(row)}
+                            className="text-primary hover:underline cursor-pointer"
+                          >
+                            详情
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleOpenEdit(row)}
+                            className="text-primary hover:underline cursor-pointer"
+                          >
+                            编辑
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`确定删除角色「${row.name}」吗？`)) {
+                                setRoles(prev => prev.filter(r => r.id !== row.id));
+                                showNotification?.(`已删除「${row.name}」`);
+                              }
+                            }}
+                            className="text-primary hover:underline cursor-pointer"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer (matching 1.5) */}
+        <div className="px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 bg-white select-none">
+          <div>
+            共 <span className="font-semibold text-slate-700">932</span> 条
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+            >
+              &lt;
+            </button>
+            {[1, 2, 3, 4, 5].map(page => (
+              <button 
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-7 h-7 rounded border font-medium ${
+                  currentPage === page 
+                    ? 'bg-primary text-white border-primary' 
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <span className="text-slate-400">...</span>
+            <button 
+              onClick={() => setCurrentPage(47)}
+              className="w-8 h-7 rounded border border-slate-200 hover:bg-slate-50"
+            >
+              47
+            </button>
+            <button 
+              onClick={() => setCurrentPage(p => p + 1)}
+              className="p-1.5 rounded border border-slate-200 hover:bg-slate-50"
+            >
+              &gt;
+            </button>
+            <select 
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-2 py-1 border border-slate-200 rounded text-xs bg-white text-slate-700"
+            >
+              <option value={10}>10 条/页</option>
+              <option value={20}>20 条/页</option>
+              <option value={50}>50 条/页</option>
+            </select>
+            <div className="flex items-center gap-1 ml-2 text-slate-400">
+              跳至 <input type="text" className="w-10 px-1 py-0.5 border border-slate-200 text-center rounded text-xs" /> 页
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
