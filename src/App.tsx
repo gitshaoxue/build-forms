@@ -5102,6 +5102,10 @@ const ProjectsView = ({
                               key={item.type}
                               onClick={() => {
                                 setShowNewFormDropdown(false);
+                                if (item.type === 'report') {
+                                  showNotification('功能迭代中，敬请期待');
+                                  return;
+                                }
                                 setSelectedProjectId(projectDetailsId);
                                 openEditor(null, item.type as FormType);
                               }}
@@ -8154,6 +8158,10 @@ const ArchitectApp: React.FC = () => {
   };
 
   const openEditor = (formId: string | null, type: FormType = 'normal') => {
+    if (!formId && type === 'report') {
+      showNotification('功能迭代中，敬请期待');
+      return;
+    }
     setSelectedFormId(formId);
     setEditingFormName(false);
     
@@ -8797,6 +8805,13 @@ const ArchitectApp: React.FC = () => {
               }`}>
                 {selectedFormId ? (savedForms.find(f => f.id === selectedFormId)?.status === 'Published' ? '已发布' : '草稿') : '新表单'}
               </span>
+              <span className={`text-[10px] px-2 py-0.5 rounded font-bold tracking-wide ${
+                currentFormType === 'workflow' 
+                  ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+              }`}>
+                {currentFormType === 'workflow' ? '流程表单' : '普通表单'}
+              </span>
             </div>
           </div>
           
@@ -8804,7 +8819,7 @@ const ArchitectApp: React.FC = () => {
             <div className="flex bg-surface-container-high rounded-lg p-1 border border-outline-variant">
               {[
                 { id: 'design', label: '设计', icon: Code },
-                { id: 'workflow', label: '流程', icon: Workflow },
+                ...(currentFormType === 'workflow' ? [{ id: 'workflow', label: '流程', icon: Workflow }] : []),
                 { id: 'page', label: '配置', icon: Sliders },
                 { id: 'simulate', label: '仿真', icon: Activity },
                 { id: 'publish', label: '发布', icon: Globe },
