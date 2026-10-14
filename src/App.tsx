@@ -134,6 +134,7 @@ import {
   ClipboardList,
   TrendingUp,
   Target,
+  GripVertical,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { OrgNode, TeamMember, RoleDefinition } from './components/system-settings/types';
@@ -141,7 +142,7 @@ import { SystemSettingsView } from './components/system-settings/SystemSettingsV
 import { WorkflowManagementView } from './components/workflow-management/WorkflowManagementView';
 import { ProcessManagementView } from './components/process-management/ProcessManagementView';
 
-type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'processManagement' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter' | 'org' | 'roles' | 'users';
+type ViewType = 'landing' | 'dashboard' | 'editor' | 'projects' | 'processManagement' | 'dataManagement' | 'workflow' | 'insights' | 'integrations' | 'team' | 'appCenter' | 'org' | 'roles' | 'users' | 'menus';
 
 interface FormField {
   id: string;
@@ -573,8 +574,8 @@ interface TeamViewProps {
   onDeleteDept: (id: string) => void;
   savedForms: Array<{ id: string; name: string; category?: string }>;
   formFieldsMap: Record<string, Array<{ id: string; label: string; type: string }>>;
-  initialTab?: 'org' | 'users' | 'roles';
-  onTabChange?: (tab: 'org' | 'users' | 'roles') => void;
+  initialTab?: 'org' | 'users' | 'roles' | 'menus';
+  onTabChange?: (tab: 'org' | 'users' | 'roles' | 'menus') => void;
   showNotification?: (text: string) => void;
 }
 
@@ -3034,7 +3035,7 @@ const AppCenterView: React.FC<AppCenterViewProps> = ({
 
 // Shared UI Components
 const Sidebar = ({ currentView, setView }: SidebarProps) => {
-  const isSettingsChildActive = currentView === 'org' || currentView === 'users' || currentView === 'roles' || currentView === 'team';
+  const isSettingsChildActive = currentView === 'org' || currentView === 'users' || currentView === 'roles' || currentView === 'menus' || currentView === 'team';
   const isSettingsActive = currentView === 'integrations';
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(true);
 
@@ -3057,6 +3058,7 @@ const Sidebar = ({ currentView, setView }: SidebarProps) => {
     { label: '组织管理', icon: Building2, view: 'org' },
     { label: '用户管理', icon: UserCog, view: 'users' },
     { label: '角色管理', icon: ShieldCheck, view: 'roles' },
+    { label: '菜单管理', icon: Menu, view: 'menus' },
   ];
 
   return (
@@ -5737,7 +5739,7 @@ const IntegrationsView = ({
   setTeamInitialTab 
 }: IntegrationsViewProps & { 
   setView?: (v: ViewType) => void;
-  setTeamInitialTab?: (tab: 'org' | 'users' | 'roles') => void;
+  setTeamInitialTab?: (tab: 'org' | 'users' | 'roles' | 'menus') => void;
 }) => (
   <div className="w-full p-8 md:p-10 space-y-8">
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
@@ -6871,6 +6873,12 @@ const ArchitectApp: React.FC = () => {
   const [showInsertNodeMenu, setShowInsertNodeMenu] = React.useState<string | null>(null);
   const [editorTab, setEditorTab] = React.useState<'design' | 'page' | 'workflow' | 'publish' | 'simulate' | 'data' | 'preview'>('design');
   
+  // Workflow Drag & Drop and Node Connection state
+  const [draggingNodeType, setDraggingNodeType] = React.useState<WorkflowNode['type'] | null>(null);
+  const [dragOverInsertIndex, setDragOverInsertIndex] = React.useState<number | null>(null);
+  const [dragOverBranchInfo, setDragOverBranchInfo] = React.useState<{ nodeId: string; branchId: string } | null>(null);
+  const [connectingFromNodeId, setConnectingFromNodeId] = React.useState<string | null>(null);
+  
   // Page Configuration state variables 
   const [configTab, setConfigTab] = React.useState<'basic' | 'notification' | 'print' | 'button_config' | 'event_config'>('basic');
   const [pageTitleType, setPageTitleType] = React.useState<'default' | 'custom'>('default');
@@ -7329,7 +7337,7 @@ const ArchitectApp: React.FC = () => {
     }
   ]);
 
-  const [teamInitialTab, setTeamInitialTab] = React.useState<'org' | 'users' | 'roles'>('roles');
+  const [teamInitialTab, setTeamInitialTab] = React.useState<'org' | 'users' | 'roles' | 'menus'>('roles');
 
   const [roles, setRoles] = React.useState<RoleDefinition[]>([
     {
@@ -8454,12 +8462,46 @@ const ArchitectApp: React.FC = () => {
   };
 
   const removeWorkflowNode = (id: string) => {
-    setWorkflowNodes(workflowNodes.filter(n => n.id !== id));
+    setWorkflowNodes(workflowNodes.filter(n => n.id !== id).map(n => ({
+      ...n,
+      targets: (n.targets || []).filter(t => t !== id)
+    })));
     if (selectedNodeId === id) {
       setSelectedNodeId(null);
       setSelectedBranchId(null);
       setSelectedBranchNodeId(null);
     }
+  };
+
+  const handleConnectNodes = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) {
+      showNotification('不能将节点连线到自身');
+      return;
+    }
+    const sourceNode = workflowNodes.find(n => n.id === sourceId);
+    const targetNode = workflowNodes.find(n => n.id === targetId);
+    if (!sourceNode || !targetNode) return;
+
+    if (sourceNode.targets?.includes(targetId)) {
+      showNotification(`该连线已存在：「${sourceNode.label}」➔「${targetNode.label}」`);
+      setConnectingFromNodeId(null);
+      return;
+    }
+
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== sourceId) return n;
+      return { ...n, targets: [...(n.targets || []), targetId] };
+    }));
+    showNotification(`已建立连线：「${sourceNode.label}」➔「${targetNode.label}」`);
+    setConnectingFromNodeId(null);
+  };
+
+  const removeNodeConnection = (sourceId: string, targetId: string) => {
+    setWorkflowNodes(nodes => nodes.map(n => {
+      if (n.id !== sourceId) return n;
+      return { ...n, targets: (n.targets || []).filter(t => t !== targetId) };
+    }));
+    showNotification('已解除节点连线');
   };
 
   // Gateway and Branch Management
@@ -8868,29 +8910,54 @@ const ArchitectApp: React.FC = () => {
           <div className="p-6 flex-1 overflow-y-auto space-y-6">
             {editorTab === 'workflow' ? (
               <div>
-                <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest mb-4">流程组件</h3>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[10px] font-bold text-outline uppercase tracking-widest">流程组件</h3>
+                  <span className="text-[9px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                    可拖拽到画布
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-2.5">
                   {[
-                    { type: 'start', icon: Play, label: '开始节点', desc: '流程执行的起点' },
-                    { type: 'approval', icon: ShieldCheck, label: '审批环节', desc: '需要人工进行审批' },
-                    { type: 'notification', icon: Mail, label: '邮件提醒', desc: '发送系统自动邮件' },
-                    { type: 'condition', icon: Workflow, label: '条件分支', desc: '基于数据逻辑分流' },
-                    { type: 'cc', icon: Share2, label: '抄送环节', desc: '将副本发送给特定人员' },
-                    { type: 'end', icon: StopCircle, label: '结束节点', desc: '流程执行的终点' },
+                    { type: 'start', icon: Play, label: '开始节点', desc: '流程执行的起点', color: 'text-emerald-700 bg-emerald-100' },
+                    { type: 'approval', icon: ShieldCheck, label: '审批环节', desc: '需要人工进行审批', color: 'text-amber-700 bg-amber-100' },
+                    { type: 'notification', icon: Mail, label: '邮件提醒', desc: '发送系统自动邮件', color: 'text-blue-700 bg-blue-100' },
+                    { type: 'condition', icon: GitBranch, label: '条件分支', desc: '基于数据逻辑排它分流', color: 'text-amber-700 bg-amber-100' },
+                    { type: 'gateway_parallel', icon: GitFork, label: '并行网关', desc: '多分支同时并行流转', color: 'text-indigo-700 bg-indigo-100' },
+                    { type: 'cc', icon: Share2, label: '抄送环节', desc: '将副本发送给特定人员', color: 'text-purple-700 bg-purple-100' },
+                    { type: 'end', icon: StopCircle, label: '结束节点', desc: '流程执行的终点', color: 'text-slate-700 bg-slate-100' },
                   ].map((item) => (
-                    <button
+                    <div
                       key={item.type}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('workflow/node-type', item.type);
+                        e.dataTransfer.setData('text/plain', item.type);
+                        e.dataTransfer.effectAllowed = 'copyMove';
+                        setDraggingNodeType(item.type as WorkflowNode['type']);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingNodeType(null);
+                        setDragOverInsertIndex(null);
+                        setDragOverBranchInfo(null);
+                      }}
                       onClick={() => addWorkflowNode(item.type as WorkflowNode['type'])}
-                      className="flex items-center gap-4 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group text-left"
+                      className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant hover:border-primary hover:bg-primary/5 transition-all group text-left cursor-grab active:cursor-grabbing hover:shadow-xs select-none bg-white"
+                      title="点击添加，或按住拖拽至中间画布"
                     >
-                      <div className="p-3 bg-surface rounded-lg group-hover:bg-primary/10">
-                        <item.icon className="w-5 h-5 text-on-surface-variant group-hover:text-primary transition-colors" />
+                      <div className="text-slate-300 group-hover:text-primary transition-colors cursor-grab">
+                        <GripVertical className="w-4 h-4" />
                       </div>
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-tight">{item.label}</div>
-                        <div className="text-[10px] text-on-surface-variant font-medium">{item.desc}</div>
+                      <div className={`p-2 rounded-lg ${item.color}`}>
+                        <item.icon className="w-4 h-4" />
                       </div>
-                    </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold tracking-tight text-slate-800 flex items-center justify-between">
+                          <span>{item.label}</span>
+                          <span className="text-[9px] text-slate-400 group-hover:text-primary font-medium">拖拽</span>
+                        </div>
+                        <div className="text-[10px] text-on-surface-variant font-medium truncate mt-0.5">{item.desc}</div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -10595,7 +10662,39 @@ const ArchitectApp: React.FC = () => {
                       backgroundImage: 'radial-gradient(#cbd5e1 1.2px, transparent 1.2px)', 
                       backgroundSize: '24px 24px' 
                     }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'copy';
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const type = (e.dataTransfer.getData('workflow/node-type') || draggingNodeType) as WorkflowNode['type'];
+                      if (type) {
+                        addWorkflowNode(type);
+                        showNotification(`已添加新环节`);
+                      }
+                      setDraggingNodeType(null);
+                      setDragOverInsertIndex(null);
+                      setDragOverBranchInfo(null);
+                    }}
                   >
+                    {/* Connecting Mode Sticky Banner */}
+                    {connectingFromNodeId && (
+                      <div className="sticky top-0 mb-6 z-40 bg-indigo-600 text-white px-5 py-2.5 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 border border-indigo-400">
+                        <Share2 className="w-4 h-4 animate-spin text-indigo-200" />
+                        <span className="text-xs font-bold">
+                          正在从「{workflowNodes.find(n => n.id === connectingFromNodeId)?.label || '选中节点'}」连线：请在画布上点击要连接的目标节点
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setConnectingFromNodeId(null)}
+                          className="px-2.5 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition-all cursor-pointer ml-2"
+                        >
+                          取消连线
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex flex-col items-center min-w-max pb-16">
                       {workflowNodes.map((node, index) => {
                         const isGateway = node.type === 'gateway_exclusive' || node.type === 'gateway_parallel' || node.type === 'condition' || node.type === 'parallel' || (node.config?.branches && node.config.branches.length > 0);
@@ -10609,17 +10708,37 @@ const ArchitectApp: React.FC = () => {
                               <motion.div
                                 layoutId={node.id}
                                 onClick={() => {
+                                  if (connectingFromNodeId) {
+                                    handleConnectNodes(connectingFromNodeId, node.id);
+                                    return;
+                                  }
                                   setSelectedNodeId(node.id);
                                   setSelectedBranchId(null);
                                   setSelectedBranchNodeId(null);
                                 }}
                                 className={`w-full max-w-sm bg-white rounded-2xl p-6 border transition-all cursor-pointer group relative shadow-xs ${
-                                  selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
-                                    ? 'border-primary ring-4 ring-primary/20 shadow-lg -translate-y-0.5' 
-                                    : 'border-outline-variant hover:border-primary/40'
+                                  connectingFromNodeId === node.id
+                                    ? 'border-indigo-600 ring-4 ring-indigo-500/20 shadow-lg'
+                                    : connectingFromNodeId
+                                      ? 'border-emerald-500 ring-2 ring-emerald-400/40 hover:bg-emerald-50/30'
+                                      : selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
+                                        ? 'border-primary ring-4 ring-primary/20 shadow-lg -translate-y-0.5' 
+                                        : 'border-outline-variant hover:border-primary/40'
                                 }`}
                               >
-                                {selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId && (
+                                {connectingFromNodeId === node.id && (
+                                  <div className="absolute -top-3 -right-2 bg-indigo-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
+                                    <Share2 className="w-3 h-3 animate-spin" />
+                                    连线源
+                                  </div>
+                                )}
+                                {connectingFromNodeId && connectingFromNodeId !== node.id && (
+                                  <div className="absolute -top-3 -right-2 bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white animate-bounce">
+                                    <Link className="w-3 h-3" />
+                                    点击连接此节点
+                                  </div>
+                                )}
+                                {selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId && !connectingFromNodeId && (
                                   <div className="absolute -top-3 -right-3 bg-primary text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
                                     <Check className="w-3 h-3 stroke-[3]" />
                                     已选中
@@ -10656,6 +10775,65 @@ const ArchitectApp: React.FC = () => {
                                     </button>
                                   )}
                                 </div>
+
+                                {/* Flow targets list with directional arrows */}
+                                {node.targets && node.targets.length > 0 && (
+                                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                                    <span className="text-[9px] text-slate-400 font-bold flex items-center gap-0.5">
+                                      <ArrowRight className="w-2.5 h-2.5 text-primary" /> 流转至:
+                                    </span>
+                                    {node.targets.map(targetId => {
+                                      const targetNode = workflowNodes.find(n => n.id === targetId);
+                                      if (!targetNode) return null;
+                                      return (
+                                        <span 
+                                          key={targetId}
+                                          className="inline-flex items-center gap-1 bg-slate-50 hover:bg-red-50 text-slate-700 hover:text-red-600 px-2 py-0.5 rounded-md text-[9px] font-bold border border-slate-200 transition-colors"
+                                        >
+                                          <span>{targetNode.label}</span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              removeNodeConnection(node.id, targetId);
+                                            }}
+                                            className="text-slate-400 hover:text-red-500 cursor-pointer ml-0.5"
+                                            title="删除此连线"
+                                          >
+                                            <X className="w-2.5 h-2.5" />
+                                          </button>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Bottom connect button port */}
+                                {node.type !== 'end' && (
+                                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (connectingFromNodeId === node.id) {
+                                          setConnectingFromNodeId(null);
+                                        } else {
+                                          setConnectingFromNodeId(node.id);
+                                          showNotification(`请在画布上点击目标节点以完成连线（从「${node.label}」出发）`);
+                                        }
+                                      }}
+                                      className={`h-5 px-2 rounded-full flex items-center gap-1 text-[9px] font-bold border shadow-xs transition-all cursor-pointer ${
+                                        connectingFromNodeId === node.id
+                                          ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-300'
+                                          : 'bg-white text-slate-600 border-slate-300 hover:bg-primary hover:text-white hover:border-primary'
+                                      }`}
+                                      title="从该节点连线至其他节点"
+                                    >
+                                      <Share2 className="w-2.5 h-2.5" />
+                                      <span>{connectingFromNodeId === node.id ? '取消' : '连线'}</span>
+                                    </button>
+                                  </div>
+                                )}
                               </motion.div>
                             ) : (
                               /* Gateway Node with Branches */
@@ -10664,19 +10842,39 @@ const ArchitectApp: React.FC = () => {
                                 <motion.div 
                                   layoutId={node.id}
                                   onClick={() => {
+                                    if (connectingFromNodeId) {
+                                      handleConnectNodes(connectingFromNodeId, node.id);
+                                      return;
+                                    }
                                     setSelectedNodeId(node.id);
                                     setSelectedBranchId(null);
                                     setSelectedBranchNodeId(null);
                                   }}
                                   className={`group relative flex items-center justify-between gap-4 px-6 py-4 bg-white rounded-2xl border transition-all cursor-pointer shadow-sm min-w-[380px] max-w-lg ${
-                                    selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
-                                      ? 'border-primary ring-4 ring-primary/20 shadow-lg -translate-y-0.5'
-                                      : isParallel 
-                                        ? 'border-indigo-200 hover:border-indigo-400 bg-gradient-to-r from-indigo-50/60 via-white to-indigo-50/60' 
-                                        : 'border-amber-200 hover:border-amber-400 bg-gradient-to-r from-amber-50/60 via-white to-amber-50/60'
+                                    connectingFromNodeId === node.id
+                                      ? 'border-indigo-600 ring-4 ring-indigo-500/20 shadow-lg'
+                                      : connectingFromNodeId
+                                        ? 'border-emerald-500 ring-2 ring-emerald-400/40 hover:bg-emerald-50/30'
+                                        : selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
+                                          ? 'border-primary ring-4 ring-primary/20 shadow-lg -translate-y-0.5'
+                                          : isParallel 
+                                            ? 'border-indigo-200 hover:border-indigo-400 bg-gradient-to-r from-indigo-50/60 via-white to-indigo-50/60' 
+                                            : 'border-amber-200 hover:border-amber-400 bg-gradient-to-r from-amber-50/60 via-white to-amber-50/60'
                                   }`}
                                 >
-                                  {selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId && (
+                                  {connectingFromNodeId === node.id && (
+                                    <div className="absolute -top-2.5 -right-2 bg-indigo-600 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
+                                      <Share2 className="w-3 h-3 animate-spin" />
+                                      连线源
+                                    </div>
+                                  )}
+                                  {connectingFromNodeId && connectingFromNodeId !== node.id && (
+                                    <div className="absolute -top-2.5 -right-2 bg-emerald-600 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white animate-bounce">
+                                      <Link className="w-3 h-3" />
+                                      点击连接此网关
+                                    </div>
+                                  )}
+                                  {selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId && !connectingFromNodeId && (
                                     <div className="absolute -top-2.5 -right-2 bg-primary text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1 z-10 border-2 border-white">
                                       <Check className="w-3 h-3 stroke-[3]" /> 网关已选中
                                     </div>
@@ -10753,10 +10951,36 @@ const ArchitectApp: React.FC = () => {
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
+
+                                  {/* Outgoing connection button for gateway */}
+                                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (connectingFromNodeId === node.id) {
+                                          setConnectingFromNodeId(null);
+                                        } else {
+                                          setConnectingFromNodeId(node.id);
+                                          showNotification(`请在画布上点击目标节点以完成连线（从「${node.label}」出发）`);
+                                        }
+                                      }}
+                                      className={`h-5 px-2 rounded-full flex items-center gap-1 text-[9px] font-bold border shadow-xs transition-all cursor-pointer ${
+                                        connectingFromNodeId === node.id
+                                          ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-300'
+                                          : 'bg-white text-slate-600 border-slate-300 hover:bg-primary hover:text-white hover:border-primary'
+                                      }`}
+                                      title="从该网关连线至其他节点"
+                                    >
+                                      <Share2 className="w-2.5 h-2.5" />
+                                      <span>{connectingFromNodeId === node.id ? '取消' : '连线'}</span>
+                                    </button>
+                                  </div>
                                 </motion.div>
 
-                                {/* Vertical line to branching rails */}
-                                <div className="w-0.5 h-6 bg-slate-300"></div>
+                                {/* Vertical line with arrow to branching rails */}
+                                <div className="w-0.5 h-5 bg-slate-300"></div>
+                                <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] border-t-slate-400 -mt-px shrink-0" title="流转方向" />
 
                                 {/* 2. Branch Columns Section */}
                                 <div className="relative flex flex-col items-center w-full px-4">
@@ -10779,8 +11003,9 @@ const ArchitectApp: React.FC = () => {
 
                                       return (
                                         <div key={branch.id} className="flex flex-col items-center relative min-w-[220px] max-w-[260px]">
-                                          {/* Connecting Line from Top Rail */}
-                                          <div className="w-0.5 h-4 bg-slate-300"></div>
+                                          {/* Connecting Line from Top Rail with arrow */}
+                                          <div className="w-0.5 h-3.5 bg-slate-300"></div>
+                                          <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] border-t-slate-400 -mt-px shrink-0" title="流转方向" />
 
                                           {/* Branch Header Card */}
                                           <div
@@ -10847,8 +11072,9 @@ const ArchitectApp: React.FC = () => {
                                             )}
                                           </div>
 
-                                          {/* Connecting Line to Child Nodes */}
-                                          <div className="w-0.5 h-4 bg-slate-300"></div>
+                                          {/* Connecting Line to Child Nodes with arrow */}
+                                          <div className="w-0.5 h-3.5 bg-slate-300"></div>
+                                          <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] border-t-slate-400 -mt-px shrink-0" title="流转方向" />
 
                                           {/* Child Nodes Stack in this Branch */}
                                           <div className="w-full flex flex-col items-center gap-2.5">
@@ -10903,78 +11129,119 @@ const ArchitectApp: React.FC = () => {
                                                   </div>
 
                                                   {cIdx < branchChildNodes.length - 1 && (
-                                                    <div className="w-0.5 h-3 bg-slate-300"></div>
+                                                    <div className="flex flex-col items-center">
+                                                      <div className="w-0.5 h-2.5 bg-slate-300"></div>
+                                                      <div className="w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[4px] border-t-slate-400 -mt-px shrink-0" title="流转方向" />
+                                                    </div>
                                                   )}
                                                 </React.Fragment>
                                               );
                                             })}
 
-                                            {/* Plus button to append child node into this branch */}
-                                            <div className="flex flex-col items-center pt-1">
+                                            {/* Plus button / Drag Drop to append child node into this branch */}
+                                            <div 
+                                              onDragOver={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                e.dataTransfer.dropEffect = 'copy';
+                                                setDragOverBranchInfo({ nodeId: node.id, branchId: branch.id });
+                                              }}
+                                              onDragLeave={() => {
+                                                if (dragOverBranchInfo?.nodeId === node.id && dragOverBranchInfo?.branchId === branch.id) {
+                                                  setDragOverBranchInfo(null);
+                                                }
+                                              }}
+                                              onDrop={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                const type = (e.dataTransfer.getData('workflow/node-type') || draggingNodeType) as any;
+                                                if (type) {
+                                                  addNodeToBranch(node.id, branch.id, type);
+                                                  showNotification('已在分支中拖入新环节');
+                                                }
+                                                setDraggingNodeType(null);
+                                                setDragOverBranchInfo(null);
+                                              }}
+                                              className="flex flex-col items-center pt-1 w-full"
+                                            >
                                               <div className="w-0.5 h-2 bg-slate-300"></div>
-                                              <div className="relative">
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setBranchInsertMenu(branchInsertMenu === `${node.id}_${branch.id}` ? null : `${node.id}_${branch.id}`);
-                                                  }}
-                                                  className="w-5 h-5 rounded-full bg-slate-100 hover:bg-primary hover:text-white text-slate-500 border border-slate-300 flex items-center justify-center text-xs transition-all cursor-pointer shadow-2xs"
-                                                  title="在此分支添加环节"
-                                                >
-                                                  <Plus className="w-3 h-3" />
-                                                </button>
-                                                {branchInsertMenu === `${node.id}_${branch.id}` && (
-                                                  <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-30 flex gap-1 min-w-[180px]">
-                                                    {[
-                                                      { type: 'approval' as const, label: '审批', icon: ShieldCheck },
-                                                      { type: 'cc' as const, label: '抄送', icon: Share2 },
-                                                      { type: 'notification' as const, label: '通知', icon: Mail }
-                                                    ].map(item => (
-                                                      <button
-                                                        key={item.type}
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          addNodeToBranch(node.id, branch.id, item.type);
-                                                          setBranchInsertMenu(null);
-                                                        }}
-                                                        className="flex-1 flex flex-col items-center gap-1 p-1.5 rounded-lg hover:bg-primary/10 text-slate-700 hover:text-primary transition-all text-[9px] font-bold cursor-pointer"
-                                                      >
-                                                        <item.icon className="w-3.5 h-3.5" />
-                                                        <span>{item.label}</span>
-                                                      </button>
-                                                    ))}
-                                                  </div>
-                                                )}
-                                              </div>
+                                              {dragOverBranchInfo?.nodeId === node.id && dragOverBranchInfo?.branchId === branch.id ? (
+                                                <div className="px-2 py-1 bg-primary/10 border border-dashed border-primary rounded-lg text-[9px] font-bold text-primary animate-pulse">
+                                                  释放添加至分支
+                                                </div>
+                                              ) : (
+                                                <div className="relative">
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setBranchInsertMenu(branchInsertMenu === `${node.id}_${branch.id}` ? null : `${node.id}_${branch.id}`);
+                                                    }}
+                                                    className="w-5 h-5 rounded-full bg-slate-100 hover:bg-primary hover:text-white text-slate-500 border border-slate-300 flex items-center justify-center text-xs transition-all cursor-pointer shadow-2xs"
+                                                    title="在此分支添加环节，或将左侧组件拖拽到此处"
+                                                  >
+                                                    <Plus className="w-3 h-3" />
+                                                  </button>
+                                                  {branchInsertMenu === `${node.id}_${branch.id}` && (
+                                                    <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 z-30 flex gap-1 min-w-[180px]">
+                                                      {[
+                                                        { type: 'approval' as const, label: '审批', icon: ShieldCheck },
+                                                        { type: 'cc' as const, label: '抄送', icon: Share2 },
+                                                        { type: 'notification' as const, label: '通知', icon: Mail }
+                                                      ].map(item => (
+                                                        <button
+                                                          key={item.type}
+                                                          type="button"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            addNodeToBranch(node.id, branch.id, item.type);
+                                                            setBranchInsertMenu(null);
+                                                          }}
+                                                          className="flex-1 flex flex-col items-center gap-1 p-1.5 rounded-lg hover:bg-primary/10 text-slate-700 hover:text-primary transition-all text-[9px] font-bold cursor-pointer"
+                                                        >
+                                                          <item.icon className="w-3.5 h-3.5" />
+                                                          <span>{item.label}</span>
+                                                        </button>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
                                             </div>
                                           </div>
 
-                                          {/* Connecting Line to Bottom Rail */}
-                                          <div className="w-0.5 h-4 bg-slate-300"></div>
+                                          {/* Connecting Line to Bottom Rail with arrow */}
+                                          <div className="w-0.5 h-3.5 bg-slate-300"></div>
+                                          <div className="w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[4px] border-t-slate-400 -mt-px shrink-0" title="流转方向" />
                                         </div>
                                       );
                                     })}
                                   </div>
                                 </div>
 
-                                {/* Vertical stem into joiner pill */}
-                                <div className="w-0.5 h-3 bg-slate-300"></div>
+                                {/* Vertical stem into joiner pill with arrow */}
+                                <div className="w-0.5 h-3.5 bg-slate-300"></div>
+                                <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] border-t-slate-400 -mt-px shrink-0" title="流转方向" />
 
                                 {/* 3. Gateway Joiner / Convergence Node */}
                                 <div 
                                   onClick={() => {
+                                    if (connectingFromNodeId) {
+                                      handleConnectNodes(connectingFromNodeId, node.id);
+                                      return;
+                                    }
                                     setSelectedNodeId(node.id);
                                     setSelectedBranchId(null);
                                     setSelectedBranchNodeId(null);
                                   }}
                                   className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all cursor-pointer shadow-2xs ${
-                                    selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
-                                      ? 'border-primary ring-2 ring-primary/30 shadow-md bg-primary/5'
-                                      : isParallel
-                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
-                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    connectingFromNodeId && connectingFromNodeId !== node.id
+                                      ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-300'
+                                      : selectedNodeId === node.id && !selectedBranchId && !selectedBranchNodeId
+                                        ? 'border-primary ring-2 ring-primary/30 shadow-md bg-primary/5'
+                                        : isParallel
+                                          ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                                   }`}
                                 >
                                   <GitMerge className="w-3.5 h-3.5" />
@@ -10987,66 +11254,140 @@ const ArchitectApp: React.FC = () => {
                               </div>
                             )}
 
-                            {/* Plus Button between main workflow steps */}
+                            {/* Plus Button / Drop Zone between main workflow steps */}
                             {index < workflowNodes.length - 1 && (
-                              <div className="flex flex-col items-center relative my-0">
-                                <div className="w-0.5 h-6 bg-slate-300"></div>
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setShowInsertNodeMenu(showInsertNodeMenu === node.id ? null : node.id);
-                                    }}
-                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-xs transition-all z-20 cursor-pointer ${
-                                      showInsertNodeMenu === node.id
-                                        ? 'bg-red-500 text-white rotate-45 scale-110'
-                                        : 'bg-slate-200 text-slate-500 hover:bg-primary hover:text-white'
-                                    }`}
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                  </button>
+                              <div 
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.dataTransfer.dropEffect = 'copy';
+                                  setDragOverInsertIndex(index);
+                                }}
+                                onDragLeave={() => {
+                                  if (dragOverInsertIndex === index) setDragOverInsertIndex(null);
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const type = (e.dataTransfer.getData('workflow/node-type') || draggingNodeType) as WorkflowNode['type'];
+                                  if (type) {
+                                    insertWorkflowNode(node.id, type);
+                                    showNotification(`已在连线处插入新环节`);
+                                  }
+                                  setDraggingNodeType(null);
+                                  setDragOverInsertIndex(null);
+                                }}
+                                className="flex flex-col items-center relative my-0 group/conn"
+                              >
+                                <div className="w-0.5 h-5 bg-slate-300"></div>
 
-                                  <AnimatePresence>
-                                    {showInsertNodeMenu === node.id && (
-                                      <motion.div
-                                        initial={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
-                                        animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
-                                        exit={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
-                                        className="absolute top-8 left-1/2 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-30 flex gap-1 min-w-[300px]"
-                                      >
-                                        {[
-                                          { type: 'approval' as const, icon: ShieldCheck, label: '审批' },
-                                          { type: 'gateway_exclusive' as const, icon: GitBranch, label: '排它网关' },
-                                          { type: 'gateway_parallel' as const, icon: GitFork, label: '并行网关' },
-                                          { type: 'notification' as const, icon: Mail, label: '通知' },
-                                          { type: 'cc' as const, icon: Share2, label: '抄送' },
-                                        ].map((item) => (
-                                          <button
-                                            key={item.type}
-                                            type="button"
-                                            onClick={() => {
-                                              insertWorkflowNode(node.id, item.type);
-                                              setShowInsertNodeMenu(null);
-                                            }}
-                                            className="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-primary/10 transition-all group/item cursor-pointer"
-                                          >
-                                            <div className="p-1.5 bg-slate-100 rounded-md group-hover/item:bg-primary/20 transition-colors">
-                                              <item.icon className="w-3.5 h-3.5 text-slate-600 group-hover/item:text-primary" />
-                                            </div>
-                                            <span className="text-[9px] font-bold whitespace-nowrap text-slate-700">{item.label}</span>
-                                          </button>
-                                        ))}
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
-                                <div className="w-0.5 h-6 bg-slate-300"></div>
+                                {dragOverInsertIndex === index ? (
+                                  <div className="my-1 px-4 py-1.5 bg-primary/10 border-2 border-dashed border-primary rounded-xl text-primary font-bold text-[11px] flex items-center gap-1.5 animate-pulse shadow-sm">
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>在此处放置以插入环节</span>
+                                  </div>
+                                ) : (
+                                  <div className="relative">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowInsertNodeMenu(showInsertNodeMenu === node.id ? null : node.id);
+                                      }}
+                                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-xs transition-all z-20 cursor-pointer ${
+                                        showInsertNodeMenu === node.id
+                                          ? 'bg-red-500 text-white rotate-45 scale-110'
+                                          : 'bg-slate-200 text-slate-500 hover:bg-primary hover:text-white'
+                                      }`}
+                                      title="点击插入环节，或将左侧组件拖拽至此处"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <AnimatePresence>
+                                      {showInsertNodeMenu === node.id && (
+                                        <motion.div
+                                          initial={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
+                                          animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }}
+                                          exit={{ opacity: 0, scale: 0.95, y: -10, x: '-50%' }}
+                                          className="absolute top-8 left-1/2 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-30 flex gap-1 min-w-[300px]"
+                                        >
+                                          {[
+                                            { type: 'approval' as const, icon: ShieldCheck, label: '审批' },
+                                            { type: 'gateway_exclusive' as const, icon: GitBranch, label: '排它网关' },
+                                            { type: 'gateway_parallel' as const, icon: GitFork, label: '并行网关' },
+                                            { type: 'notification' as const, icon: Mail, label: '通知' },
+                                            { type: 'cc' as const, icon: Share2, label: '抄送' },
+                                          ].map((item) => (
+                                            <button
+                                              key={item.type}
+                                              type="button"
+                                              onClick={() => {
+                                                insertWorkflowNode(node.id, item.type);
+                                                setShowInsertNodeMenu(null);
+                                              }}
+                                              className="flex-1 flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-primary/10 transition-all group/item cursor-pointer"
+                                            >
+                                              <div className="p-1.5 bg-slate-100 rounded-md group-hover/item:bg-primary/20 transition-colors">
+                                                <item.icon className="w-3.5 h-3.5 text-slate-600 group-hover/item:text-primary" />
+                                              </div>
+                                              <span className="text-[9px] font-bold whitespace-nowrap text-slate-700">{item.label}</span>
+                                            </button>
+                                          ))}
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </div>
+                                )}
+
+                                <div className="w-0.5 h-5 bg-slate-300"></div>
+                                {/* 节点之间的连线箭头方向 */}
+                                <div 
+                                  className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[7px] border-t-slate-400 -mt-px shrink-0" 
+                                  title="流转方向"
+                                />
                               </div>
                             )}
                           </React.Fragment>
                         );
                       })}
+
+                      {/* Bottom Append Drop Zone */}
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'copy';
+                          setDragOverInsertIndex(workflowNodes.length);
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverInsertIndex === workflowNodes.length) setDragOverInsertIndex(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const type = (e.dataTransfer.getData('workflow/node-type') || draggingNodeType) as WorkflowNode['type'];
+                          if (type) {
+                            addWorkflowNode(type);
+                            showNotification(`已拖拽追加新环节`);
+                          }
+                          setDraggingNodeType(null);
+                          setDragOverInsertIndex(null);
+                        }}
+                        onClick={() => addWorkflowNode('approval')}
+                        className={`mt-6 w-full max-w-sm rounded-2xl border-2 border-dashed p-4 flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          dragOverInsertIndex === workflowNodes.length || draggingNodeType
+                            ? 'border-primary bg-primary/10 text-primary scale-102 shadow-sm'
+                            : 'border-slate-300/80 bg-white/60 text-slate-400 hover:border-primary/60 hover:text-slate-600'
+                        }`}
+                        title="可拖拽左侧流程组件到此处追加环节，或点击快速添加审批环节"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          <span className="text-xs font-bold">
+                            {draggingNodeType ? '释放以在此追加新环节' : '拖拽左侧流程组件到此处追加环节'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5">支持从左侧组件库直接拖入，或点击添加</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -12275,6 +12616,74 @@ const ArchitectApp: React.FC = () => {
                         onChange={(e) => updateWorkflowNode(selectedNode.id, { description: e.target.value })}
                         className="w-full bg-surface border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium min-h-[100px]"
                       />
+                  </div>
+
+                  {/* 流转连线配置 */}
+                  <div className="space-y-3 pt-4 border-t border-outline-variant">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-outline uppercase tracking-widest flex items-center gap-1.5">
+                        <Share2 className="w-3 h-3 text-primary" />
+                        <span>流转连线配置 ({(selectedNode.targets || []).length})</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConnectingFromNodeId(selectedNode.id);
+                          showNotification(`已进入连线模式，请在左侧画布点击目标节点`);
+                        }}
+                        className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" /> 点击连线
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {(selectedNode.targets && selectedNode.targets.length > 0) ? (
+                        selectedNode.targets.map(targetId => {
+                          const tNode = workflowNodes.find(n => n.id === targetId);
+                          return (
+                            <div key={targetId} className="flex items-center justify-between p-2.5 bg-surface border border-outline-variant rounded-xl text-xs font-bold">
+                              <div className="flex items-center gap-2 text-slate-700 truncate">
+                                <ArrowRight className="w-3.5 h-3.5 text-primary shrink-0" />
+                                <span className="truncate">{tNode ? tNode.label : targetId}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeNodeConnection(selectedNode.id, targetId)}
+                                className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 cursor-pointer"
+                                title="断开连线"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-[10px] text-on-surface-variant py-1">暂无额外自定义流转连线（按顺序向下流转）</p>
+                      )}
+
+                      {/* Quick target add selector */}
+                      <div className="pt-1.5">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleConnectNodes(selectedNode.id, e.target.value);
+                            }
+                          }}
+                          className="w-full bg-surface border border-outline-variant rounded-xl px-3 py-2 text-xs font-bold cursor-pointer"
+                        >
+                          <option value="">+ 选择目标节点建立流转连线...</option>
+                          {workflowNodes
+                            .filter(n => n.id !== selectedNode.id && !(selectedNode.targets || []).includes(n.id))
+                            .map(n => (
+                              <option key={n.id} value={n.id}>
+                                ➔ 连线至: {n.label}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
                   {selectedNode.type === 'approval' && (
@@ -14235,9 +14644,9 @@ const ArchitectApp: React.FC = () => {
       </ConsoleLayout>
     );
   }
-  if (view === 'team' || view === 'org' || view === 'roles' || view === 'users') {
-    const currentTab: 'org' | 'users' | 'roles' = view === 'org' ? 'org' : view === 'roles' ? 'roles' : view === 'users' ? 'users' : teamInitialTab;
-    const viewTitle = view === 'org' ? '组织管理' : view === 'roles' ? '角色管理' : view === 'users' ? '用户管理' : '组织与权限管理';
+  if (view === 'team' || view === 'org' || view === 'roles' || view === 'users' || view === 'menus') {
+    const currentTab: 'org' | 'users' | 'roles' | 'menus' = view === 'org' ? 'org' : view === 'roles' ? 'roles' : view === 'users' ? 'users' : view === 'menus' ? 'menus' : teamInitialTab;
+    const viewTitle = view === 'org' ? '组织管理' : view === 'roles' ? '角色管理' : view === 'users' ? '用户管理' : view === 'menus' ? '菜单管理' : '组织与权限管理';
     return (
       <ConsoleLayout 
         viewToken={view} 

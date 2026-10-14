@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Building2, Users, ShieldCheck, ChevronLeft, SlidersHorizontal, CheckCircle2, X } from 'lucide-react';
+import { Building2, Users, ShieldCheck, ChevronLeft, SlidersHorizontal, CheckCircle2, X, Menu as MenuIcon } from 'lucide-react';
 import { OrgNode, TeamMember, RoleDefinition } from './types';
 import { OrgManagement } from './OrgManagement';
 import { UserManagement } from './UserManagement';
 import { RoleManagement } from './RoleManagement';
+import { MenuManagement } from './MenuManagement';
 
 export interface SystemSettingsViewProps {
   teamMembers: TeamMember[];
@@ -18,8 +19,8 @@ export interface SystemSettingsViewProps {
   onDeleteDept: (id: string) => void;
   savedForms: Array<{ id: string; name: string; category?: string }>;
   formFieldsMap: Record<string, Array<{ id: string; label: string; type: string }>>;
-  initialTab?: 'org' | 'users' | 'roles';
-  onTabChange?: (tab: 'org' | 'users' | 'roles') => void;
+  initialTab?: 'org' | 'users' | 'roles' | 'menus';
+  onTabChange?: (tab: 'org' | 'users' | 'roles' | 'menus') => void;
   showNotification?: (text: string) => void;
 }
 
@@ -40,7 +41,7 @@ export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({
   onTabChange,
   showNotification
 }) => {
-  const [activeTab, setActiveTab] = useState<'org' | 'users' | 'roles'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'org' | 'users' | 'roles' | 'menus'>(initialTab);
 
   React.useEffect(() => {
     if (initialTab) {
@@ -69,12 +70,13 @@ export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({
 
           <div className="h-4 w-px bg-slate-200 mx-1" />
 
-          {/* Sub-menu Tabs (组织管理 -> 用户管理 -> 角色管理) */}
+          {/* Sub-menu Tabs (组织管理 -> 用户管理 -> 角色管理 -> 菜单管理) */}
           <div className="flex items-center gap-1">
             {[
               { id: 'org', label: '组织管理', icon: Building2, count: orgData.length },
               { id: 'users', label: '用户管理', icon: Users, count: teamMembers.length },
               { id: 'roles', label: '角色管理', icon: ShieldCheck, count: roles.length },
+              { id: 'menus', label: '菜单管理', icon: MenuIcon, count: 28 },
             ].map(tab => {
               const isActive = activeTab === tab.id;
               return (
@@ -144,6 +146,12 @@ export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({
             formFieldsMap={formFieldsMap}
             teamMembers={teamMembers}
             onUpdateMember={onUpdateMember}
+            showNotification={showNotification}
+          />
+        )}
+
+        {activeTab === 'menus' && (
+          <MenuManagement
             showNotification={showNotification}
           />
         )}

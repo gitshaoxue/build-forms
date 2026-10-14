@@ -96,3 +96,24 @@ export interface RoleDefinition {
   fieldPermissions: Record<string, Record<string, FieldColumnAccess>>; // 列权限：formId -> fieldId -> access
 }
 
+export interface MenuItem {
+  id: string;
+  name: string;
+  code: string;
+  parentId: string | null;
+  parentName?: string;
+  type: 'catalog' | 'menu' | 'button'; // 目录, 菜单, 按钮
+  icon?: string;
+  path?: string;
+  component?: string;
+  permission?: string;
+  sortOrder: number;
+  status: 'Active' | 'Disabled';
+  appSystem?: string;
+  visible?: boolean;
+  isExternal?: boolean;
+  createdAt: string;
+  remarks?: string;
+  children?: MenuItem[];
+}
+
